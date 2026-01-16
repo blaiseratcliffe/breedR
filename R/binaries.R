@@ -171,7 +171,7 @@ breedR_online <- function() {
 #' Default repository for PROGSF90 binaries
 breedr_progsf90_repo <- function() {
   if (!nchar(url <- Sys.getenv("PROGSF90_URL"))) {
-    url <- "http://famuvie.github.io/breedR/bin"
+    url <- "https://famuvie.github.io/breedR/bin"
   }
   return(url)
 }
