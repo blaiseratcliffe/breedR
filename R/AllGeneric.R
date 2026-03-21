@@ -24,14 +24,48 @@ get_param <- function(x) UseMethod('get_param')
 effect_type <- function(x) UseMethod('effect_type')
 
 #' Render a progsf90 effect
-#' 
+#'
 #' Translates breedR effects into progsf90 parameters and data.
-#' 
+#'
 #' This is an internal function. Not exported.
-#' 
+#'
+#' Each method must return a named list. The required fields depend on the
+#' effect type:
+#'
+#' \strong{All effects} (fixed and random):
+#' \describe{
+#'   \item{pos}{integer vector. Column position(s) of this effect in the
+#'     PROGSF90 data file. Length 1 for simple effects, length \code{n} for
+#'     effects with \code{n} virtual sub-effects (e.g. competition has 8).}
+#'   \item{levels}{integer vector, same length as \code{pos}. Number of levels
+#'     for each virtual effect. For nested sub-effects, all but the last are 0.}
+#'   \item{type}{character vector, same length as \code{pos}. Either
+#'     \code{"cross"} (factor/indicator) or \code{"cov"} (covariate).}
+#'   \item{nest}{integer vector or \code{NA}. Column positions of the nesting
+#'     variables. \code{NA} when there is no nesting.}
+#'   \item{data}{numeric matrix. The data columns to write to the PROGSF90
+#'     data file for this effect.}
+#' }
+#'
+#' \strong{Random effects} (diagonal, generic, ar, splines, blocks, genetic,
+#' competition, pec) additionally require:
+#' \describe{
+#'   \item{model}{character string. The PROGSF90 model name, e.g.
+#'     \code{"diagonal"}, \code{"add_animal"}, \code{"user_file"},
+#'     \code{"user_file_i"}.}
+#'   \item{file_name}{character string. Base name for the auxiliary structure
+#'     file, or \code{""} when no file is needed (e.g. diagonal).}
+#'   \item{file}{data.frame, matrix, or \code{""}. The content of the auxiliary
+#'     file (pedigree data.frame, structure matrix in triplet format, etc.).}
+#' }
+#'
+#' \strong{Effect groups} (\code{effect_group}) additionally include:
+#' \describe{
+#'   \item{var}{numeric matrix. The initial (co)variance matrix for the group.}
+#' }
+#'
 #' @param x object of class breedr_modelframe, effect_group or breedr_effect.
-#' @return The number of levels and type for each 'virtual' effect; the progsf90
-#'   model-name as appropriate; a file name and its content.
+#' @return A named list as described above.
 #' @family renderpf90
 renderpf90 <- function(x) UseMethod('renderpf90')
 

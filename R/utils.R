@@ -39,23 +39,6 @@ breedR.get.element <-  function(name, alist) {
 }
 
 
-# Fit some model
-breedR.result <- function(...) {
-  dat <- breedR::globulus
-  res  <- suppressMessages(
-    remlf90(fixed  = phe_X ~ gg,
-            genetic = list(model = 'add_animal', 
-                           pedigree = dat[,1:3],
-                           id = 'self'), 
-            spatial = list(model = 'AR', 
-                           coord = dat[, c('x','y')],
-                           rho = c(.85, .8)), 
-            data = dat,
-            ...)
-  )
-  return(res)
-}
-
 # Geometric mean
 gmean <- function(x) {
   logx <- log(x)
@@ -71,15 +54,12 @@ gmean <- function(x) {
 
 # BreedR binaries
 # 
-# Return the default path to breedR binaries checking its existence.
+# Return the default path to breedR binaries.
+# All BLUPF90+ binaries are stored flat in the 'bin' directory.
 breedR.bin.builtin  <- function()
 {
-
-  if( breedR.os.type() != 'else') {
-    bindir <- 'bin'
-    if (breedR.os('windows'))
-      bindir <- file.path(bindir, paste0(breedR.os.32or64bit(), 'bit'))
-    return(file.path(system.file(package='breedR'), bindir))
+  if (breedR.os.type() != 'else') {
+    return(file.path(system.file(package = 'breedR'), 'bin'))
   } else {
     stop("Unknown platform")
   }

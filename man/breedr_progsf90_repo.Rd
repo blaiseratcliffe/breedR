@@ -2,10 +2,11 @@
 % Please edit documentation in R/binaries.R
 \name{breedr_progsf90_repo}
 \alias{breedr_progsf90_repo}
-\title{Default repository for PROGSF90 binaries}
+\title{Default repository for BLUPF90 binaries}
 \usage{
 breedr_progsf90_repo()
 }
 \description{
-Default repository for PROGSF90 binaries
+Returns the UGA download URL. Can be overridden with the
+PROGSF90_URL environment variable.
 }

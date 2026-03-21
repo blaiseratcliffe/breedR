@@ -1,0 +1,16 @@
+# BLUPF90 binaries (downloaded at install time)
+inst/bin/
+
+# R session files
+.Rhistory
+.RData
+.Rproj.user
+
+# Editor/tool configs
+.*_config/
+.cursor*
+.vscode/
+*.local.md
+
+# Downloaded docs
+blupf90_all.pdf

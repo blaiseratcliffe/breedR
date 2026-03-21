@@ -70,8 +70,8 @@ fill_holes <- function(x, label) {
     
     # Check whether there is a "regular spacing"
     # defined as the spacing between at least 60% of the individuals
-    if( !isTRUE(all.equal(diff(quantile(dif, probs = c(.1, .6))), 0,
-                          check.attributes = FALSE)) )
+    if( !isTRUE(all.equal(diff(quantile(dif, probs = REGULAR_GRID_QUANTILE_RANGE)),
+                          0, check.attributes = FALSE)) )
       stop("This does not seem to be a regular grid.\n",
            "The spacing between ", label, " should be the same for ",
            "at least the 60% of the cases.\n",
@@ -157,11 +157,12 @@ build_grid <- function (coordinates, autofill = TRUE) {
   pos.step <- vapply(pos, function(x) min(diff(x)), 1)
   
   # Map data coordinates with corresponding index of the Q matrix
-  matrix2vec <- function(x, nx = pos.length[1], ny = pos.length[2]) {
-    map <- matrix(1:(nx*ny), nx, ny)
-    return(apply(x, 1, function(y) map[y[1], y[2]]))
-  }
-  ord <- matrix2vec(sapply(coord, as.integer))
+  # Vectorized 2D-to-1D index conversion using column-major arithmetic,
+  # avoiding allocation of a full nx*ny matrix and row-wise apply() loop.
+  # For a 100x100 grid this eliminates a 10,000-element matrix allocation
+  # and 10,000 R function calls, replacing them with a single vectorized op.
+  coord_int <- sapply(coord, as.integer)
+  ord <- coord_int[, 1] + (coord_int[, 2] - 1L) * pos.length[1]
   
   ## Check for regular grid
   # if regular, n_x \times n_y ~ n_obs

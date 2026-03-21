@@ -1,0 +1,179 @@
+# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
+
+name: R-CMD-check
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions: read-all
+
+jobs:
+  R-CMD-check:
+    runs-on: ${{ matrix.config.os }}
+    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {os: ubuntu-latest, r: 'release'}
+          - {os: ubuntu-latest, r: 'oldrel-1'}
+          - {os: windows-latest, r: 'release'}
+          - {os: windows-latest, r: 'oldrel-1'}
+          - {os: macos-latest, r: 'release'}
+          - {os: macos-latest, r: 'oldrel-1'}
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+      _R_CHECK_FORCE_SUGGESTS_: false
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.config.r }}
+          use-public-rspm: true
+
+      # INLA is optional — install from its own repo, but don't fail if unavailable
+      - name: Install INLA (optional)
+        shell: Rscript {0}
+        run: |
+          tryCatch(
+            install.packages(
+              "INLA",
+              repos = c(
+                INLA = "https://inla.r-inla-download.org/R/testing",
+                CRAN = "https://cloud.r-project.org"
+              )
+            ),
+            error = function(e) message("INLA install failed (optional): ", e$message)
+          )
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      # Download and install PROGSF90 binaries into inst/bin/
+      # Linux tar.gz extracts flat (remlf90, airemlf90)
+      # macOS tar.gz extracts flat (remlf90, airemlf90)
+      # Windows zip extracts with subdirs (32bit/, 64bit/ each with .exe and .dll)
+      - name: Install PROGSF90 binaries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p inst/bin
+          curl -fsSL "https://famuvie.github.io/breedR/bin/linux/64bit/pf90.tar.gz" -o pf90.tar.gz
+          tar xzf pf90.tar.gz -C inst/bin
+          chmod +x inst/bin/remlf90 inst/bin/airemlf90
+          ls -la inst/bin/
+          rm -f pf90.tar.gz
+
+      - name: Install PROGSF90 binaries (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p inst/bin
+          curl -fsSL "https://famuvie.github.io/breedR/bin/mac/pf90.tar.gz" -o pf90.tar.gz
+          tar xzf pf90.tar.gz -C inst/bin
+          chmod +x inst/bin/remlf90 inst/bin/airemlf90
+          ls -la inst/bin/
+          rm -f pf90.tar.gz
+
+      - name: Install PROGSF90 binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p inst/bin
+          curl -fsSL "https://famuvie.github.io/breedR/bin/windows/pf90.zip" -o pf90.zip
+          unzip -o pf90.zip -d inst/bin
+          ls -laR inst/bin/
+          rm -f pf90.zip
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          args: 'c("--no-vignettes","--no-build-vignettes","--no-manual")'
+          build_args: 'c("--no-build-vignettes")'
+          error-on: '"error"'
+          upload-snapshots: true
+        env:
+          _R_CHECK_CRAN_INCOMING_: false
+
+      - name: Upload check results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.config.os }}-r${{ matrix.config.r }}-results
+          path: check
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    name: Integration tests (ubuntu-latest, release)
+    needs: R-CMD-check
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      _R_CHECK_FORCE_SUGGESTS_: false
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Install INLA (optional)
+        shell: Rscript {0}
+        run: |
+          tryCatch(
+            install.packages(
+              "INLA",
+              repos = c(
+                INLA = "https://inla.r-inla-download.org/R/testing",
+                CRAN = "https://cloud.r-project.org"
+              )
+            ),
+            error = function(e) message("INLA install failed (optional): ", e$message)
+          )
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::spam
+
+      - name: Install PROGSF90 binaries
+        run: |
+          mkdir -p inst/bin
+          curl -fsSL "https://famuvie.github.io/breedR/bin/linux/64bit/pf90.tar.gz" -o pf90.tar.gz
+          tar xzf pf90.tar.gz -C inst/bin
+          chmod +x inst/bin/remlf90 inst/bin/airemlf90
+          ls -la inst/bin/
+          rm -f pf90.tar.gz
+
+      - name: Install breedR from source
+        shell: Rscript {0}
+        run: |
+          install.packages(".", repos = NULL, type = "source", INSTALL_opts = "--no-multiarch")
+
+      - name: Run integration tests
+        shell: Rscript {0}
+        run: |
+          library(testthat)
+          library(breedR)
+          test_dir("tests/integration", reporter = "summary", stop_on_failure = TRUE)
+
+      - name: Upload integration test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            tests/integration/*.Rout
+            tests/integration/*.Rout.fail

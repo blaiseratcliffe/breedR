@@ -2,7 +2,7 @@
 % Please edit documentation in R/binaries.R
 \name{install_progsf90}
 \alias{install_progsf90}
-\title{Install PROGSF90 binary dependencies}
+\title{Install BLUPF90+ binary}
 \usage{
 install_progsf90(
   url = breedr_progsf90_repo(),
@@ -13,12 +13,12 @@ install_progsf90(
 )
 }
 \arguments{
-\item{url}{where to download the files from}
+\item{url}{base URL for the BLUPF90 program repository.}
 
-\item{dest}{destination directory for the binaries. Default is 'bin' under
+\item{dest}{destination directory for the binary. Default is 'bin' under
 the current installation dir.}
 
-\item{platform}{what version of the binaries are to be installed. Default is
+\item{platform}{what version of the binary to install. Default is
 current platform.}
 
 \item{arch}{Either "32" or "64". Coerced to string if necessary.}
@@ -26,8 +26,5 @@ current platform.}
 \item{quiet}{logical. Whether not to display messages.}
 }
 \description{
-Copy the  binaries for the specified platform into a directory.
-}
-\details{
-The url can be either of form http:// or of form file:// for local urls.
+Downloads the BLUPF90+ unified binary from the UGA BLUPF90 distribution.
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/binaries.R
 \name{check_progsf90}
 \alias{check_progsf90}
-\title{Checks installation of PROGSF90 binaries}
+\title{Checks installation of BLUPF90+ binary}
 \usage{
 check_progsf90(
   path = breedR.getOption("breedR.bin"),
@@ -20,11 +20,6 @@ current platform.}
 \item{quiet}{if TRUE, it won't ask whether to install missing binaries.}
 }
 \description{
-Checks whether the binary dependencies are installed in the right directory. 
-If not, allows calling the installer
-}
-\details{
-This function does not check whether the binaries are for the right platform 
-or architecture. It only checks the presence of files with the expected 
-names.
+Checks whether the BLUPF90+ binary is installed in the right directory.
+If not, allows calling the installer.
 }

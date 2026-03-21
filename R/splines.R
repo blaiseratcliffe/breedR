@@ -39,25 +39,17 @@ breedr_splines <- function(coordinates,
   
   
   strategy <- match.arg(strategy)
-  
-  strategy <- match.arg(strategy)
-  
+
   ## Coordinates of knots in each dimension
   if (strategy == 'uniformgrid') {
     knots <- distribute_knots_uniformgrid(coordinates, n.knots, autofill)
   }
-  
+
   B <- bispline_incidence(knots, coordinates, degree + 1, sparse)
-  
-  # The sparse incidence matrix weights 3.5 less than the non-sparse version,
-  # but it takes longer processing time. Besides, the gmean computation it also
-  # takes way longer. And at the end, I need the dense incidence matrix anyway.
-  
+
   U1d <- lapply(vapply(knots, 'length', 0) - degree - 1, build.splines1d)
-  #   U1d <- lapply(sapply(knots, length) - degree - 1, build.splines1d.sparse)
   U <- kronecker(U1d[[1]], U1d[[2]])
-  
-  #   browser()
+
   # Scaling so that the characteristic marginal variance equals 1/sigma^2
   # Sorbye and Rue (2014)
   sc <- suppressWarnings(
@@ -141,7 +133,8 @@ distribute_knots_uniformgrid <- function (coordinates, n.knots, autofill) {
   
   # Return row and column knots in a list
   # as the numbers might be different
-  knots <- mapply(add.knots, knots.inner, 3, obs.loc, SIMPLIFY = FALSE)
+  knots <- mapply(add.knots, knots.inner, SPLINE_BOUNDARY_KNOTS, obs.loc,
+                  SIMPLIFY = FALSE)
   
   # Include info about the strategy used as attributes
   ans <- structure(knots,
@@ -182,19 +175,6 @@ build.splines1d <- function(n, model = 'GreenSilverman2003') {
   temp <- diag(4, n)
   subdiag <- rbind(cbind(0, diag(1, n-1)), 0)
   return((temp + subdiag + t(subdiag))/6)
-}
-
-
-build.splines1d.sparse <- function(n, model = 'GreenSilverman2003') {
-  
-  # U matrix (Green & Silverman, 2003)
-  U <- Matrix::sparseMatrix(i = c(1:n, 1:(n-1)),
-                            j = c(1:n, 2:n),
-                            x = c(rep(4, n), rep(1, n-1))/6,
-                            dims = c(n, n),
-                            symmetric = TRUE)
-  
-  return(U)
 }
 
 #' Incidence Matrix of Bidimensional Splines

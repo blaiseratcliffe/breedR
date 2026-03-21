@@ -50,14 +50,48 @@ renderpf90(x)
 \item{weights}{logical. Whether there is an additional column of weights.}
 }
 \value{
-The number of levels and type for each 'virtual' effect; the progsf90
-  model-name as appropriate; a file name and its content.
+A named list as described above.
 }
 \description{
 Translates breedR effects into progsf90 parameters and data.
 }
 \details{
 This is an internal function. Not exported.
+
+Each method must return a named list. The required fields depend on the
+effect type:
+
+\strong{All effects} (fixed and random):
+\describe{
+  \item{pos}{integer vector. Column position(s) of this effect in the
+    PROGSF90 data file. Length 1 for simple effects, length \code{n} for
+    effects with \code{n} virtual sub-effects (e.g. competition has 8).}
+  \item{levels}{integer vector, same length as \code{pos}. Number of levels
+    for each virtual effect. For nested sub-effects, all but the last are 0.}
+  \item{type}{character vector, same length as \code{pos}. Either
+    \code{"cross"} (factor/indicator) or \code{"cov"} (covariate).}
+  \item{nest}{integer vector or \code{NA}. Column positions of the nesting
+    variables. \code{NA} when there is no nesting.}
+  \item{data}{numeric matrix. The data columns to write to the PROGSF90
+    data file for this effect.}
+}
+
+\strong{Random effects} (diagonal, generic, ar, splines, blocks, genetic,
+competition, pec) additionally require:
+\describe{
+  \item{model}{character string. The PROGSF90 model name, e.g.
+    \code{"diagonal"}, \code{"add_animal"}, \code{"user_file"},
+    \code{"user_file_i"}.}
+  \item{file_name}{character string. Base name for the auxiliary structure
+    file, or \code{""} when no file is needed (e.g. diagonal).}
+  \item{file}{data.frame, matrix, or \code{""}. The content of the auxiliary
+    file (pedigree data.frame, structure matrix in triplet format, etc.).}
+}
+
+\strong{Effect groups} (\code{effect_group}) additionally include:
+\describe{
+  \item{var}{numeric matrix. The initial (co)variance matrix for the group.}
+}
 
 For the \code{generic} class, all matrices are converted to plain 
   matrix-class, for exporting to files. The progsf90 model is either
@@ -67,16 +101,17 @@ For the \code{generic} class, all matrices are converted to plain
 For the \code{splines} class, everything reduces to a generic effect
   with a covariance matrix
 
-For the \code{blocks} class, everything reduces to a generic effect
-  with a covariance matrix
+For the \code{blocks} class, the rendering is identical to
+  \code{diagonal}: a single cross-classified factor with no structure file.
 
 For the \code{ar} class, everything reduces to a generic effect
   with a precision matrix
 }
 \section{Methods (by class)}{
 \itemize{
-\item \code{renderpf90(default)}: For unknown classes, just returns the object untouched
-with a warning.
+\item \code{renderpf90(default)}: For unknown classes, stops with an error listing the
+unsupported class. Failing early here prevents confusing downstream errors
+when progsf90() tries to access fields that don't exist on the raw object.
 
 \item \code{renderpf90(fixed)}: For fixed effects.
 
@@ -103,8 +138,7 @@ matrix.
 \item \code{renderpf90(splines)}: Compute the parameters of a progsf90 representation of
 a splines effect.
 
-\item \code{renderpf90(blocks)}: Compute the parameters of a progsf90 representation of
-a blocks effect.
+\item \code{renderpf90(blocks)}: Delegates to \code{renderpf90.diagonal}.
 
 \item \code{renderpf90(ar)}: Compute the parameters of a progsf90 representation of
 an AR effect.

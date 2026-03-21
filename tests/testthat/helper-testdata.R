@@ -1,6 +1,22 @@
 ## test data directory
 testdata <- system.file("testdata", package = "breedR")
 
+# Quick convenience function to fit a test model on globulus data
+breedR.result <- function(...) {
+  dat <- breedR::globulus
+  suppressMessages(
+    remlf90(fixed  = phe_X ~ gg,
+            genetic = list(model = 'add_animal',
+                           pedigree = dat[, 1:3],
+                           id = 'self'),
+            spatial = list(model = 'AR',
+                           coord = dat[, c('x', 'y')],
+                           rho = c(.85, .8)),
+            data = dat,
+            ...)
+  )
+}
+
 load_res <- function(key, dir = testdata) {
   fn <- paste0("res_", key, ".rds")
   readRDS(file.path(dir, fn))

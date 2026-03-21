@@ -10,12 +10,14 @@ remlf90(
   genetic = NULL,
   spatial = NULL,
   generic = NULL,
+  genomic = NULL,
   data,
   var.ini = NULL,
   method = c("ai", "em"),
   breedR.bin = breedR.getOption("breedR.bin"),
   progsf90.options = NULL,
   weights = NULL,
+  parallel = FALSE,
   debug = FALSE
 )
 }
@@ -33,9 +35,31 @@ additive genetic effect; see 'Details'.}
 \item{spatial}{if not \code{NULL}, a list with relevant parameters for a 
 spatial random effect; see 'Details'.}
 
-\item{generic}{if not \code{NULL}, a named list with an \code{incidence} 
-matrix and either a \code{covariance} or a \code{precision} matrix; see 
+\item{generic}{if not \code{NULL}, a named list with an \code{incidence}
+matrix and either a \code{covariance} or a \code{precision} matrix; see
 'Details'.}
+
+\item{genomic}{if not \code{NULL}, a list with genomic selection parameters
+for single-step GBLUP. Requires a \code{genetic} component. Elements:
+\describe{
+  \item{snp_file}{(required) path to genotype file in PREGSF90 format
+    (animal ID + fixed-width genotype string with 0/1/2/5)}
+  \item{map_file}{path to SNP map file (header: SNP_ID, CHR, POS)}
+  \item{whichG}{G matrix method: 1 = VanRaden 2008 (default), 2 = Amin
+    2007, 3 = Yang 2010}
+  \item{tunedG}{G scaling: 0 = none, 1 = diag=1, 2 = match A22 (default),
+    3 = mean(G)=mean(A22), 4 = Fst}
+  \item{AlphaBeta}{numeric(2). Blending weights for G and A22
+    (default c(0.95, 0.05))}
+  \item{minfreq}{MAF threshold (default 0.05)}
+  \item{callrate}{SNP call rate threshold (default 0.90)}
+  \item{callrateAnim}{animal call rate threshold (default 0.90)}
+  \item{verify_parentage}{0-3. Mendelian conflict handling (default 3)}
+  \item{saveG}{logical. Save G matrix to file (default FALSE)}
+  \item{saveA22}{logical. Save A22 matrix to file (default FALSE)}
+  \item{extra_options}{character vector of additional PREGSF90 OPTION
+    lines passed through directly}
+}}
 
 \item{data}{a data frame with variables and observations}
 
@@ -59,7 +83,11 @@ performed, handle with care.}
 
 \item{weights}{numeric. A vector of weights for the residual variance.}
 
-\item{debug}{logical. If \code{TRUE}, the input files for blupf90 programs 
+\item{parallel}{logical or integer. If \code{TRUE}, the AR rho grid search
+runs in parallel using all available cores. If an integer, uses that many
+cores. Requires the \code{parallel} package (default FALSE).}
+
+\item{debug}{logical. If \code{TRUE}, the input files for blupf90 programs
 and their output are shown, but results are not parsed.}
 }
 \value{
@@ -216,6 +244,16 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   and model, re-run EM-REML with a small starting value for the effect. If 
   the estimate does not change, it is likely that there is no variance. }
   
+  \subsection{Heterogeneous residual variances}{
+  BLUPF90+ supports heterogeneous residual variances modeled as a
+  log-linear function of covariates: var(e) = exp(a0 + a1*X1 + a2*X2).
+  Use the \code{\link{hetres_options}} helper to generate the correct
+  option strings. For example, to model residual variance as a function
+  of spatial coordinates x (col 4) and y (col 5):
+  \code{progsf90.options = hetres_options(covariate_cols = c(4, 5),
+  initial = c(log(10), 0.01, 0.01))}.
+  See \code{\link{hetres_options}} for details.}
+
   \subsection{Remote computing}{ If \code{breedR.bin = 'remote'}, the REML 
   program will be run remotely and the results will be automatically 
   transferred back automatically. While if \code{breedR.bin = 'submit'} the 

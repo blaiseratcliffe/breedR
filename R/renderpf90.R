@@ -1,11 +1,15 @@
-#' @describeIn renderpf90 For unknown classes, just returns the object untouched
-#'   with a warning.
+#' @describeIn renderpf90 For unknown classes, stops with an error listing the
+#'   unsupported class. Failing early here prevents confusing downstream errors
+#'   when progsf90() tries to access fields that don't exist on the raw object.
 #' @export
 renderpf90.default <- function(x) {
-  warning(paste('No method for',
-                paste(class(x), collapse = ', '),
-                'for renderpf90().'))
-  return(x)
+  stop('No renderpf90 method for class: ',
+       paste(class(x), collapse = ', '),
+       '. Supported effect types: fixed, diagonal, generic, ar, ',
+       'splines, blocks, effect_group, additive_genetic_animal, ',
+       'additive_genetic_competition, permanent_environmental_competition, ',
+       'matrix, breedr_modelframe.',
+       call. = FALSE)
 }
 
 
@@ -324,8 +328,7 @@ renderpf90.additive_genetic_competition <- function(x) {
   ## pedigree in data.frame format
   ped.dat <- as.data.frame(get_pedigree(x))
   
-  ## maximum number of competitors
-  n.comp <- 8
+  n.comp <- MAX_COMPETITORS
   
   ## dimension of the effect
   ef.dim <- nrow(ped.dat)
@@ -354,8 +357,7 @@ renderpf90.permanent_environmental_competition <- function(x) {
   ## incidence matrix
   mmx <- model.matrix(x)  
   
-  ## maximum number of competitors
-  n.comp <- 8
+  n.comp <- MAX_COMPETITORS
   
   ## dimension of the effect
   ef.dim <- ncol(mmx)
@@ -389,33 +391,12 @@ renderpf90.splines <- function(x) {
 
 
 
-#' @details For the \code{blocks} class, everything reduces to a generic effect
-#'   with a covariance matrix
-#' @describeIn renderpf90 Compute the parameters of a progsf90 representation of
-#'   a blocks effect.
+#' @details For the \code{blocks} class, the rendering is identical to
+#'   \code{diagonal}: a single cross-classified factor with no structure file.
+#' @describeIn renderpf90 Delegates to \code{renderpf90.diagonal}.
 #' @export
 renderpf90.blocks <- function(x) {
-  
-  ## Do not use model.matrix() as this can be a factor
-  mmx <- x$incidence.matrix
-  
-  ## general sparse matrix format: dgCMatrix
-  stopifnot(all(mmx@x == 1))
-  dp <- diff(mmx@p)
-  j <- rep(seq_along(dp),dp)
-  dat <- vector('integer', length = nrow(mmx))
-  dat[mmx@i + 1] <- j
-  
-  ans <- list(pos = 1,
-              levels = ncol(mmx),
-              type   = 'cross',
-              nest = NA,
-              model = 'diagonal',
-              file = '',
-              file_name = '',
-              data = as.matrix(dat))
-  
-  return(ans)
+  renderpf90.diagonal(x)
 }
 
 

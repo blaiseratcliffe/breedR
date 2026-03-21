@@ -1,14 +1,42 @@
-### Functions to download and install binary dependencies  ###
+### Functions to download and install BLUPF90 binary dependencies ###
 
-#' Checks installation of PROGSF90 binaries
-#' 
-#' Checks whether the binary dependencies are installed in the right directory. 
-#' If not, allows calling the installer
-#' 
-#' This function does not check whether the binaries are for the right platform 
-#' or architecture. It only checks the presence of files with the expected 
-#' names.
-#' 
+## UGA platform directory names for download URLs
+uga_platform_dir <- function(platform = breedR.os.type()) {
+  switch(platform,
+         windows = "Windows",
+         linux = "Linux",
+         mac = "Mac_OSX",
+         stop("Unsupported platform: ", platform))
+}
+
+#' Default repository for BLUPF90 binaries
+#'
+#' Returns the UGA download URL. Can be overridden with the
+#' PROGSF90_URL environment variable.
+breedr_progsf90_repo <- function() {
+  if (!nchar(url <- Sys.getenv("PROGSF90_URL"))) {
+    url <- "https://nce.ads.uga.edu/html/projects/programs"
+  }
+  return(url)
+}
+
+
+## Return the expected filename of the BLUPF90+ binary by platform.
+## BLUPF90+ replaces the standalone remlf90 and airemlf90 programs.
+progsf90_files <- function(os = breedR.os.type(),
+                           compressed = FALSE) {
+  if (compressed) return(character(0))  # no longer using archives
+  ans <- "blupf90+"
+  if (os == 'windows') ans <- paste0(ans, ".exe")
+  return(ans)
+}
+
+
+#' Checks installation of BLUPF90+ binary
+#'
+#' Checks whether the BLUPF90+ binary is installed in the right directory.
+#' If not, allows calling the installer.
+#'
 #' @param path directory to check for the presence of binaries. Default is
 #'   defined in the package options, and it depends on the platform.
 #' @param platform Either "linux", "windows" or "mac". Default is
@@ -18,15 +46,14 @@
 check_progsf90 <- function(path = breedR.getOption('breedR.bin'),
                            platform = breedR.os.type(),
                            quiet = !interactive() ) {
-  
-  bin.list <- progsf90_files(platform,
-                             compressed = FALSE)
-  
+
+  bin.list <- progsf90_files(platform, compressed = FALSE)
+
   check <- FALSE
   if (file.exists(path)) {
     check <- all(bin.list %in% list.files(path))
   }
-  
+
   if (!check && !quiet) {
     message('Binary dependencies missing.',
             '\nWould you like to install them?\t')
@@ -35,19 +62,18 @@ check_progsf90 <- function(path = breedR.getOption('breedR.bin'),
       check <- check_progsf90(path, platform, quiet)
     }
   }
-  
+
   return(invisible(check))
 }
 
-#' Install PROGSF90 binary dependencies
-#' 
-#' Copy the  binaries for the specified platform into a directory.
-#' 
-#' The url can be either of form http:// or of form file:// for local urls.
-#' @param url where to download the files from
-#' @param dest destination directory for the binaries. Default is 'bin' under
+#' Install BLUPF90+ binary
+#'
+#' Downloads the BLUPF90+ unified binary from the UGA BLUPF90 distribution.
+#'
+#' @param url base URL for the BLUPF90 program repository.
+#' @param dest destination directory for the binary. Default is 'bin' under
 #'   the current installation dir.
-#' @param platform what version of the binaries are to be installed. Default is
+#' @param platform what version of the binary to install. Default is
 #'   current platform.
 #' @param arch Either "32" or "64". Coerced to string if necessary.
 #' @param quiet logical. Whether not to display messages.
@@ -59,188 +85,180 @@ install_progsf90 <- function(
   arch     = breedR.os.32or64bit(),
   quiet    = !interactive()
 ) {
-  
-  ## Check connection if URL is http:
-  if (grepl("^http\\:", url) && !breedR_online()) return(FALSE)
-  
-  ## Binary files for this platform (packed and compressed)
-  execs <- progsf90_files(platform,
-                          compressed = TRUE)
-  
-  ## full URL for this platform and architecture
-  f.url <- file.path(url, platform)
-  if (platform == 'linux') # further specify arch
-    f.url <- file.path(f.url, paste0(arch, 'bit'))
-  
-  ## Retrieve each exec to dest
-  res <- sapply(execs, 
-                retrieve_bin, 
-                url = f.url,
-                dest = dest)
-  
+  execs <- progsf90_files(platform, compressed = FALSE)
+  f.url <- file.path(url, uga_platform_dir(platform), paste0(arch, "bit"))
+
+  res <- vapply(execs, function(f) {
+    retrieve_bin_direct(f, url = f.url, dest = dest)
+  }, logical(1))
+
   return(res)
 }
 
 
-## Download files creating dest dir if necessary
-## uncompresses if necessary
-## and set execution permissions
-retrieve_bin <- function(f, url, dest) {
+### Auxiliary program binary management ###
+
+## Return expected filenames for auxiliary programs by platform.
+## Includes genomic programs (preGSf90, postGSf90) and data
+## preparation (renumf90).
+genomic_program_files <- function(os = breedR.os.type()) {
+  progs <- c("preGSf90", "postGSf90", "predf90",
+             "validationf90", "predictf90", "seekparentf90",
+             "gibbsf90+", "postgibbsf90", "qcf90")
+  if (os == 'windows') progs <- paste0(progs, ".exe")
+  return(progs)
+}
+
+## Return expected filename for renumf90 by platform
+renumf90_file <- function(os = breedR.os.type()) {
+  f <- "renumf90"
+  if (os == 'windows') f <- paste0(f, ".exe")
+  return(f)
+}
+
+#' Check installation of renumf90 binary
+#'
+#' @param path directory to check for the binary.
+#' @param platform Either "linux", "windows" or "mac".
+#' @param quiet if TRUE, won't prompt to install.
+#' @return Logical (invisible).
+#' @export
+check_renumf90 <- function(
+  path = breedR.getOption('breedR.bin'),
+  platform = breedR.os.type(),
+  quiet = !interactive()
+) {
+  bin <- renumf90_file(platform)
+  check <- file.exists(path) && bin %in% list.files(path)
+
+  if (!check && !quiet) {
+    message('renumf90 binary missing.\nWould you like to install it?\t')
+    if (utils::menu(c("Yes", "No")) == 1) {
+      install_renumf90(dest = path, platform = platform)
+      check <- check_renumf90(path, platform, quiet = TRUE)
+    }
+  }
+  return(invisible(check))
+}
+
+#' Install renumf90 binary
+#'
+#' Downloads renumf90 from the UGA BLUPF90 distribution.
+#'
+#' @param url base URL for the BLUPF90 program repository.
+#' @param dest destination directory.
+#' @param platform Either "linux", "windows", or "mac".
+#' @param arch Either "32" or "64".
+#' @param quiet logical.
+#' @return Logical indicating success.
+#' @export
+install_renumf90 <- function(
+  url      = breedr_progsf90_repo(),
+  dest     = breedR.getOption('breedR.bin'),
+  platform = breedR.os.type(),
+  arch     = breedR.os.32or64bit(),
+  quiet    = !interactive()
+) {
+  f <- renumf90_file(platform)
+  f.url <- file.path(url, uga_platform_dir(platform), paste0(arch, "bit"))
+  retrieve_bin_direct(f, url = f.url, dest = dest)
+}
+
+#' Check installation of genomic program binaries
+#'
+#' Checks whether preGSf90 and postGSf90 are installed. If not, allows
+#' calling the installer. These programs are optional and only needed for
+#' genomic selection (ssGBLUP) and genome-wide association (ssGWAS).
+#'
+#' @param path directory to check for the presence of binaries. Default is
+#'   defined in the package options.
+#' @param platform Either "linux", "windows" or "mac". Default is
+#'   current platform.
+#' @param quiet if TRUE, it won't ask whether to install missing binaries.
+#' @return Logical (invisible) indicating whether binaries are present.
+#' @export
+check_genomic_programs <- function(
+  path = breedR.getOption('breedR.bin'),
+  platform = breedR.os.type(),
+  quiet = !interactive()
+) {
+  bin.list <- genomic_program_files(platform)
+
+  check <- FALSE
+  if (file.exists(path)) {
+    check <- all(bin.list %in% list.files(path))
+  }
+
+  if (!check && !quiet) {
+    message('Genomic program binaries (preGSf90, postGSf90) missing.',
+            '\nWould you like to install them?\t')
+    if (utils::menu(c("Yes", "No")) == 1) {
+      install_genomic_programs(dest = path, platform = platform)
+      check <- check_genomic_programs(path, platform, quiet = TRUE)
+    }
+  }
+
+  return(invisible(check))
+}
+
+#' Install genomic program binaries
+#'
+#' Downloads preGSf90 and postGSf90 from the UGA BLUPF90 distribution.
+#'
+#' @param url base URL for the BLUPF90 program repository.
+#' @param dest destination directory for the binaries.
+#' @param platform Either "linux", "windows", or "mac". Default is
+#'   current platform.
+#' @param arch Either "32" or "64".
+#' @param quiet logical. Whether not to display messages.
+#' @return Named logical vector indicating success for each program.
+#' @export
+install_genomic_programs <- function(
+  url      = breedr_progsf90_repo(),
+  dest     = breedR.getOption('breedR.bin'),
+  platform = breedR.os.type(),
+  arch     = breedR.os.32or64bit(),
+  quiet    = !interactive()
+) {
+  execs <- genomic_program_files(platform)
+  f.url <- file.path(url, uga_platform_dir(platform), paste0(arch, "bit"))
+
+  res <- vapply(execs, function(f) {
+    retrieve_bin_direct(f, url = f.url, dest = dest)
+  }, logical(1))
+
+  return(res)
+}
+
+
+## Download a raw executable (no decompression needed).
+## Sets execute permissions on Unix platforms.
+retrieve_bin_direct <- function(f, url, dest) {
   destf <- file.path(dest, f)
-  # dir.exists() does not exist in windows
-  # file.exists checks for dirs as well
   if (!file.exists(dest))
     dir.create(dest, recursive = TRUE)
-  
-  if(grepl("^file://", url)) {
-    url <- gsub("^file://", "", url)
-    out <- tryCatch(
-      file.copy(file.path(url, f), destf, overwrite = TRUE)
-    )
-    
-  } else {
-    out <- tryCatch(
-      utils::download.file(
-        url = file.path(url, f),
-        destfile = destf,
-        mode = 'wb',
-        cacheOK = FALSE,
-        quiet = TRUE
-      ),
-      error = identity
-    )
-  }
-  
-  ## Connection issues
+
+  out <- tryCatch(
+    utils::download.file(
+      url = file.path(url, f),
+      destfile = destf,
+      mode = 'wb',
+      cacheOK = FALSE,
+      quiet = TRUE
+    ),
+    error = identity
+  )
+
   if (inherits(out, 'error')) {
-    warning("download failed")
-    unlink(destf)  # remove residual 0-byte file
+    warning("Download of ", f, " failed: ", conditionMessage(out))
+    unlink(destf)
     return(FALSE)
   }
 
-  ## unzip with internal method gave problems with R CMD check
-  ## under linux. However, I want to use internal in windows.
-  ## Hence, borrow solution from devtools.
-  path <- decompress(destf, dest)
-  unlink(destf)
-  
-  # Whatch out! coercion as in path > 0
-  # fails when R CMD check and path starts with a slash
-  return(nchar(path)>0)
-}
-
-
-## Return the file names of the breedR dependencies on PROGSF90 binaries 
-## according to the platform
-progsf90_files <- function(os = breedR.os.type(),
-                           compressed = FALSE) {
-  
-  if (compressed) {
-    ans <- paste('pf90',
-                 switch(os,
-                        windows = 'zip',
-                        'tar.gz'),
-                 sep = '.')
-  } else {
-    ans <- c("remlf90", "airemlf90")
-    if (os == 'windows') {
-      ## Ship also required dll
-      ans <- c(paste0(ans, ".exe"),
-               "libiomp5md.dll")
-    }
+  # Set execute permissions on Unix
+  if (.Platform$OS.type == "unix") {
+    Sys.chmod(destf, mode = "0755")
   }
-  
-  return(ans)
-}
 
-
-# Check whether there is internet connection
-breedR_online <- function() {
-  tf <- tempfile()
-  !inherits(
-    suppressWarnings(
-      try(utils::download.file(
-        'http://famuvie.github.io/breedR/', tf, quiet = TRUE
-      ),
-      silent = TRUE)
-    ), 
-    'try-error'
-  )
-}
-
-#' Default repository for PROGSF90 binaries
-breedr_progsf90_repo <- function() {
-  if (!nchar(url <- Sys.getenv("PROGSF90_URL"))) {
-    url <- "https://famuvie.github.io/breedR/bin"
-  }
-  return(url)
-}
-
-
-## Borrowed from devtools
-decompress <- function(src, target) {
-  stopifnot(file.exists(src))
-  
-  if (grepl("\\.zip$", src)) {
-    my_unzip(src, target)
-    outdir <- getrootdir(as.vector(utils::unzip(src, list = TRUE)$Name))
-    
-  } else if (grepl("\\.tar$", src)) {
-    utils::untar(src, exdir = target)
-    outdir <- getrootdir(utils::untar(src, list = TRUE))
-    
-  } else if (grepl("\\.(tar\\.gz|tgz)$", src)) {
-    utils::untar(src, exdir = target)
-    outdir <- getrootdir(utils::untar(src, list = TRUE))
-    
-  } else if (grepl("\\.(tar\\.bz2|tbz)$", src)) {
-    utils::untar(src, exdir = target)
-    outdir <- getrootdir(utils::untar(src, list = TRUE))
-    
-  } else {
-    ext <- gsub("^[^.]*\\.", "", src)
-    stop("Don't know how to decompress files with extension ", ext,
-         call. = FALSE)
-  }
-  
-  file.path(target, outdir)
-}
-
-
-# Given a list of files, returns the root (the topmost folder)
-# getrootdir(c("path/to/file", "path/to/other/thing")) returns "path/to"
-getrootdir <- function(file_list) {
-  slashes <- nchar(gsub("[^/]", "", file_list))
-  if (min(slashes) == 0) return("")
-  
-  getdir(file_list[which.min(slashes)])
-}
-
-# Returns everything before the last slash in a filename
-# getdir("path/to/file") returns "path/to"
-# getdir("path/to/dir/") returns "path/to/dir"
-getdir <- function(path)  sub("/[^/]*$", "", path)
-
-
-## Adapted from devtools
-my_unzip <- function(src, target, unzip = getOption("unzip")) {
-  if (unzip == "internal") {
-    return(utils::unzip(src, exdir = target))
-  }
-  
-  args <- paste(
-    "-oq", shQuote(src),
-    "-d", shQuote(target)
-  )
-
-  ## The following is a stripped version of devtools::system_check
-  ## I can't use other functions from breedR, because install.libs.R
-  ## sources only os.R and binaries.R
-  full <- paste(shQuote(unzip), " ", paste(args, collapse = " "), sep = "")
-  result <- suppressWarnings(system(full, intern = TRUE, ignore.stderr = TRUE))
-  if(is.null(status <- attr(result, "status"))) status <- 0
-  if (!identical(as.character(status), "0")) {
-    stop("Command failed (", status, ")", call. = FALSE)
-  }
-  invisible(TRUE)
+  return(file.exists(destf) && file.info(destf)$size > 0)
 }

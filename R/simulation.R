@@ -142,9 +142,11 @@ breedR.sample.phenotype <- function(fixed = NULL,
     components$rnd <- as.data.frame(lapply(random,
                                            make.random.single,
                                            N = Nfull))
-    phenotype <- phenotype + apply(sapply(components$rnd,
-                                          function(x) as.numeric(levels(x))[x]),
-                                   1, sum)
+    # Use rowSums() instead of apply(..., 1, sum) to avoid per-row
+    # R function call overhead. rowSums() is implemented in C and is
+    # significantly faster for large sample sizes.
+    phenotype <- phenotype + rowSums(sapply(components$rnd,
+                                           function(x) as.numeric(levels(x))[x]))
   }
   
   # Spatial
@@ -258,9 +260,10 @@ breedR.sample.phenotype <- function(fixed = NULL,
       
     }
     # Include in the phenotype the corresponding components
+    # Use rowSums() instead of apply(..., 1, sum) for C-level row
+    # summation, avoiding per-row R function call overhead.
     phenotype <- phenotype +
-      apply(as.matrix(components[,names(components) %in% c('BV', 'BV1', 'wnc', 'wnp')]),
-            1, sum)
+      rowSums(as.matrix(components[,names(components) %in% c('BV', 'BV1', 'wnc', 'wnp')]))
 
   } else genetic$Nparents = 0
 

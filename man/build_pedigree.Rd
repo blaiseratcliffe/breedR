@@ -13,9 +13,9 @@ build_pedigree(x, self = x[[1]], sire = x[[2]], dam = x[[3]], data)
 \item{x}{if given, a vector of length 3 with indices or names of columns in 
 \code{data} corresponding to \code{self}, \code{sire} and \code{dam} codes}
 
-\item{self}{index or column name in \code{data} with codes of sires}
+\item{self}{index or column name in \code{data} with codes of individuals}
 
-\item{sire}{index or column name in \code{data} with codes of individuals}
+\item{sire}{index or column name in \code{data} with codes of sires}
 
 \item{dam}{index or column name in \code{data} with codes of dams}
 

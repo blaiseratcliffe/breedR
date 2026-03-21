@@ -11,9 +11,30 @@
 #'   additive genetic effect; see 'Details'.
 #' @param spatial if not \code{NULL}, a list with relevant parameters for a 
 #'   spatial random effect; see 'Details'.
-#' @param generic if not \code{NULL}, a named list with an \code{incidence} 
-#'   matrix and either a \code{covariance} or a \code{precision} matrix; see 
+#' @param generic if not \code{NULL}, a named list with an \code{incidence}
+#'   matrix and either a \code{covariance} or a \code{precision} matrix; see
 #'   'Details'.
+#' @param genomic if not \code{NULL}, a list with genomic selection parameters
+#'   for single-step GBLUP. Requires a \code{genetic} component. Elements:
+#'   \describe{
+#'     \item{snp_file}{(required) path to genotype file in PREGSF90 format
+#'       (animal ID + fixed-width genotype string with 0/1/2/5)}
+#'     \item{map_file}{path to SNP map file (header: SNP_ID, CHR, POS)}
+#'     \item{whichG}{G matrix method: 1 = VanRaden 2008 (default), 2 = Amin
+#'       2007, 3 = Yang 2010}
+#'     \item{tunedG}{G scaling: 0 = none, 1 = diag=1, 2 = match A22 (default),
+#'       3 = mean(G)=mean(A22), 4 = Fst}
+#'     \item{AlphaBeta}{numeric(2). Blending weights for G and A22
+#'       (default c(0.95, 0.05))}
+#'     \item{minfreq}{MAF threshold (default 0.05)}
+#'     \item{callrate}{SNP call rate threshold (default 0.90)}
+#'     \item{callrateAnim}{animal call rate threshold (default 0.90)}
+#'     \item{verify_parentage}{0-3. Mendelian conflict handling (default 3)}
+#'     \item{saveG}{logical. Save G matrix to file (default FALSE)}
+#'     \item{saveA22}{logical. Save A22 matrix to file (default FALSE)}
+#'     \item{extra_options}{character vector of additional PREGSF90 OPTION
+#'       lines passed through directly}
+#'   }
 #' @param data a data frame with variables and observations
 #' @param var.ini if not \code{NULL}, a named list with one item for each random
 #'   component in the model. See 'Details'.
@@ -30,7 +51,10 @@
 #'    Option \code{sol se} is passed always and cannot be removed. No checks are
 #'   performed, handle with care.
 #' @param weights numeric. A vector of weights for the residual variance.
-#' @param debug logical. If \code{TRUE}, the input files for blupf90 programs 
+#' @param parallel logical or integer. If \code{TRUE}, the AR rho grid search
+#'   runs in parallel using all available cores. If an integer, uses that many
+#'   cores. Requires the \code{parallel} package (default FALSE).
+#' @param debug logical. If \code{TRUE}, the input files for blupf90 programs
 #'   and their output are shown, but results are not parsed.
 #'   
 #' @details If either \code{genetic} or \code{spatial} are not \code{NULL}, the 
@@ -179,6 +203,16 @@
 #'   and model, re-run EM-REML with a small starting value for the effect. If 
 #'   the estimate does not change, it is likely that there is no variance. }
 #'   
+#'   \subsection{Heterogeneous residual variances}{
+#'   BLUPF90+ supports heterogeneous residual variances modeled as a
+#'   log-linear function of covariates: var(e) = exp(a0 + a1*X1 + a2*X2).
+#'   Use the \code{\link{hetres_options}} helper to generate the correct
+#'   option strings. For example, to model residual variance as a function
+#'   of spatial coordinates x (col 4) and y (col 5):
+#'   \code{progsf90.options = hetres_options(covariate_cols = c(4, 5),
+#'   initial = c(log(10), 0.01, 0.01))}.
+#'   See \code{\link{hetres_options}} for details.}
+#'
 #'   \subsection{Remote computing}{ If \code{breedR.bin = 'remote'}, the REML 
 #'   program will be run remotely and the results will be automatically 
 #'   transferred back automatically. While if \code{breedR.bin = 'submit'} the 
@@ -292,17 +326,19 @@
 #' 
 #' @export
 #' @importFrom stats terms model.response logLik runif
-remlf90 <- function(fixed, 
+remlf90 <- function(fixed,
                     random = NULL,
                     genetic = NULL,
                     spatial = NULL,
                     generic = NULL,
-                    data, 
+                    genomic = NULL,
+                    data,
                     var.ini = NULL,
                     method = c('ai', 'em'),
                     breedR.bin = breedR.getOption("breedR.bin"),
                     progsf90.options = NULL,
                     weights = NULL,
+                    parallel = FALSE,
                     debug = FALSE) {
   
   ## Assumptions:
@@ -386,28 +422,241 @@ remlf90 <- function(fixed,
     # If AR model without rho specified
     # we need to fit it with several fixed rho's
     # and return the most likely
-    # TODO: It would be nice if we didn't need to recompute Q each time
     if( spatial$model == 'AR' ) {
-      
+
       if (!is.null(nrow(spatial$rho))) {
         ## grid case
-        ## Results conditional on rho
-        eval.rho <- function(rho, mc, envir) {
-          mc$spatial$rho <- rho
-          suppressMessages(eval(mc, envir = envir))   # Avoid multiple redundant messages
-          # about initial variances.
+        ## Each rho combination is independent — fit with tryCatch so one
+        ## failure doesn't kill the entire search.
+        n_rho <- nrow(spatial$rho)
+
+        # Determine number of cores for parallel execution
+        n_cores <- 1L
+        if (!identical(parallel, FALSE)) {
+          if (isTRUE(parallel)) {
+            n_cores <- max(1L,
+              parallel::detectCores(logical = FALSE) - 1L)
+          } else if (is.numeric(parallel) && parallel >= 2) {
+            n_cores <- as.integer(parallel)
+          }
+          n_cores <- min(n_cores, n_rho)
         }
-        #         test <- eval.rho(mc, c(.5, .5))
-        ans.rho <- apply(spatial$rho, 1, eval.rho, mc, envir = parent.frame())
-        # Interpolate results
-        loglik.rho <- transform(spatial$rho,
-                                loglik = suppressWarnings(sapply(ans.rho, logLik)))
-        rho.idx <- which.max(loglik.rho$loglik)
-        ans <- ans.rho[[rho.idx]]
-        
+
+        if (n_cores > 1L && requireNamespace("parallel", quietly = TRUE)) {
+          ## Parallel grid search (works on all platforms including Windows).
+          ##
+          ## Strategy:
+          ##   1. Run each rho through the full R pipeline sequentially
+          ##      (including binary) — but copy the generated files to
+          ##      separate directories before the next rho overwrites them
+          ##   2. Run BLUPF90+ binaries in parallel via parLapply
+          ##      (workers only call system2(), no R packages needed)
+          ##   3. Extract log-likelihoods from parallel binary output
+          ##   4. Full fit of winning rho for complete R result
+          ##
+          ## The sequential file generation (Step 1) is dominated by the
+          ## binary execution time. However, Step 1 also produces the
+          ## correct files. We skip Step 1's binary results and re-run
+          ## only the binaries in parallel in Step 2.
+          ##
+          ## Optimization: run Step 1 with each rho to get the files,
+          ## but actually we only need the PARAMETER files, not the
+          ## solutions. So we use eval(mc) which runs the binary too.
+          ## Net cost: 16 sequential binary runs + 16/n_cores parallel
+          ## binary runs + 1 final. This is WORSE unless we can skip
+          ## the binary in Step 1.
+          ##
+          ## Better optimization: since all rhos share the same data,
+          ## pedigree, and fixed effects, run the first rho fully to get
+          ## the base files, then for subsequent rhos only regenerate
+          ## the precision matrix file (which is the only thing that
+          ## changes with rho).
+          message("AR grid search: ", n_rho, " combinations on ",
+                  n_cores, " cores")
+
+          caller_env <- parent.frame()
+          blupf90_bin <- file.path(breedR.bin,
+                                    progsf90_files(breedR.os.type()))
+
+          # Run the first rho fully to establish the base model files
+          mc_first <- mc
+          mc_first$spatial$rho <- as.numeric(spatial$rho[1, ])
+          mc_first$parallel <- FALSE
+          first_result <- tryCatch(
+            suppressMessages(eval(mc_first, envir = caller_env)),
+            error = function(e) NULL)
+
+          # Copy base files from tempdir to each rho-specific directory
+          base_files <- list.files(tempdir(), full.names = TRUE)
+          base_files <- base_files[!file.info(base_files)$isdir]
+
+          rho_dirs <- character(n_rho)
+          rho_valid <- logical(n_rho)
+
+          for (i in seq_len(n_rho)) {
+            rd <- file.path(tempdir(), paste0("rho_", i))
+            dir.create(rd, showWarnings = FALSE, recursive = TRUE)
+            rho_dirs[i] <- rd
+
+            # Copy all base files
+            file.copy(base_files, rd, overwrite = TRUE)
+
+            # Now regenerate ONLY the AR precision matrix for this rho
+            rho_i <- as.numeric(spatial$rho[i, ])
+            tryCatch({
+              ar_obj <- breedr_ar(
+                coordinates = spatial$coordinates,
+                rho = rho_i,
+                autofill = spatial$autofill)
+              # Write the updated precision matrix file
+              ar_pf90 <- renderpf90(ar_obj)
+              sm <- as.triplet(vcov(ar_obj))
+              utils::write.table(sm, file = file.path(rd, "ar_spatial"),
+                row.names = FALSE, col.names = FALSE, na = "0")
+              rho_valid[i] <- TRUE
+            }, error = function(e) {
+              rho_valid[i] <<- FALSE
+            })
+          }
+
+          n_valid <- sum(rho_valid)
+          if (n_valid == 0)
+            stop("Could not generate files for any rho.", call. = FALSE)
+
+          # Run BLUPF90+ binaries in parallel.
+          # Workers only call system2() — no R packages needed.
+          cl <- parallel::makeCluster(min(n_cores, n_valid))
+          # Guarantee cluster cleanup even if parLapply fails
+          on.exit(parallel::stopCluster(cl), add = TRUE)
+
+          binary_results <- tryCatch(
+            parallel::parLapply(
+              cl, rho_dirs[rho_valid], function(rho_dir) {
+                bin_name <- basename(blupf90_bin)
+                bin_local <- file.path(rho_dir, bin_name)
+                file.copy(blupf90_bin, bin_local, overwrite = TRUE)
+                cwd <- setwd(rho_dir)
+                on.exit({
+                  setwd(cwd)
+                  unlink(bin_local)
+                })
+                system2(file.path(".", bin_name), input = "parameters",
+                        stdout = TRUE, stderr = TRUE)
+              }),
+            error = function(e) {
+              warning("Parallel binary execution failed: ",
+                      conditionMessage(e),
+                      ". Falling back to sequential.", call. = FALSE)
+              NULL
+            }
+          )
+
+          parallel::stopCluster(cl)
+          on.exit(NULL)  # remove the on.exit since we stopped manually
+
+          # If parallel failed, fall back to sequential
+          if (is.null(binary_results)) {
+            caller_env <- parent.frame()
+            eval.rho.fallback <- function(rho, mc, envir) {
+              mc$spatial$rho <- rho
+              mc$parallel <- FALSE
+              tryCatch(suppressMessages(eval(mc, envir = envir)),
+                       error = function(e) NULL)
+            }
+            ans.rho <- lapply(seq_len(n_rho), function(i) {
+              eval.rho.fallback(as.numeric(spatial$rho[i, ]),
+                                mc, envir = caller_env)
+            })
+            succeeded <- !vapply(ans.rho, is.null, logical(1))
+            if (!any(succeeded))
+              stop("All rho combinations failed.", call. = FALSE)
+            loglik.rho <- transform(spatial$rho,
+              loglik = suppressWarnings(vapply(ans.rho, function(x) {
+                if (is.null(x)) NA_real_ else as.numeric(logLik(x))
+              }, numeric(1))))
+            rho.idx <- which.max(loglik.rho$loglik)
+            ans <- ans.rho[[rho.idx]]
+            unlink(rho_dirs, recursive = TRUE)
+            ans$rho <- loglik.rho
+            return(ans)
+          }
+
+          # Extract log-likelihoods from binary output.
+          # BLUPF90+ format: "-2logL =     5619.45354541821     : AIC = ..."
+          loglik_vals <- rep(NA_real_, n_rho)
+          j <- 1
+          for (i in seq_len(n_rho)) {
+            if (!rho_valid[i]) next
+            bout <- binary_results[[j]]; j <- j + 1
+            if (!is.null(attr(bout, 'status'))) next
+            ll_line <- grep("^-2logL", bout, value = TRUE)
+            if (length(ll_line) > 0) {
+              ll_str <- tail(ll_line, 1)
+              # Extract the number after "-2logL ="
+              ll_match <- regmatches(ll_str,
+                regexpr("-2logL\\s*=\\s*([0-9.]+)", ll_str))
+              if (length(ll_match) > 0) {
+                ll_num <- as.numeric(sub(".*=\\s*", "", ll_match))
+                if (!is.na(ll_num)) loglik_vals[i] <- -ll_num / 2
+              }
+            }
+          }
+
+          # Clean up temp directories
+          unlink(rho_dirs, recursive = TRUE)
+
+          loglik.rho <- transform(spatial$rho, loglik = loglik_vals)
+
+          if (all(is.na(loglik_vals)))
+            stop("All rho combinations failed during AR grid search. ",
+                 "Try specifying rho manually.", call. = FALSE)
+
+          # Full fit of winning rho for complete R result object
+          rho.idx <- which.max(loglik.rho$loglik)
+          mc_best <- mc
+          mc_best$spatial$rho <- as.numeric(spatial$rho[rho.idx, ])
+          mc_best$parallel <- FALSE
+          ans <- suppressMessages(eval(mc_best, envir = caller_env))
+
+        } else {
+          ## Sequential grid search (default)
+          eval.rho <- function(rho, mc, envir) {
+            mc$spatial$rho <- rho
+            tryCatch(
+              suppressMessages(eval(mc, envir = envir)),
+              error = function(e) {
+                warning("rho = (", paste(round(rho, 4), collapse = ", "),
+                        ") failed: ", conditionMessage(e), call. = FALSE)
+                NULL
+              }
+            )
+          }
+          caller_env <- parent.frame()
+          ans.rho <- lapply(seq_len(n_rho), function(i) {
+            eval.rho(as.numeric(spatial$rho[i, ]), mc, envir = caller_env)
+          })
+
+          # Check that at least one combination succeeded
+          succeeded <- !vapply(ans.rho, is.null, logical(1))
+          if (!any(succeeded)) {
+            stop("All rho combinations failed during AR grid search. ",
+                 "Try specifying rho manually.", call. = FALSE)
+          }
+
+          loglik.rho <- transform(spatial$rho,
+                                  loglik = suppressWarnings(
+                                    vapply(ans.rho, function(x) {
+                                      if (is.null(x)) NA_real_
+                                      else as.numeric(logLik(x))
+                                    }, numeric(1))
+                                  ))
+          rho.idx <- which.max(loglik.rho$loglik)
+          ans <- ans.rho[[rho.idx]]
+        }
+
         # Include estimation information
         ans$rho <- loglik.rho
-        
+
         return(ans)
       }
     }
@@ -420,8 +669,16 @@ remlf90 <- function(fixed,
     generic <- check_generic(generic, response = responsem)
   }
   
+  ## Genomic specification
+  if (!is.null(genomic)) {
+    if (is.null(genetic))
+      stop("'genomic' requires a 'genetic' component (e.g. add_animal model).",
+           call. = FALSE)
+    genomic <- check_genomic(genomic)
+  }
+
   ## Initial variances specification
-  ## We check even the NULL case, where the function returns the 
+  ## We check even the NULL case, where the function returns the
   ## default initial variances for all random effects + residuals
   var.ini <- check_var.ini(var.ini, random, responsem)
   
@@ -454,25 +711,44 @@ remlf90 <- function(fixed,
   # TODO: Memory efficiency. At this point there are three copies of the 
   # dataset. One in data, one in mf (only needed variables)
   # and yet one more in pf90. This is a potential problem with large datasets.
+  ## Build genomic OPTION lines if genomic analysis requested
+  genomic_opts <- if (!is.null(genomic)) build_genomic_options(genomic) else NULL
+
+  # Build the progsf90 object.
+  # BLUPF90+ uses OPTION keywords to select between AI-REML and EM-REML.
+  # PREGSF90 and BLUPF90+ need different OPTION sets:
+  # - PREGSF90 needs SNP_file, QC options, G matrix options
+  # - BLUPF90+ needs sol se, method VCE, heritability, readGimA22i
+  method_opts <- 'method VCE'
+  if (method == 'em') method_opts <- c(method_opts, 'EM-REML')
+
   pf90 <- progsf90(mf,
                    weights = weights,
                    effects,
-                   opt = union('sol se', progsf90.options),
+                   opt = union(c('sol se', method_opts), progsf90.options),
                    res.var.ini = var.ini$residuals)
-  
+
   if (!is.null(genetic) && method == 'ai') {
     ## Compute default heritability if possible
-    ## add and additional PROGSF90 OPTION
     trait_names <- colnames(model.response(mf))  # NULL for 1 trait
-    pf90$parameter$options <- 
-      c(pf90$parameter$options, 
+    pf90$parameter$options <-
+      c(pf90$parameter$options,
         pf90_default_heritability(pf90$parameter$rangroup, trait_names))
   }
-  
+
   # Temporary dir
   tmpdir <- tempdir()
-  
-  # Write progsf90 files
+
+  ## --- Genomic pre-processing with PREGSF90 ---
+  pregs_out <- NULL
+  if (!is.null(genomic)) {
+    pipeline <- run_pregsf90_pipeline(genomic, genomic_opts, pf90,
+                                      tmpdir, breedR.bin)
+    pf90 <- pipeline$pf90
+    pregs_out <- pipeline$pregs_out
+  }
+
+  # Write the REML parameter file (or overwrite the PREGSF90 one)
   write.progsf90(pf90, dir = tmpdir)
 
   # Where to find the binaries
@@ -510,10 +786,8 @@ remlf90 <- function(fixed,
       breedR.cygwin.setPATH()
     }
     
-    breedR.call = switch(method,
-                         ai = file.path(remote.bin, 'airemlf90'),
-                         em = file.path(remote.bin, 'remlf90'))
-    
+    breedR.call = file.path(remote.bin, progsf90_files(breedR.os.type()))
+
     # Run either breedR.remote or breedR.submit
     if ( tolower(breedR.bin) == "remote" ) {
       ldir <- breedR.remote(submit.id, breedR.call)
@@ -527,9 +801,7 @@ remlf90 <- function(fixed,
       reml.out <- breedR.submit(submit.id, breedR.call)
     }
   } else {
-    breedR.call = switch(method,
-                         ai = file.path(breedR.bin, 'airemlf90'),
-                         em = file.path(breedR.bin, 'remlf90'))
+    breedR.call = file.path(breedR.bin, progsf90_files(breedR.os.type()))
 
     reml.out <- system2(breedR.call, 
                         input  = 'parameters',
@@ -539,8 +811,14 @@ remlf90 <- function(fixed,
   
   
   if( !debug ) {
-    # Error catching
-    stopifnot(is.null(attr(reml.out, 'status')))
+    # Check whether the PROGSF90 binary exited with an error.
+    # Include the tail of the REML output so users can see the actual diagnostic.
+    if (!is.null(attr(reml.out, 'status'))) {
+      stop("PROGSF90 binary failed with exit code ",
+           attr(reml.out, 'status'), ".\nOutput:\n",
+           paste(utils::tail(reml.out, 20), collapse = "\n"),
+           call. = FALSE)
+    }
 
     if( !submit ) {
       ## Save reml.out for recovery
@@ -558,11 +836,17 @@ remlf90 <- function(fixed,
     }
     
     class(ans) <- c('breedR', 'remlf90')  # Update to merMod in newest version of lme4 (?)
+
+    ## Attach genomic QC results if PREGSF90 was run
+    if (!is.null(genomic) && !is.null(pregs_out)) {
+      ans$genomic <- parse_pregsf90_qc(tmpdir)
+      ans$genomic$pregsf90_output <- pregs_out
+    }
   } else {
     file.show('parameters')
     ans = NULL
   }
-  
+
   return(ans)
 }
 
@@ -619,28 +903,6 @@ fitted.remlf90 <- function (object, ...) {
   ndim <- length(dim(comp.mat))
   eta <- rowSums(comp.mat, dims = ndim - 1)
 
-  
-  #   fixed.part <- model.matrix(object)$fixed %*%
-  #     unlist(sapply(fixef(object), function(x) x$value))
-  #   
-  #   mm.names <- names(model.matrix(object)$random)
-  #   stopifnot(setequal(mm.names, names(ranef(object))))
-  #   random.part <- 
-  #     mapply(silent.matmult.drop, model.matrix(object)$random, ranef(object)[mm.names],
-  #            SIMPLIFY = TRUE)
-  #   
-  #   if( !is.matrix(random.part) ) {
-  #     if( is.list(random.part) ) {
-  #       if( length(random.part) == 0 )
-  #         random.part <- NULL
-  #     } else {
-  #       stop('This should not happen.')
-  #     }
-  #   }
-  #   
-  #   # Linear Predictor / Fitted Values
-  #   eta <- rowSums(cbind(fixed.part, random.part))
-  
   return(eta)
 }
 

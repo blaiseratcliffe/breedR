@@ -19,8 +19,8 @@
 #' 
 #' @param x if given, a vector of length 3 with indices or names of columns in 
 #'   \code{data} corresponding to \code{self}, \code{sire} and \code{dam} codes
-#' @param self index or column name in \code{data} with codes of sires
-#' @param sire index or column name in \code{data} with codes of individuals
+#' @param self index or column name in \code{data} with codes of individuals
+#' @param sire index or column name in \code{data} with codes of sires
 #' @param dam index or column name in \code{data} with codes of dams
 #' @param data a dataframe or a list to take the individual codes from
 #' @return A well-formed 'pedigree'-class object. Possibly sorted and recoded.

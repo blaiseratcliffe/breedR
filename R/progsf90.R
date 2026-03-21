@@ -7,27 +7,12 @@
 build.effects <- function (mf, genetic, spatial, generic, var.ini) {
   
   # Build up effects data (position, levels, type)
-  
+
   # Model terms
   mt <- attr(mf, 'terms')
-  
-  #   # Number of traits
-  #   # (size of the response vector or matrix)
-  #   ntraits <- ncol(as.matrix(stats::model.response(mf)))
-  
-  #   # Position counter
-  #   pos = ntraits + 1
-  
+
   effects <- list()
-  
-  #   # Intercept term, if not precluded explicitly in the formula
-  # This is taken care of in build.mf()
-  #   if (attr(mt, 'intercept')) {
-  #     effects <- c(effects, list('(Intercept)' = fixed(rep(1, nrow(mf)))))
-  # #     effects <- list('(Intercept)'=list(pos = pos, levels=1L, type='cross'))
-  # #     pos <- pos + 1
-  #   }
-  
+
   ## Fixed effects
   effects <- c(effects,
                lapply(mf[, names(which(attr(mt, 'term.types') == 'fixed')),
@@ -180,13 +165,7 @@ progsf90 <- function (mf, weights, effects, opt = c("sol se"), res.var.ini = 10)
   
   ## names of random groups
   rangroup.idx <- which(eff_types == 'random')
-  
-#   random.effects.idx <- 
-#     unique(c(which(attr(mt, 'term.types') == 'random'),
-#       ## This only works temporarily. After completing the refactoring,
-#       ## I should use the method effect_type() for each element in effect.
-#       which(sapply(effects, inherits, 'effect_group'))))
-  
+
   # Number of traits
   # TODO: Should I pass only the response instead of the whole mf?
   # or maybe only ntraits?, or maybe include the response in effects?
@@ -319,20 +298,17 @@ write.progsf90 <- function (pf90, dir) {
   
   writeLines(as.character(parameter.file),
              con = file.path(dir, 'parameters'))
-  # file.show(parameter.file.path)
-  
+
   # Data file
   utils::write.table(pf90$data,
               file = file.path(dir, pf90$parameter$datafile),
               row.names = FALSE, col.names = FALSE)
-  # file.show(data.file.path)
 
   for(fl in pf90$files) {
     if(!is.null(fl)) {
     # NAs are written as 0
     utils::write.table(fl$file, file=file.path(dir, fl$fname),
-                row.names = FALSE, col.names = FALSE, na = "0")   
-    # file.show(file.path(dir, fl$fname))
+                row.names = FALSE, col.names = FALSE, na = "0")
     }
   }
 }
@@ -474,9 +450,7 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
                                              split='In round')[[1]][2],
                                     split='convergence=')[[1]])
   
-  # Maximum number of iterations
-  # (Hardcoded in REML and AIREML)
-  max.it <- 5000
+  max.it <- MAX_REML_ITERATIONS
 
   ## Dimension of random effects
   rangroup.sizes <- c(effect.size[effect.type == 'random'],
@@ -492,7 +466,7 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
     rownames(varcomp) <- c(names(effects)[effect.type == 'random'], 'Residual')
   } else {
     # Variance components
-    sd.label <- ifelse(TRUE, 'SE', 'S.D.')
+    sd.label <- 'SE'
     
     # There should be one variance for each random effect plus one resid. var.
     stopifnot(identical(length(varcomp.idx), sum(effect.type == 'random') + 1L))
