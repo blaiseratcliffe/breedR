@@ -233,8 +233,8 @@ parse_gibbs_results <- function(dir) {
     }
   }
 
-  # Gibbs samples (variance components per round)
-  # Format: 3 header lines (effect/trait mapping), then alternating pairs:
+  # Gibbs samples (variance components per round). Verified against gibbsf90+
+  # output: 3 header lines (effect/trait mapping), then alternating pairs of
   #   round_number  n_components
   #   value1  value2  ...  valueN
   samples_file <- file.path(dir, "gibbs_samples")
@@ -242,11 +242,12 @@ parse_gibbs_results <- function(dir) {
     raw_lines <- readLines(samples_file)
     if (length(raw_lines) > 3) {
       data_lines <- raw_lines[-(1:3)]  # skip 3 header lines
-      # Odd lines = "round_number  n_components"
-      # Even lines = "value1  value2  ..."
-      value_idx <- seq(2, length(data_lines), by = 2)
-      round_idx <- seq(1, length(data_lines), by = 2)
-      if (length(value_idx) > 0) {
+      # Whole (round, value) pairs only; drop a dangling unpaired final line so
+      # seq() cannot receive a wrong-signed 'by' when a single line remains.
+      n_pairs <- length(data_lines) %/% 2L
+      if (n_pairs > 0L) {
+        round_idx <- seq_len(n_pairs) * 2L - 1L
+        value_idx <- seq_len(n_pairs) * 2L
         result$samples <- tryCatch({
           con <- textConnection(data_lines[value_idx])
           mat <- as.matrix(utils::read.table(con))
