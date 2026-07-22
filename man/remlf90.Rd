@@ -264,6 +264,9 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   configure breedR for remote computing, and how to manage submitted jobs.}
 }
 \examples{
+\dontrun{
+## These examples fit models with the BLUPF90+ backend, which is
+## downloaded at install time and unavailable during R CMD check.
 ## Linear model
 n <- 1e3
 dat <- transform(data.frame(x = runif(n)),
@@ -297,7 +300,8 @@ res.am <- remlf90(fixed   = phe_X ~ sex,
                                  pedigree = ped,
                                  id       = 'self'),
                   data    = as.data.frame(m1))
-                  
+}
+
 \dontrun{
 ## Same model with specification of initial variances
 res.am <- remlf90(fixed   = phe_X ~ sex,

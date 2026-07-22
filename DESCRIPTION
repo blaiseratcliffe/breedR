@@ -1,7 +1,8 @@
 Package: breedR
 Type: Package
-Title: Statistical Methods for Forest Genetic Resources Analysts
-Version: 0.12-7
+Title: Statistical Methods for Forest Genetics, Animal Breeding and
+    Genomic Selection
+Version: 0.13-0
 Encoding: UTF-8
 Authors@R: c(person("Facundo", "Muñoz",
     role=c("aut", "cre"),
@@ -13,13 +14,16 @@ Authors@R: c(person("Facundo", "Muñoz",
     )
 Author: Facundo Muñoz with libraries by Ignacy Misztal
 Maintainer: Facundo Muñoz <facundo.munoz@cirad.fr>
-Description: Statistical tools to build predictive models
-    for the breeders community. It aims to assess the genetic value of
-    individuals under a number of situations, including spatial
-    autocorrelation, genetic/environment interaction and competition. It is
-    under active development as part of the Trees4Future project, particularly
-    developed having forest genetic trials in mind. But can be used for animals
-    or other situations as well.
+Description: Statistical tools to build predictive models for the breeders
+    community, assessing the genetic value of individuals under a number of
+    situations, including spatial autocorrelation, genetic/environment
+    interaction and competition. Linear mixed models are fitted by REML through
+    the BLUPF90+ backend. The package also provides single-step genomic BLUP
+    (ssGBLUP) and genome-wide association (ssGWAS) via PREGSF90/PostGSF90,
+    Bayesian variance-component estimation by Gibbs sampling (GIBBSF90+),
+    RENUMF90-based data preparation, and prediction validation. Originally
+    developed for forest genetic trials as part of the Trees4Future project,
+    but applicable to animal breeding and other contexts.
 License: GPL-3 | file LICENSE
 Depends:
     R (>= 3.1.2),
@@ -37,13 +41,13 @@ Imports:
     stats,
     utils
 Suggests:
-    doParallel,
-    fields,
     fmesher,
     GGally,
     grid,
+    INLA,
     MASS,
     msm,
+    parallel,
     plyr,
     dplyr,
     spam,
@@ -51,8 +55,8 @@ Suggests:
     knitr,
     rmarkdown,
     tidyr
-SystemRequirements: BLUPF90 programs will be downloaded from breedR website at
-    install time.
+SystemRequirements: BLUPF90 programs will be downloaded from the UGA
+    distribution (nce.ads.uga.edu) at install time.
 LazyLoad: yes
 LazyData: yes
 URL: https://github.com/famuvie/breedR

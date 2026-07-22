@@ -6,3 +6,4 @@
 ^R/development.R
 ^\.travis\.yml$
 ^appveyor\.yml$
+^\.github$

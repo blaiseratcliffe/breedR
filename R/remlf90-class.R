@@ -238,6 +238,9 @@
 #'   Research} \strong{32}(12):2201-2214}.
 #'   
 #' @examples
+#' \dontrun{
+#' ## These examples fit models with the BLUPF90+ backend, which is
+#' ## downloaded at install time and unavailable during R CMD check.
 #' ## Linear model
 #' n <- 1e3
 #' dat <- transform(data.frame(x = runif(n)),
@@ -271,7 +274,8 @@
 #'                                  pedigree = ped,
 #'                                  id       = 'self'),
 #'                   data    = as.data.frame(m1))
-#'                   
+#' }
+#'
 #' \dontrun{
 #' ## Same model with specification of initial variances
 #' res.am <- remlf90(fixed   = phe_X ~ sex,

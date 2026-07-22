@@ -2,7 +2,18 @@
 
 All notable changes from the original [famuvie/breedR](https://github.com/famuvie/breedR) repository.
 
-## [Unreleased] - 2026-03-20
+## [0.13.0] - 2026-03-20
+
+### Fixes and hardening
+
+- Corrected the PREGSF90 QC exclusion-reason labelling (code 0 no longer
+  misaligns the reasons), the multi-trait RENUMF90 residual-variance block,
+  and `get_structure()` for groups of three or more same-type effects.
+- Fractional SNP I/O now rejects values that break the fixed-width layout
+  instead of silently corrupting them; `read_snp_file()` validates row lengths.
+- Added download-integrity checks (scheme validation and executable magic-byte
+  verification) and validation of remote-sourced ids/PIDs in `breedR.qdel()`.
+- Assorted guards, a spurious pedigree recode warning, and dead-code cleanup.
 
 ### BLUPF90+ Migration
 
