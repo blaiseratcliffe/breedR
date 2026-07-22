@@ -202,11 +202,13 @@ test_that("qcf90 errors on invalid hwe", {
   expect_error(qcf90(snp, hwe = 1.5), "between 0 and 1")
 })
 
-## -- check_parentage default (Bug 6 fix) --
+## -- check_parentage flag mapping --
 
-test_that("check_parentage defaults to TRUE with pedigree", {
-  # When ped_file is provided and check_parentage is NULL,
-  # it should default to TRUE
-  args <- default_args(ped_file = "ped.txt", check_parentage = TRUE)
-  expect_true("--check-parentage" %in% args)
+test_that("check_parentage flag is emitted only when enabled", {
+  # The NULL -> !is.null(ped_file) default is resolved inside qcf90() (which
+  # runs the binary); here we pin the arg-builder contract it relies on.
+  expect_true("--check-parentage" %in%
+                default_args(check_parentage = TRUE))
+  expect_false("--check-parentage" %in%
+                 default_args(check_parentage = FALSE))
 })

@@ -148,19 +148,18 @@ jobs:
         with:
           extra-packages: any::testthat, any::spam
 
-      - name: Install PROGSF90 binaries
-        run: |
-          mkdir -p inst/bin
-          curl -fsSL "https://famuvie.github.io/breedR/bin/linux/64bit/pf90.tar.gz" -o pf90.tar.gz
-          tar xzf pf90.tar.gz -C inst/bin
-          chmod +x inst/bin/remlf90 inst/bin/airemlf90
-          ls -la inst/bin/
-          rm -f pf90.tar.gz
-
       - name: Install breedR from source
         shell: Rscript {0}
         run: |
           install.packages(".", repos = NULL, type = "source", INSTALL_opts = "--no-multiarch")
+
+      - name: Install BLUPF90 binaries (base + genomic + renumf90)
+        shell: Rscript {0}
+        run: |
+          breedR::install_progsf90(quiet = TRUE)
+          breedR::install_genomic_programs(quiet = TRUE)
+          breedR::install_renumf90(quiet = TRUE)
+          print(list.files(system.file("bin", package = "breedR")))
 
       - name: Run integration tests
         shell: Rscript {0}

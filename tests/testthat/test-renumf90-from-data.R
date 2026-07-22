@@ -63,20 +63,6 @@ test_that("warns on continuous random effect", {
   )
 })
 
-test_that("classify_col detects character as cross", {
-  dat <- data.frame(site = c("A", "B", "A"), y = 1:3)
-  # We can't call classify_col directly (it's inside renumf90_from_data),
-  # but we can verify the behavior indirectly: character columns should
-  # produce "cross alpha" effect lines
-})
-
-test_that("classify_col respects factors override", {
-  # numeric column listed in factors should be cross, not cov
-  dat <- data.frame(block = c(1, 2, 3), y = c(10, 12, 11))
-  # Can only verify this by checking the generated parameter file
-  # which requires running RENUMF90 — skip for unit test
-})
-
 test_that("errors on all-NA data after filtering", {
   dat <- data.frame(id = c(NA, NA, NA), y = c(10, 12, 11))
   ped <- data.frame(id = c(NA, NA, NA), sire = 0, dam = 0)
