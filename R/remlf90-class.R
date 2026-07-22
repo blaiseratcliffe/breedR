@@ -32,6 +32,9 @@
 #'     \item{verify_parentage}{0-3. Mendelian conflict handling (default 3)}
 #'     \item{saveG}{logical. Save G matrix to file (default FALSE)}
 #'     \item{saveA22}{logical. Save A22 matrix to file (default FALSE)}
+#'     \item{save_ginverse}{logical. Save the genomic G-inverse (default
+#'       FALSE). Required to run a later GWAS with \code{\link{postgsf90}};
+#'       set \code{TRUE} at fit time to make the model GWAS-ready}
 #'     \item{extra_options}{character vector of additional PREGSF90 OPTION
 #'       lines passed through directly}
 #'   }
@@ -844,6 +847,9 @@ remlf90 <- function(fixed,
     if (!is.null(genomic) && !is.null(pregs_out)) {
       ans$genomic <- parse_pregsf90_qc(tmpdir)
       ans$genomic$pregsf90_output <- pregs_out
+      # Record whether the plain G-inverse was saved, so postgsf90() can tell
+      # whether this fit is GWAS-ready.
+      ans$genomic$save_ginverse <- isTRUE(genomic$save_ginverse)
     }
   } else {
     file.show('parameters')

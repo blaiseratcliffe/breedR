@@ -65,3 +65,38 @@ test_that("qcf90 runs and returns clean-marker results", {
   expect_false(is.null(qc$clean_snp))    # a cleaned SNP file was produced
   expect_false(is.null(qc$log))
 })
+
+
+context("Genome-wide association (ssGWAS via postgsf90)")
+
+test_that("postgsf90 backsolves SNP effects on a save_ginverse fit", {
+  gw_snp <- file.path(tempdir(), "test_gwas_snp.txt")
+  write_snp_file(Gmat, ids = gen_ids, file = gw_snp)
+  file.remove(list.files(dirname(gw_snp), pattern = "_XrefID$",
+                         full.names = TRUE))
+  res.gwas <- suppressMessages(
+    remlf90(fixed = phe_X ~ gg,
+            genetic = list(model = 'add_animal',
+                           pedigree = globulus[, 1:3], id = 'self'),
+            genomic = list(snp_file = gw_snp, verify_parentage = 0L,
+                           save_ginverse = TRUE),
+            data = globulus))
+  gwas <- postgsf90(res.gwas, manhattan_plot = TRUE)
+  expect_equal(nrow(gwas$snp_sol), nsnp)     # one SNP solution per marker
+  expect_false(is.null(gwas$manhattan))
+  expect_equal(nrow(gwas$manhattan), nsnp)
+})
+
+test_that("postgsf90 refuses a fit made without save_ginverse", {
+  ng_snp <- file.path(tempdir(), "test_nogwas_snp.txt")
+  write_snp_file(Gmat, ids = gen_ids, file = ng_snp)
+  file.remove(list.files(dirname(ng_snp), pattern = "_XrefID$",
+                         full.names = TRUE))
+  res.ng <- suppressMessages(
+    remlf90(fixed = phe_X ~ gg,
+            genetic = list(model = 'add_animal',
+                           pedigree = globulus[, 1:3], id = 'self'),
+            genomic = list(snp_file = ng_snp, verify_parentage = 0L),
+            data = globulus))
+  expect_error(postgsf90(res.ng), "save_ginverse")
+})

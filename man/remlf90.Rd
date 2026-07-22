@@ -57,6 +57,9 @@ for single-step GBLUP. Requires a \code{genetic} component. Elements:
   \item{verify_parentage}{0-3. Mendelian conflict handling (default 3)}
   \item{saveG}{logical. Save G matrix to file (default FALSE)}
   \item{saveA22}{logical. Save A22 matrix to file (default FALSE)}
+  \item{save_ginverse}{logical. Save the genomic G-inverse (default
+    FALSE). Required to run a later GWAS with \code{\link{postgsf90}};
+    set \code{TRUE} at fit time to make the model GWAS-ready}
   \item{extra_options}{character vector of additional PREGSF90 OPTION
     lines passed through directly}
 }}

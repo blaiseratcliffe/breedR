@@ -17,8 +17,8 @@ postgsf90(
 )
 }
 \arguments{
-\item{model}{a fitted \code{remlf90} object with a \code{genomic}
-component (i.e., fitted with \code{genomic = list(...)}).}
+\item{model}{a fitted \code{remlf90} object fitted with
+\code{genomic = list(..., save_ginverse = TRUE)}.}
 
 \item{windows_variance}{integer. Number of adjacent SNPs per window for
 computing variance explained. If NULL (default), not computed.}
@@ -58,8 +58,14 @@ A list with components:
   }
 }
 \description{
-Extracts SNP effects and runs genome-wide association analysis on a
-fitted genomic model. Must be called in the same R session as the
-\code{\link{remlf90}} call that produced the model, since it reads
-files from \code{tempdir()}.
+Back-solves the genomic breeding values into SNP effects and runs a
+genome-wide association analysis on a fitted single-step model. Must be
+called in the same R session as the \code{\link{remlf90}} call that produced
+the model, since it reads files from \code{tempdir()}.
+}
+\details{
+The model must have been fitted with \code{save_ginverse = TRUE} in its
+\code{genomic} list; postGSf90 reads the saved genomic G-inverse. For
+chromosome/position information in the Manhattan output, supply a
+\code{map_file} at fit time.
 }

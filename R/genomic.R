@@ -59,6 +59,13 @@ check_genomic <- function(genomic) {
   if (is.null(genomic$saveG)) genomic$saveG <- FALSE
   if (is.null(genomic$saveA22)) genomic$saveA22 <- FALSE
 
+  # Save the plain genomic G-inverse so a later postgsf90() GWAS run can read
+  # it (postGSf90 needs the G-inverse via readGInverse, not the ssGBLUP
+  # correction matrix GimA22i). Opt-in, since the file is large.
+  if (is.null(genomic$save_ginverse)) genomic$save_ginverse <- FALSE
+  if (!is.logical(genomic$save_ginverse) || length(genomic$save_ginverse) != 1)
+    stop("'genomic$save_ginverse' must be a single logical.", call. = FALSE)
+
   # Extra raw options (character vector)
   if (!is.null(genomic$extra_options) && !is.character(genomic$extra_options))
     stop("'genomic$extra_options' must be a character vector.", call. = FALSE)
@@ -101,6 +108,8 @@ build_genomic_options <- function(genomic) {
   # Save options
   if (isTRUE(genomic$saveG)) opts <- c(opts, "saveG")
   if (isTRUE(genomic$saveA22)) opts <- c(opts, "saveA22")
+  # Save the plain G-inverse for a downstream postgsf90() GWAS run.
+  if (isTRUE(genomic$save_ginverse)) opts <- c(opts, "saveGInverse")
 
   # Save ASCII for inspection
   if (isTRUE(genomic$saveAscii)) opts <- c(opts, "saveAscii")
@@ -518,13 +527,18 @@ write_xref_from_pedigree <- function(snp_file, pedigree, tmpdir) {
 
 #' Run PostGSF90 for GWAS analysis
 #'
-#' Extracts SNP effects and runs genome-wide association analysis on a
-#' fitted genomic model. Must be called in the same R session as the
-#' \code{\link{remlf90}} call that produced the model, since it reads
-#' files from \code{tempdir()}.
+#' Back-solves the genomic breeding values into SNP effects and runs a
+#' genome-wide association analysis on a fitted single-step model. Must be
+#' called in the same R session as the \code{\link{remlf90}} call that produced
+#' the model, since it reads files from \code{tempdir()}.
 #'
-#' @param model a fitted \code{remlf90} object with a \code{genomic}
-#'   component (i.e., fitted with \code{genomic = list(...)}).
+#' The model must have been fitted with \code{save_ginverse = TRUE} in its
+#' \code{genomic} list; postGSf90 reads the saved genomic G-inverse. For
+#' chromosome/position information in the Manhattan output, supply a
+#' \code{map_file} at fit time.
+#'
+#' @param model a fitted \code{remlf90} object fitted with
+#'   \code{genomic = list(..., save_ginverse = TRUE)}.
 #' @param windows_variance integer. Number of adjacent SNPs per window for
 #'   computing variance explained. If NULL (default), not computed.
 #' @param windows_variance_mbp numeric. Window size in megabases. If NULL
@@ -569,6 +583,14 @@ postgsf90 <- function(model,
     stop("'model' must have been fitted with genomic = list(...).",
          call. = FALSE)
 
+  # postGSf90 back-solves SNP effects from the plain genomic G-inverse, which is
+  # only written when the fit was run with save_ginverse = TRUE. Without it the
+  # working directory has no G-inverse to read.
+  if (!isTRUE(model$genomic$save_ginverse))
+    stop("This model was not fitted for GWAS. Refit with ",
+         "genomic = list(..., save_ginverse = TRUE) before calling postgsf90().",
+         call. = FALSE)
+
   # Files should be in tempdir() from the remlf90() call
   tmpdir <- tempdir()
   if (!file.exists(file.path(tmpdir, "solutions")))
@@ -583,21 +605,34 @@ postgsf90 <- function(model,
     extra_options
   )
 
-  # Rebuild the parameter file with GWAS options. Keep the model spec AND the
-  # genomic OPTION lines postGSf90 needs (SNP_file, readGimA22i, map_file, ...):
-  # dropping readGimA22i makes postGSf90 try to rebuild G and fail ("inbreeding
-  # file not found"). Only the REML-solver options that do not apply to
-  # postGSf90 are removed.
-  # Rebuild the parameter file with GWAS options. Keep the model spec AND the
-  # genomic OPTION lines postGSf90 needs (SNP_file, readGimA22i, map_file, ...):
-  # blindly stripping them (as this once did) drops the G-matrix context and
-  # breaks GWAS. Only remove the REML-solver options that postGSf90 ignores.
+  # Rebuild the parameter file for GWAS. postGSf90 reads the plain G-inverse
+  # (readGInverse) that the fit saved via saveGInverse; it does NOT use the
+  # blupf90+ ssGBLUP option readGimA22i (that is the G-inverse minus A22-inverse
+  # correction, a different matrix). Keep SNP_file, translate the map to
+  # chrinfo, drop the REML-solver options and readGimA22i, then add the G-inverse
+  # read option and the GWAS options.
   par_lines <- readLines(file.path(tmpdir, "parameters"))
-  reml_only <- paste0("^OPTION (sol se|method|EM-REML|se_covar_function|",
-                      "maxrounds|conv_crit|use_yams)\\b")
-  kept_lines <- par_lines[!grepl(reml_only, par_lines)]
-  new_par <- c(kept_lines, paste("OPTION", postgs_opts))
+  drop_opts <- paste0("^OPTION (sol se|method|EM-REML|se_covar_function|",
+                      "maxrounds|conv_crit|use_yams|readGimA22i)\\b")
+  kept_lines <- par_lines[!grepl(drop_opts, par_lines)]
+  # map_file -> chrinfo (postGSf90 uses chrinfo for chromosome/position info)
+  kept_lines <- sub("^OPTION map_file ", "OPTION chrinfo ", kept_lines)
+  new_par <- c(kept_lines, "OPTION readGInverse", paste("OPTION", postgs_opts))
   writeLines(new_par, file.path(tmpdir, "parameters"))
+
+  # postGSf90 reads external inbreeding coefficients (renf90.inb) when a
+  # pedigree is present. breedR's ssGBLUP fit does not track inbreeding (A22 is
+  # built with F = 0 via readGimA22i), so write a matching zero-inbreeding file
+  # for the pedigree animals; otherwise postGSf90 aborts ("inbreeding file not
+  # found").
+  ped_file <- file.path(tmpdir, "pedigree_genetic")
+  if (file.exists(ped_file)) {
+    n_anim <- length(readLines(ped_file))
+    utils::write.table(
+      data.frame(id = seq_len(n_anim), f = 0),
+      file.path(tmpdir, "renf90.inb"),
+      row.names = FALSE, col.names = FALSE, quote = FALSE)
+  }
 
   # Run PostGSF90
   bin_path <- breedR.getOption('breedR.bin')
@@ -713,10 +748,11 @@ parse_postgsf90 <- function(dir) {
 
   result <- list()
 
-  # SNP solutions — always produced
+  # SNP solutions — always produced. postGSf90 writes a header row
+  # (trait effect snp chr pos snp_effect weight variance_explained var_a_hat).
   snp_sol_file <- file.path(dir, "snp_sol")
   if (file.exists(snp_sol_file) && file.info(snp_sol_file)$size > 0) {
-    sol <- utils::read.table(snp_sol_file)
+    sol <- utils::read.table(snp_sol_file, header = TRUE)
     base_names <- c("trait", "effect", "snp", "chr", "pos",
                     "solution", "weight")
     if (ncol(sol) >= 8) base_names <- c(base_names, "variance")

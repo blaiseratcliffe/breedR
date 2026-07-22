@@ -4,7 +4,14 @@
 \alias{run_pregsf90_pipeline}
 \title{Run the full PREGSF90 genomic preprocessing pipeline}
 \usage{
-run_pregsf90_pipeline(genomic, genomic_opts, pf90, tmpdir, breedR.bin)
+run_pregsf90_pipeline(
+  genomic,
+  genomic_opts,
+  pf90,
+  tmpdir,
+  breedR.bin,
+  pedigree = NULL
+)
 }
 \arguments{
 \item{genomic}{validated genomic specification (from check_genomic).}
