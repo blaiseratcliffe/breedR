@@ -100,7 +100,9 @@ seekparentf90 <- function(snp_file,
   # Sire seeking
   if (isTRUE(seek_sire)) {
     args <- c(args, "--seeksire_in_ped")
-  } else if (is.character(seek_sire) && file.exists(seek_sire)) {
+  } else if (is.character(seek_sire)) {
+    if (!file.exists(seek_sire))
+      stop("seek_sire file not found: ", seek_sire, call. = FALSE)
     file.copy(seek_sire, file.path(dir, basename(seek_sire)),
               overwrite = TRUE)
     args <- c(args, "--seeksire", basename(seek_sire))
@@ -109,7 +111,9 @@ seekparentf90 <- function(snp_file,
   # Dam seeking
   if (isTRUE(seek_dam)) {
     args <- c(args, "--seekdam_in_ped")
-  } else if (is.character(seek_dam) && file.exists(seek_dam)) {
+  } else if (is.character(seek_dam)) {
+    if (!file.exists(seek_dam))
+      stop("seek_dam file not found: ", seek_dam, call. = FALSE)
     file.copy(seek_dam, file.path(dir, basename(seek_dam)),
               overwrite = TRUE)
     args <- c(args, "--seekdam", basename(seek_dam))
@@ -118,11 +122,11 @@ seekparentf90 <- function(snp_file,
   if (seek_type != 1L) args <- c(args, "--seektype", as.character(seek_type))
 
   if (!is.null(only_in_list)) {
-    if (file.exists(only_in_list)) {
-      file.copy(only_in_list, file.path(dir, basename(only_in_list)),
-                overwrite = TRUE)
-      args <- c(args, "--only_in_list", basename(only_in_list))
-    }
+    if (!file.exists(only_in_list))
+      stop("only_in_list file not found: ", only_in_list, call. = FALSE)
+    file.copy(only_in_list, file.path(dir, basename(only_in_list)),
+              overwrite = TRUE)
+    args <- c(args, "--only_in_list", basename(only_in_list))
   }
 
   if (!is.null(excl_thr_prob))

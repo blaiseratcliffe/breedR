@@ -130,8 +130,11 @@ qcf90 <- function(snp_file,
     copy_if_needed(map_file)
 
   # Copy identity comparison file if it's a path
-  if (is.character(check_identity) && file.exists(check_identity))
+  if (is.character(check_identity)) {
+    if (!file.exists(check_identity))
+      stop("check_identity file not found: ", check_identity, call. = FALSE)
     copy_if_needed(check_identity)
+  }
 
   # Build command-line arguments
   args <- build_qcf90_args(
