@@ -746,8 +746,10 @@ remlf90 <- function(fixed,
   ## --- Genomic pre-processing with PREGSF90 ---
   pregs_out <- NULL
   if (!is.null(genomic)) {
+    ped_for_xref <- get_pedigree.breedr_modelframe(effects)
     pipeline <- run_pregsf90_pipeline(genomic, genomic_opts, pf90,
-                                      tmpdir, breedR.bin)
+                                      tmpdir, breedR.bin,
+                                      pedigree = ped_for_xref)
     pf90 <- pipeline$pf90
     pregs_out <- pipeline$pregs_out
   }

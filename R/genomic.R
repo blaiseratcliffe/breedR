@@ -126,7 +126,7 @@ build_genomic_options <- function(genomic) {
 #' @param breedR.bin binary directory.
 #' @return List with updated \code{pf90} and \code{pregs_out}.
 run_pregsf90_pipeline <- function(genomic, genomic_opts, pf90,
-                                   tmpdir, breedR.bin) {
+                                   tmpdir, breedR.bin, pedigree = NULL) {
   # Write parameter file for PREGSF90 with genomic options only
   pf90_pregs <- pf90
   pf90_pregs$parameter$options <- genomic_opts
@@ -143,9 +143,20 @@ run_pregsf90_pipeline <- function(genomic, genomic_opts, pf90,
   copy_if_needed(genomic$snp_file)
   if (!is.null(genomic$map_file))
     copy_if_needed(genomic$map_file)
+
+  # preGSf90 needs a cross-reference file mapping each SNP-file (original)
+  # animal ID to the renumbered pedigree code that breedR writes in the
+  # pedigree/data files. Use a user-supplied XrefID if present; otherwise
+  # derive it from the pedigree's renumbering.
   xref_file <- paste0(genomic$snp_file, "_XrefID")
-  if (file.exists(xref_file))
+  if (file.exists(xref_file)) {
     copy_if_needed(xref_file)
+  } else if (!is.null(pedigree)) {
+    write_xref_from_pedigree(genomic$snp_file, pedigree, tmpdir)
+  } else {
+    stop("Cannot build the genomic XrefID: no pedigree available and no ",
+         "'", basename(xref_file), "' provided.", call. = FALSE)
+  }
 
   # Check binaries
   if (!check_genomic_programs(breedR.bin, quiet = TRUE))
@@ -231,25 +242,29 @@ parse_pregsf90_qc <- function(dir) {
 
   result <- list()
 
-  # Allele frequencies after QC
+  # Allele frequencies after QC. preGSf90 writes two columns (snp index,
+  # frequency); some versions/options add a third exclusion-code column. Handle
+  # both rather than assume three (which errors when only two are present).
   freq_file <- file.path(dir, "freqdata.count.after.clean")
   if (file.exists(freq_file)) {
     freq <- utils::read.table(freq_file)
-    names(freq) <- c("snp", "frequency", "exclusion_code")
+    if (ncol(freq) >= 3) {
+      names(freq)[1:3] <- c("snp", "frequency", "exclusion_code")
 
-    # Map exclusion codes to labels by name (code 0 = passed). Indexing a plain
-    # vector with a code of 0 silently drops that element and misaligns every
-    # subsequent label, so key the lookup by the code itself. The label strings
-    # are provisional and pending verification against the PREGSF90 binary.
-    exclusion_labels <- c("0" = "passed",
-                          "1" = "Call Rate", "2" = "MAF", "3" = "Monomorphic",
-                          "4" = "Excluded by request", "5" = "Mendelian error",
-                          "6" = "HWE", "7" = "High correlation")
-    freq$exclusion_reason <- unname(
-      exclusion_labels[as.character(freq$exclusion_code)])
-
+      # Map exclusion codes to labels by name (code 0 = passed). Indexing a
+      # plain vector with code 0 silently drops that element and misaligns
+      # every subsequent label, so key the lookup by the code itself.
+      exclusion_labels <- c("0" = "passed",
+                            "1" = "Call Rate", "2" = "MAF", "3" = "Monomorphic",
+                            "4" = "Excluded by request", "5" = "Mendelian error",
+                            "6" = "HWE", "7" = "High correlation")
+      freq$exclusion_reason <- unname(
+        exclusion_labels[as.character(freq$exclusion_code)])
+      result$excluded_snp <- freq[freq$exclusion_code > 0, ]
+    } else {
+      names(freq)[1:2] <- c("snp", "frequency")
+    }
     result$freq <- freq
-    result$excluded_snp <- freq[freq$exclusion_code > 0, ]
   }
 
   # Animals excluded by call rate
@@ -271,12 +286,24 @@ parse_pregsf90_qc <- function(dir) {
     names(result$freq_raw) <- c("snp", "frequency")
   }
 
-  # Summary statistics
-  result$n_snp_total <- if (!is.null(result$freq)) nrow(result$freq) else NA
-  result$n_snp_passed <- if (!is.null(result$freq))
-    sum(result$freq$exclusion_code == 0) else NA
+  # Summary statistics. freqdata.count.after.clean lists the SNPs that passed
+  # QC; freqdata.count is the raw set. With the 2-column format there is no
+  # per-SNP exclusion code, so passed = rows in the after-clean file and the
+  # totals come from the raw file.
+  n_raw  <- if (!is.null(result$freq_raw)) nrow(result$freq_raw) else NULL
+  n_pass <- if (!is.null(result$freq)) {
+    if (!is.null(result$freq$exclusion_code))
+      sum(result$freq$exclusion_code == 0)
+    else nrow(result$freq)
+  } else NULL
+
+  result$n_snp_total <- if (!is.null(n_raw)) n_raw
+    else if (!is.null(n_pass)) n_pass else NA
+  result$n_snp_passed <- if (!is.null(n_pass)) n_pass else NA
   result$n_snp_excluded <- if (!is.null(result$excluded_snp))
-    nrow(result$excluded_snp) else 0L
+      nrow(result$excluded_snp)
+    else if (!is.null(n_raw) && !is.null(n_pass)) n_raw - n_pass
+    else 0L
   result$n_animals_excluded <- if (!is.null(result$excluded_animals))
     nrow(result$excluded_animals) else 0L
 
@@ -461,6 +488,29 @@ write_xref_file <- function(renumbered_ids, original_ids, snp_file) {
   xref <- data.frame(renumbered = renumbered_ids, original = original_ids)
   utils::write.table(xref, file = paste0(snp_file, "_XrefID"),
                       row.names = FALSE, col.names = FALSE, quote = FALSE)
+}
+
+
+## Derive the preGSf90 XrefID from breedR's pedigree renumbering and write it
+## into the working directory next to the copied SNP file. Each SNP-file row's
+## (original) animal id is mapped to its renumbered code (its position in the
+## pedigree labels). Errors if a genotyped animal is absent from the pedigree.
+write_xref_from_pedigree <- function(snp_file, pedigree, tmpdir) {
+  raw <- readLines(snp_file)
+  raw <- raw[nchar(trimws(raw)) > 0]
+  snp_ids <- vapply(strsplit(trimws(raw), "[[:space:]]+"), `[`, "", 1L)
+
+  labels <- as.character(pedigree@label)
+  renum <- match(snp_ids, labels)
+  if (anyNA(renum))
+    stop("Genotyped animals not found in the pedigree: ",
+         paste(utils::head(snp_ids[is.na(renum)], 10L), collapse = ", "),
+         if (sum(is.na(renum)) > 10L) ", ..." else "", call. = FALSE)
+
+  utils::write.table(
+    data.frame(renum, snp_ids),
+    file = file.path(tmpdir, paste0(basename(snp_file), "_XrefID")),
+    row.names = FALSE, col.names = FALSE, quote = FALSE)
 }
 
 
