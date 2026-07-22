@@ -141,6 +141,10 @@ validationf90 <- function(par_file,
 
   writeLines(out, file.path(dir, "validationf90.out"))
 
+  if (any(grepl("ERROR:", out)))
+    stop("validationf90 reported an error despite a clean exit. Check the ",
+         "log:\n", file.path(dir, "validationf90.out"), call. = FALSE)
+
   # Parse output
   result <- list(output = out)
 

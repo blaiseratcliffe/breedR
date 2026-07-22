@@ -53,3 +53,15 @@ test_that("a genotyped animal absent from the pedigree is an error", {
               data = globulus)),
     "not found in the pedigree")
 })
+
+
+context("Standalone genotype QC (qcf90)")
+
+test_that("qcf90 runs and returns clean-marker results", {
+  qc_snp <- file.path(tempdir(), "test_qcf90_snp.txt")
+  write_snp_file(Gmat, ids = gen_ids, file = qc_snp)
+  qc <- qcf90(snp_file = qc_snp)
+  expect_type(qc, "list")
+  expect_false(is.null(qc$clean_snp))    # a cleaned SNP file was produced
+  expect_false(is.null(qc$log))
+})

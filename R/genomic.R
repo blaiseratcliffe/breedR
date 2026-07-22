@@ -583,15 +583,20 @@ postgsf90 <- function(model,
     extra_options
   )
 
-  # Read the existing parameter file and rebuild with GWAS options.
-  # Keep the base model specification, strip all OPTION lines,
-  # then re-add only SNP_file, map_file, and GWAS options.
+  # Rebuild the parameter file with GWAS options. Keep the model spec AND the
+  # genomic OPTION lines postGSf90 needs (SNP_file, readGimA22i, map_file, ...):
+  # dropping readGimA22i makes postGSf90 try to rebuild G and fail ("inbreeding
+  # file not found"). Only the REML-solver options that do not apply to
+  # postGSf90 are removed.
+  # Rebuild the parameter file with GWAS options. Keep the model spec AND the
+  # genomic OPTION lines postGSf90 needs (SNP_file, readGimA22i, map_file, ...):
+  # blindly stripping them (as this once did) drops the G-matrix context and
+  # breaks GWAS. Only remove the REML-solver options that postGSf90 ignores.
   par_lines <- readLines(file.path(tmpdir, "parameters"))
-  base_lines <- par_lines[!grepl("^OPTION ", par_lines)]
-  snp_opt <- par_lines[grepl("^OPTION SNP_file", par_lines)]
-  map_opt <- par_lines[grepl("^OPTION map_file", par_lines)]
-  new_par <- c(base_lines, snp_opt, map_opt,
-               paste("OPTION", postgs_opts))
+  reml_only <- paste0("^OPTION (sol se|method|EM-REML|se_covar_function|",
+                      "maxrounds|conv_crit|use_yams)\\b")
+  kept_lines <- par_lines[!grepl(reml_only, par_lines)]
+  new_par <- c(kept_lines, paste("OPTION", postgs_opts))
   writeLines(new_par, file.path(tmpdir, "parameters"))
 
   # Run PostGSF90
@@ -602,6 +607,18 @@ postgsf90 <- function(model,
 
   postgs_out <- run_postgsf90(tmpdir, bin_path)
   writeLines(postgs_out, file.path(tmpdir, "postgsf90.out"))
+
+  # postGSf90 can exit 0 (or write a stub snp_sol) while its log reports an
+  # error, so verify the run actually succeeded rather than returning a
+  # garbled/empty result.
+  # "ERROR:" matches the Fortran fatal-error convention without false-matching
+  # benign output like "number of errors = 0" or "standard error".
+  snp_sol_file <- file.path(tmpdir, "snp_sol")
+  if (any(grepl("ERROR:", postgs_out)) ||
+      !file.exists(snp_sol_file) ||
+      file.info(snp_sol_file)$size == 0)
+    stop("postGSf90 failed to produce valid SNP solutions. Check the log:\n",
+         file.path(tmpdir, "postgsf90.out"), call. = FALSE)
 
   # Parse output files
   result <- parse_postgsf90(tmpdir)
@@ -863,6 +880,10 @@ predf90 <- function(snp_file,
   }
 
   writeLines(out, file.path(dir, "predf90.out"))
+
+  if (any(grepl("ERROR:", out)))
+    stop("predf90 reported an error despite a clean exit. Check the log:\n",
+         file.path(dir, "predf90.out"), call. = FALSE)
 
   # Parse output
   out_path <- file.path(dir, outfile)

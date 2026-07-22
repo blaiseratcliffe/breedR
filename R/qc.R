@@ -173,6 +173,10 @@ qcf90 <- function(snp_file,
 
   writeLines(out, file.path(dir, "qcf90_stdout.txt"))
 
+  if (any(grepl("ERROR:", out)))
+    stop("qcf90 reported an error despite a clean exit. Check the log:\n",
+         file.path(dir, "qcf90_stdout.txt"), call. = FALSE)
+
   # Parse output files
   result <- list(output = out)
 
@@ -264,7 +268,9 @@ build_qcf90_args <- function(snp_file, ped_file, map_file,
   if (isTRUE(save_clean))
     args <- c(args, "--save-clean")
   if (isTRUE(save_log))
-    args <- c(args, "--save-log")
+    # qcf90 requires a log-file name after --save-log; use the name the
+    # wrapper reads back (qcf90.log).
+    args <- c(args, "--save-log", "qcf90.log")
   if (isTRUE(outcallrate))
     args <- c(args, "--outcallrate")
   if (isTRUE(remove_markers))
