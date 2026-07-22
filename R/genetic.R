@@ -100,9 +100,13 @@ additive_genetic_animal <- function(pedigree, idx) {
   if (!is.null(attr(pedigree, 'map')))
     idx <- attr(pedigree, 'map')[idx]
   
-  ## All the (recoded) codes in idx must be within pedigree@label
-  ## it is enough to check max(idx) since pedigree@label = 1, ..., n
-  stopifnot(max(idx) <= length(pedigree@label))
+  ## All the (recoded) codes in idx must be valid indices into pedigree@label
+  ## (= 1, ..., n). A code absent from the pedigree maps to NA; guard against
+  ## that and against out-of-range indices with a clear message rather than an
+  ## opaque failure inside sparseMatrix().
+  if (anyNA(idx))
+    stop("Some data codes are not present in the pedigree.", call. = FALSE)
+  stopifnot(min(idx) >= 1, max(idx) <= length(pedigree@label))
   
   ## The pedigree might potentially have further individuals
   ## to evaluate (either founders, or descendants).

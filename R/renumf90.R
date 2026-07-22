@@ -149,9 +149,13 @@ build_renumf90_parfile <- function(datafile, traits, residual_variance,
     for (i in seq_len(nrow(rmat)))
       lines <- c(lines, paste(rmat[i, ], collapse = " "))
   } else {
-    # Default: identity matrix scaled by 1
+    # Default: n x n identity, one row per trait. RENUMF90 reads n_traits rows
+    # here, so a single row would corrupt the parameter file for multi-trait
+    # models (the next keyword line would be consumed as a variance row).
     n <- length(traits)
-    lines <- c(lines, paste(rep(1, n), collapse = " "))
+    idmat <- diag(1, n, n)
+    for (i in seq_len(n))
+      lines <- c(lines, paste(idmat[i, ], collapse = " "))
   }
 
   # EFFECTS

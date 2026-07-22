@@ -39,7 +39,23 @@ eg.str <- get_structure(eg)
 
 test_that('get_structure() recovers the common structure in Matrix format', {
   expect_is(eg.str, 'Matrix')
-  expect_identical(eg.str, spl.str)
+  # Compare dense content, not the S4 object: solve() above populates spl.str's
+  # cached @factors slot, which is irrelevant to the structure but breaks a
+  # strict object comparison.
+  expect_equal(as.matrix(eg.str), as.matrix(spl.str))
+})
+
+
+## A group of 3+ effects sharing the same structure type must not crash.
+## Regression test: str.list[[-1]] is an invalid subscript for length >= 3.
+test_that('get_structure() handles groups of 3+ same-type effects', {
+  spl.b <- breedr_splines(coord)
+  spl.c <- breedr_splines(coord)
+  eg3 <- effect_group(list(spl, spl.b, spl.c), cov.ini = diag(1, 3, 3),
+                      ntraits = 1)
+  expect_error(eg3.str <- get_structure(eg3), NA)  # no error
+  expect_is(eg3.str, 'Matrix')
+  expect_equal(as.matrix(eg3.str), as.matrix(spl.str))
 })
 
 

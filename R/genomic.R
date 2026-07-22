@@ -237,12 +237,16 @@ parse_pregsf90_qc <- function(dir) {
     freq <- utils::read.table(freq_file)
     names(freq) <- c("snp", "frequency", "exclusion_code")
 
-    exclusion_labels <- c("Call Rate", "MAF", "Monomorphic",
-                          "Excluded by request", "Mendelian error",
-                          "HWE", "High correlation")
-    freq$exclusion_reason <- ifelse(
-      freq$exclusion_code == 0, "passed",
-      exclusion_labels[freq$exclusion_code])
+    # Map exclusion codes to labels by name (code 0 = passed). Indexing a plain
+    # vector with a code of 0 silently drops that element and misaligns every
+    # subsequent label, so key the lookup by the code itself. The label strings
+    # are provisional and pending verification against the PREGSF90 binary.
+    exclusion_labels <- c("0" = "passed",
+                          "1" = "Call Rate", "2" = "MAF", "3" = "Monomorphic",
+                          "4" = "Excluded by request", "5" = "Mendelian error",
+                          "6" = "HWE", "7" = "High correlation")
+    freq$exclusion_reason <- unname(
+      exclusion_labels[as.character(freq$exclusion_code)])
 
     result$freq <- freq
     result$excluded_snp <- freq[freq$exclusion_code > 0, ]
@@ -343,10 +347,22 @@ write_snp_file <- function(geno, ids, file,
   ids_char <- as.character(ids)
 
   if (fractional) {
-    # Fractional format: each value as X.XX (4 chars), no separators
+    # Fractional format: each value as X.XX (exactly 4 chars), no separators
     # e.g., 0.501.120.252.001.00
+    # The reader parses this as fixed 4-char fields, so anything that does not
+    # format to 4 characters (NA -> "NA", negatives, values >= 10) would corrupt
+    # the layout silently. Reject those inputs rather than write an unparseable
+    # file. (A dedicated missing-value convention is pending binary verification.)
+    if (anyNA(geno))
+      stop("Fractional SNP format does not support missing (NA) genotypes.",
+           call. = FALSE)
     geno_strings <- apply(geno, 1, function(row) {
-      paste(sprintf("%.2f", row), collapse = "")
+      tok <- sprintf("%.2f", row)
+      bad <- which(nchar(tok) != 4L)
+      if (length(bad))
+        stop("Fractional genotype values must format to exactly 4 characters ",
+             "(0.00-9.99); got '", tok[bad[1]], "'.", call. = FALSE)
+      paste(tok, collapse = "")
     })
   } else {
     # Integer format: single digit per SNP, concatenated
@@ -390,15 +406,6 @@ read_snp_file <- function(file, fractional = FALSE) {
   raw <- readLines(file)
   raw <- raw[nchar(trimws(raw)) > 0]  # skip empty lines
 
-  # Split each line into ID and genotype string
-  # ID is everything before the genotype block (which starts at a fixed column)
-  # Find the genotype start column from the first line
-  first <- raw[1]
-  # The genotype starts after the ID + space(s)
-  # Detect: find last space before the genotype digits
-  geno_start <- regexpr("[0-9]", sub("^\\s*\\S+\\s+", "", first))
-  id_part <- trimws(sub("\\s+[0-9].*$", "", first))
-
   ids <- character(length(raw))
   geno_strings <- character(length(raw))
 
@@ -408,9 +415,19 @@ read_snp_file <- function(file, fractional = FALSE) {
     geno_strings[i] <- paste(parts[-1], collapse = "")
   }
 
+  # All genotype rows must share the same length, otherwise the fixed-width
+  # parsing below would silently return a mis-shaped matrix.
+  widths <- nchar(geno_strings)
+  if (length(unique(widths)) != 1L)
+    stop("Genotype rows have inconsistent lengths (", min(widths), "-",
+         max(widths), " chars); cannot parse SNP file.", call. = FALSE)
+
   if (fractional) {
     # Each value is 4 chars (X.XX)
-    n_snp <- nchar(geno_strings[1]) / 4L
+    if (widths[1] %% 4L != 0L)
+      stop("Fractional SNP line length (", widths[1],
+           ") is not a multiple of 4.", call. = FALSE)
+    n_snp <- widths[1] / 4L
     geno <- matrix(NA_real_, nrow = length(ids), ncol = n_snp)
     for (i in seq_along(geno_strings)) {
       chars <- geno_strings[i]

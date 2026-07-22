@@ -50,7 +50,7 @@ test_that("h2_formula uses custom genetic effect number", {
 
 test_that("rg_formula produces correct genetic correlation", {
   result <- rg_formula(1, 2)
-  expect_match(result, "^se_covar_function rg_12 ")
+  expect_match(result, "^se_covar_function rg_1_2 ")
   expect_match(result, "G_2_2_1_2/\\(G_2_2_1_1\\*G_2_2_2_2\\)\\*\\*0\\.5")
 })
 
@@ -108,10 +108,10 @@ test_that("var_functions generates h2 for single trait", {
 
 test_that("var_functions generates h2 + rg for two traits", {
   result <- var_functions(n_traits = 2)
-  expect_length(result, 3)  # h2_t1, h2_t2, rg_12
+  expect_length(result, 3)  # h2_t1, h2_t2, rg_1_2
   expect_match(result[1], "H2 ")
   expect_match(result[2], "H2_t2")
-  expect_match(result[3], "rg_12")
+  expect_match(result[3], "rg_1_2")
 })
 
 test_that("var_functions generates correct count for three traits", {

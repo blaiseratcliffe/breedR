@@ -106,8 +106,6 @@ gibbsf90 <- function(fixed,
 
   ## --- Shared model-building pipeline (same as remlf90) ---
 
-  method <- 'em'  # placeholder — Gibbs doesn't use REML method
-
   # Build model frame
   mf <- build.mf(mc)
   responsem <- as.matrix(stats::model.response(mf))

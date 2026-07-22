@@ -180,8 +180,11 @@ check_pedigree <- function(ped) {
   
   # Codes are consecutive
   rg_codes <- range(ped[, 1])
-  codes_consec <- identical(as.integer(ped[ord_codes, 1]), 
-                            seq(rg_codes[1], rg_codes[2]))
+  # Coerce both sides to integer: range()/seq() return doubles when the id
+  # column is stored as double, and identical() is type-strict, which would
+  # otherwise flag genuinely-consecutive codes as non-consecutive.
+  codes_consec <- identical(as.integer(ped[ord_codes, 1]),
+                            as.integer(seq(rg_codes[1], rg_codes[2])))
   
   return(c(full_ped     = full_ped,
            offsp_follows = offsp_follows,

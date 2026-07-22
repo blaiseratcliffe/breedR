@@ -79,7 +79,11 @@ competition <- function(coordinates,
   # for isolated individuals, the squared sum of coefs is 0
   # for all the rest, must be 1
   idx.isolated <- which(apply(is.na(BIC), 1, all))
-  stopifnot(all(sapply(apply(BIC[-idx.isolated,]**2, 1, sum, na.rm = TRUE), all.equal, 1)))
+  # Drop isolated rows only if there are any; -integer(0) selects *no* rows,
+  # which would silently skip this normalization check on fully-connected grids.
+  BIC.chk <- if (length(idx.isolated)) BIC[-idx.isolated, , drop = FALSE] else BIC
+  sq.sums <- apply(BIC.chk**2, 1, sum, na.rm = TRUE)
+  stopifnot(all(vapply(sq.sums, function(s) isTRUE(all.equal(s, 1)), TRUE)))
   
   # cbind the Intensity of Competition and the neighbours idx
   B16 <- cbind(BIC, Bneigh)

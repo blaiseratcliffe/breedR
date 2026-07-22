@@ -751,9 +751,6 @@ remlf90 <- function(fixed,
   # Write the REML parameter file (or overwrite the PREGSF90 one)
   write.progsf90(pf90, dir = tmpdir)
 
-  # Where to find the binaries
-  binary.path <- breedR.getOption('breedR.bin')
-
   # Change to temporal directory to avoid specification of long paths
   # Avoids Issue #1
   cdir <- setwd(tmpdir)

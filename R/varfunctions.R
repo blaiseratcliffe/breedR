@@ -120,7 +120,7 @@ rg_formula <- function(trait1, trait2, effect = 2L, label = NULL) {
   formula <- paste0(covariance, "/(", var1, "*", var2, ")**0.5")
 
   if (is.null(label))
-    label <- paste0("rg_", t1, t2)
+    label <- paste0("rg_", t1, "_", t2)
 
   paste("se_covar_function", label, formula)
 }

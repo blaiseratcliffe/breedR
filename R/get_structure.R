@@ -20,17 +20,21 @@ get_structure.effect_group <- function(x) {
   str.list <- lapply(x$effects, get_structure.breedr_effect)
 
   ## confirm they have all the same structure
-  if (nelem <- length(str.list) > 1) {
+  nelem <- length(str.list)
+  if (nelem > 1) {
     str.types <- vapply(str.list, attr, '','type')
-    
+
     ## Structure types can be either covariance or precision matrices
     legal.types <- c('covariance', 'precision')
     stopifnot(all(unique(str.types) %in% legal.types))
-        
+
     if (length(unique(str.types)) == 1) {
-      ## Compare matrices all of the same type
-      stopifnot(all.equal(str.list[1], str.list[-1]))
-      stopifnot(isTRUE(all.equal(str.list[[1]], str.list[[-1]])))
+      ## Compare matrices all of the same type against the first
+      stopifnot(
+        all(vapply(str.list[-1],
+                   function(s) isTRUE(all.equal(str.list[[1]], s)),
+                   TRUE))
+      )
     } else {
       ## Compare matrices of the corresponding types
       str.list.cov <- str.list[str.types == 'covariance']
