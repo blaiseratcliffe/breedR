@@ -14,10 +14,50 @@ uga_platform_dir <- function(platform = breedR.os.type()) {
 #' Returns the UGA download URL. Can be overridden with the
 #' PROGSF90_URL environment variable.
 breedr_progsf90_repo <- function() {
-  if (!nchar(url <- Sys.getenv("PROGSF90_URL"))) {
-    url <- "https://nce.ads.uga.edu/html/projects/programs"
+  url <- Sys.getenv("PROGSF90_URL")
+  if (!nchar(url))
+    return("https://nce.ads.uga.edu/html/projects/programs")
+
+  ## A user-supplied origin feeds straight into download-then-execute, so make
+  ## insecure or unexpected transports explicit. https and local paths (bare
+  ## path or file://) are allowed; http is warned about; any other remote
+  ## scheme is rejected.
+  if (grepl("^https://", url, ignore.case = TRUE) ||
+      grepl("^file://", url, ignore.case = TRUE) ||
+      !grepl("^[a-z][a-z0-9+.-]*://", url, ignore.case = TRUE)) {
+    ## https, file://, or a local path: accepted
+  } else if (grepl("^http://", url, ignore.case = TRUE)) {
+    warning("PROGSF90_URL uses insecure http://; BLUPF90 binaries will be ",
+            "downloaded over an unauthenticated channel.", call. = FALSE)
+  } else {
+    stop("PROGSF90_URL must use https:// or a local path; got: ", url,
+         call. = FALSE)
   }
   return(url)
+}
+
+
+## Sanity check that a downloaded file is a native executable for the target
+## platform, not an HTML error page or a truncated download. Authenticity cannot
+## be verified without published checksums, but a magic-byte + minimum-size check
+## catches the common failure of saving a non-binary and then making it
+## executable and running it.
+looks_like_executable <- function(path, platform = breedR.os.type()) {
+  if (!file.exists(path) || file.info(path)$size < 1024)
+    return(FALSE)
+  magic <- readBin(path, what = "raw", n = 4L)
+  if (length(magic) < 4L)
+    return(FALSE)
+  m <- as.integer(magic)
+  switch(platform,
+         windows = all(m[1:2] == c(0x4D, 0x5A)),           # "MZ" (PE)
+         linux   = all(m      == c(0x7F, 0x45, 0x4C, 0x46)), # ELF
+         mac     = any(vapply(
+           list(c(0xFE, 0xED, 0xFA, 0xCE), c(0xFE, 0xED, 0xFA, 0xCF),
+                c(0xCF, 0xFA, 0xED, 0xFE), c(0xCE, 0xFA, 0xED, 0xFE),
+                c(0xCA, 0xFE, 0xBA, 0xBE)),  # Mach-O / universal
+           function(sig) all(m == sig), logical(1))),
+         TRUE)  # unknown platform: do not block
 }
 
 
@@ -89,7 +129,7 @@ install_progsf90 <- function(
   f.url <- file.path(url, uga_platform_dir(platform), paste0(arch, "bit"))
 
   res <- vapply(execs, function(f) {
-    retrieve_bin_direct(f, url = f.url, dest = dest)
+    retrieve_bin_direct(f, url = f.url, dest = dest, platform = platform)
   }, logical(1))
 
   return(res)
@@ -161,7 +201,7 @@ install_renumf90 <- function(
 ) {
   f <- renumf90_file(platform)
   f.url <- file.path(url, uga_platform_dir(platform), paste0(arch, "bit"))
-  retrieve_bin_direct(f, url = f.url, dest = dest)
+  retrieve_bin_direct(f, url = f.url, dest = dest, platform = platform)
 }
 
 #' Check installation of genomic program binaries
@@ -224,7 +264,7 @@ install_genomic_programs <- function(
   f.url <- file.path(url, uga_platform_dir(platform), paste0(arch, "bit"))
 
   res <- vapply(execs, function(f) {
-    retrieve_bin_direct(f, url = f.url, dest = dest)
+    retrieve_bin_direct(f, url = f.url, dest = dest, platform = platform)
   }, logical(1))
 
   return(res)
@@ -233,7 +273,7 @@ install_genomic_programs <- function(
 
 ## Download a raw executable (no decompression needed).
 ## Sets execute permissions on Unix platforms.
-retrieve_bin_direct <- function(f, url, dest) {
+retrieve_bin_direct <- function(f, url, dest, platform = breedR.os.type()) {
   destf <- file.path(dest, f)
   if (!file.exists(dest))
     dir.create(dest, recursive = TRUE)
@@ -251,6 +291,15 @@ retrieve_bin_direct <- function(f, url, dest) {
 
   if (inherits(out, 'error')) {
     warning("Download of ", f, " failed: ", conditionMessage(out))
+    unlink(destf)
+    return(FALSE)
+  }
+
+  # Verify the download is a native executable before trusting/executing it.
+  # Catches HTML error pages and truncated files saved with a 200 status.
+  if (!looks_like_executable(destf, platform)) {
+    warning("Downloaded file ", f, " is not a valid ", platform,
+            " executable (possibly an error page); discarding.")
     unlink(destf)
     return(FALSE)
   }

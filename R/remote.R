@@ -118,20 +118,28 @@ breedR.qget = function(id, remove = TRUE)
   if( length(statlst) == 0 ) stop('Job not found')
   if( length(statlst) != 1 ) stop('This should not happen')
   status <- statlst[[1]]
-  
-  
+
+  # The id and pid come from remote command output and are spliced into a
+  # remote shell command (rm -rf / kill). Validate them so a crafted value
+  # cannot inject additional commands.
+  if( !grepl("^[[:alnum:]_.-]+$", status$id) )
+    stop('Unexpected remote job id: ', status$id)
+  pid <- suppressWarnings(as.integer(status$pid))
+  if( is.na(pid) || pid < 0 )
+    stop('Unexpected remote PID: ', status$pid)
+
   # Remote target dir
   rdir = file.path('tmp', '.breedR.remote',
                    paste('breedR-job-', status$id, sep = ''))
-  
+
   ssh_commands <- paste('rm -rf', rdir)
-  
+
   # If process is running, then kill him
-  if( grepl("Running", status$status) & status$pid != 0) {
+  if( grepl("Running", status$status) & pid != 0) {
     ssh_commands <- c(ssh_commands,
-                      paste('kill', status$pid))
+                      paste('kill', pid))
   } else {
-    if( status$pid != 0 ) stop('This should not happen')
+    if( pid != 0 ) stop('This should not happen')
   }
   
   # Execute
