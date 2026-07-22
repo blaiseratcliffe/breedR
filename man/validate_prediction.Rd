@@ -8,6 +8,7 @@ validate_prediction(
   renum,
   validation_ids,
   effect = 2L,
+  trait = 1L,
   method = c("ai", "em"),
   progsf90.options = NULL,
   partial_data_file = NULL
@@ -20,13 +21,20 @@ validate_prediction(
 
 \item{effect}{integer. Effect number to validate.}
 
+\item{trait}{integer. Which trait's phenotype to remove for the validation
+animals (the focal trait), indexing the \code{OBSERVATION(S)} positions.
+Default 1, i.e. the first trait; for single-trait models this is the only
+trait and the choice has no effect. Use \code{NULL} to remove every trait's
+phenotype (treat validation animals as fully unobserved).}
+
 \item{method}{either 'ai' or 'em'.}
 
 \item{progsf90.options}{character vector. Additional options.}
 
 \item{partial_data_file}{character. Path to the partial dataset (with
 validation animals' phenotypes removed). If NULL, the function creates
-it by setting validation animals' observations to missing (0).}
+it by setting the focal trait's observation to missing (0, the RENUMF90
+missing-observation code).}
 }
 \value{
 Validation statistics from \code{\link{validationf90}}.

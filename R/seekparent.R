@@ -42,10 +42,12 @@
 #' @param dir character. Working directory for output files.
 #' @return A list with:
 #'   \describe{
-#'     \item{check}{data.frame of parent-offspring check results}
-#'     \item{assigned}{data.frame of corrected pedigree (if seek was used)}
-#'     \item{seek_sire}{data.frame of sire search results (if requested)}
-#'     \item{seek_dam}{data.frame of dam search results (if requested)}
+#'     \item{check}{pedigree with parents removed for animals with conflicts}
+#'     \item{conflicts}{parent-progeny conflict details, when any were found}
+#'     \item{conflicts_summary}{per-parent conflict summary}
+#'     \item{assigned}{corrected pedigree (if a parent search assigned any)}
+#'     \item{seek_sire}{sire search results (if requested)}
+#'     \item{seek_dam}{dam search results (if requested)}
 #'     \item{output}{character vector of program stdout}
 #'   }
 #' @export
@@ -174,20 +176,26 @@ seekparentf90 <- function(snp_file,
 
   writeLines(out, file.path(dir, "seekparentf90.out"))
 
+  if (any(grepl("ERROR:", out)))
+    stop("seekparentf90 reported an error despite a clean exit. Check the log:\n",
+         file.path(dir, "seekparentf90.out"), call. = FALSE)
+
   # Parse output files
   result <- list(output = out)
 
-  # Check results (modified pedigree with match/no-match)
-  ped_basename <- sub("\\.[^.]*$", "", basename(ped_file))
+  # Pedigree with parents removed for animals with conflicts
   check_file <- file.path(dir, paste0("Check_", basename(ped_file)))
   if (file.exists(check_file))
     result$check <- readLines(check_file)
 
-  # Parent-offspring pair statistics
-  pair_file <- file.path(dir, "Check_Parent_Pedigree.txt")
-  if (file.exists(pair_file) && file.info(pair_file)$size > 0) {
-    result$pair_checks <- readLines(pair_file)
-  }
+  # Parent-progeny conflict details and summary
+  conflicts_file <- file.path(dir, "Parent_Progeny_Conflicts.txt")
+  if (file.exists(conflicts_file) && file.info(conflicts_file)$size > 0)
+    result$conflicts <- readLines(conflicts_file)
+
+  summary_file <- file.path(dir, "Parent_Progeny_Conflicts_Summary.txt")
+  if (file.exists(summary_file) && file.info(summary_file)$size > 0)
+    result$conflicts_summary <- readLines(summary_file)
 
   # Sire search results
   sire_file <- file.path(dir, "Seek_Sire.txt")

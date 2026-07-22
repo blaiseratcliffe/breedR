@@ -71,10 +71,12 @@ If numeric, use as the threshold (default FALSE, threshold 0.9).}
 \value{
 A list with:
   \describe{
-    \item{check}{data.frame of parent-offspring check results}
-    \item{assigned}{data.frame of corrected pedigree (if seek was used)}
-    \item{seek_sire}{data.frame of sire search results (if requested)}
-    \item{seek_dam}{data.frame of dam search results (if requested)}
+    \item{check}{pedigree with parents removed for animals with conflicts}
+    \item{conflicts}{parent-progeny conflict details, when any were found}
+    \item{conflicts_summary}{per-parent conflict summary}
+    \item{assigned}{corrected pedigree (if a parent search assigned any)}
+    \item{seek_sire}{sire search results (if requested)}
+    \item{seek_dam}{dam search results (if requested)}
     \item{output}{character vector of program stdout}
   }
 }

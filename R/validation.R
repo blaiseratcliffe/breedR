@@ -83,6 +83,21 @@ validationf90 <- function(par_file,
   file.copy(solutions_partial,
             file.path(dir, "solutions_partial"), overwrite = TRUE)
 
+  # validationf90 identifies the solutions layout from its header line and
+  # rejects anything it does not recognise. Check up front so a missing or
+  # rewritten header is reported here rather than as an opaque Fortran abort.
+  for (f in c("solutions_whole", "solutions_partial")) {
+    hdr <- tryCatch(readLines(file.path(dir, f), n = 1L),
+                    error = function(e) character(0))
+    if (!length(hdr) || !grepl("^\\s*trait/effect\\s+level", hdr))
+      stop("'", f, "' does not start with a solutions header recognised by ",
+           "validationf90. Expected a first line like:\n",
+           "  trait/effect level  solution\n",
+           "  trait/effect level  solution          s.e.\n",
+           "Pass the unmodified 'solutions' file written by BLUPF90+.",
+           call. = FALSE)
+  }
+
   # Write validation ID file
   if (is.character(validation_ids) && length(validation_ids) == 1 &&
       file.exists(validation_ids)) {
@@ -133,9 +148,13 @@ validationf90 <- function(par_file,
 
   if (!is.null(attr(out, 'status'))) {
     writeLines(out, file.path(dir, "validationf90.out"))
-    stop("validationf90 failed with exit code ",
-         attr(out, 'status'), ".\nOutput:\n",
-         paste(utils::tail(out, 20), collapse = "\n"),
+    # Surface the Fortran runtime diagnostic (if any) instead of burying it in
+    # the stack trace that follows it.
+    fort <- grep("^forrtl", out, value = TRUE)
+    stop("validationf90 failed with exit code ", attr(out, 'status'), ".\n",
+         if (length(fort)) paste0(fort[1], "\n") else "",
+         "Full log: ", file.path(dir, "validationf90.out"), "\n",
+         "Output:\n", paste(utils::tail(out, 10), collapse = "\n"),
          call. = FALSE)
   }
 
@@ -163,16 +182,23 @@ validationf90 <- function(par_file,
 #' @param renum output from \code{\link{renumf90}}.
 #' @param validation_ids integer vector. Renumbered IDs of validation animals.
 #' @param effect integer. Effect number to validate.
+#' @param trait integer. Which trait's phenotype to remove for the validation
+#'   animals (the focal trait), indexing the \code{OBSERVATION(S)} positions.
+#'   Default 1, i.e. the first trait; for single-trait models this is the only
+#'   trait and the choice has no effect. Use \code{NULL} to remove every trait's
+#'   phenotype (treat validation animals as fully unobserved).
 #' @param method either 'ai' or 'em'.
 #' @param progsf90.options character vector. Additional options.
 #' @param partial_data_file character. Path to the partial dataset (with
 #'   validation animals' phenotypes removed). If NULL, the function creates
-#'   it by setting validation animals' observations to missing (0).
+#'   it by setting the focal trait's observation to missing (0, the RENUMF90
+#'   missing-observation code).
 #' @return Validation statistics from \code{\link{validationf90}}.
 #' @export
 validate_prediction <- function(renum,
                                  validation_ids,
                                  effect = 2L,
+                                 trait = 1L,
                                  method = c('ai', 'em'),
                                  progsf90.options = NULL,
                                  partial_data_file = NULL) {
@@ -250,6 +276,18 @@ validate_prediction <- function(renum,
       stop("Could not determine data column for effect ", effect,
            ". Check parameter file.", call. = FALSE)
 
+    # Columns to blank out: the focal trait only (default), or every trait when
+    # trait = NULL. 0 is RENUMF90's missing-observation code in renf90.dat.
+    if (is.null(trait)) {
+      focal_cols <- trait_cols
+    } else {
+      if (length(trait) != 1 || is.na(trait) ||
+          trait < 1 || trait > length(trait_cols))
+        stop("'trait' must be a single index between 1 and ",
+             length(trait_cols), " (the number of traits).", call. = FALSE)
+      focal_cols <- trait_cols[trait]
+    }
+
     # Only check the genetic effect column for validation IDs
     val_ids_int <- as.integer(validation_ids)
     dat_split <- strsplit(dat, "\\s+")
@@ -259,7 +297,7 @@ validate_prediction <- function(renum,
       fields <- fields[nchar(fields) > 0]
       animal_id <- as.integer(fields[genetic_col])
       if (!is.na(animal_id) && animal_id %in% val_ids_int) {
-        for (tc in trait_cols) {
+        for (tc in focal_cols) {
           fields[tc] <- "0"
         }
         n_zeroed <- n_zeroed + 1L

@@ -34,3 +34,26 @@ test_that("parse_validation_output parses signed and exponential values", {
   s <- parse_validation_output("  bias: -1.2e-3")
   expect_equal(s$bias, -1.2e-3)
 })
+
+
+context("validationf90 input checks")
+
+test_that("validationf90 rejects solutions files without a recognised header", {
+  # validationf90 identifies the solutions layout from its header line; a
+  # headerless file makes it abort in Fortran, so the wrapper checks first.
+  d <- file.path(tempdir(), "valhdrchk")
+  dir.create(d, showWarnings = FALSE, recursive = TRUE)
+  par_f <- file.path(d, "fake.par")
+  writeLines(c("DATAFILE", "renf90.dat"), par_f)
+
+  headerless <- file.path(d, "sol_bad")
+  writeLines(c("   1   1   1   0.5", "   1   1   2   0.7"), headerless)
+
+  expect_error(
+    validationf90(par_file = par_f,
+                  solutions_whole = headerless,
+                  solutions_partial = headerless,
+                  validation_ids = c(1L, 2L),
+                  effect = 2L, dir = d),
+    "solutions header recognised by validationf90")
+})
