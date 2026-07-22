@@ -81,16 +81,18 @@ hetres_options <- function(group_col = NULL,
          "(covariate-based), not both.", call. = FALSE)
 
   if (!is.null(group_col)) {
-    # Class-based heterogeneous residuals.
-    # BLUPF90+ reads initial per-class variances from a file called 'hetres'.
-    # If no var_file is provided, we create one with equal initial variances.
+    # Class-based heterogeneous residuals. BLUPF90+ reads the initial per-class
+    # residual variances from the file named by hetres_var. remlf90() does not
+    # synthesize this file, so it must be supplied; otherwise the option is
+    # written but the backend has no initial variances and silently fails.
     if (is.null(n_groups))
       stop("'n_groups' is required with 'group_col'.", call. = FALSE)
+    if (is.null(var_file))
+      stop("'var_file' is required with 'group_col': class-based heterogeneous ",
+           "residuals need a file of initial per-class variances.",
+           call. = FALSE)
     opts <- c(opts, paste("hetres_int", group_col, n_groups))
-    if (!is.null(var_file))
-      opts <- c(opts, paste("hetres_var", var_file))
-    # Store n_groups as an attribute so remlf90() can create the hetres file
-    attr(opts, "hetres_n_groups") <- n_groups
+    opts <- c(opts, paste("hetres_var", var_file))
 
   } else if (!is.null(covariate_cols)) {
     # Covariate-based (polynomial) heterogeneous residuals

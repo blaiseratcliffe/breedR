@@ -3,8 +3,13 @@
 context("Heterogeneous residual variance helpers")
 
 test_that("hetres_options produces class-based options", {
-  result <- hetres_options(group_col = 5, n_groups = 10)
+  result <- hetres_options(group_col = 5, n_groups = 10, var_file = "hetres")
   expect_match(result[1], "^hetres_int 5 10$")
+})
+
+test_that("hetres_options requires var_file for class-based residuals", {
+  expect_error(hetres_options(group_col = 5, n_groups = 10),
+               "var_file.*required")
 })
 
 test_that("hetres_options produces covariate-based options", {

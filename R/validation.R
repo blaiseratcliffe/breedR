@@ -319,27 +319,37 @@ run_blupf90_in_dir <- function(dir, bin_path, blupf90_name) {
 }
 
 
-## Parse validationf90 output text for key statistics
+## Parse validationf90 output text for key statistics.
+## Each statistic is returned both as the matched line(s) (for inspection) and,
+## when a number can be found on the line, as a parsed numeric value.
 parse_validation_output <- function(out) {
   stats <- list()
 
-  # Look for common validation statistics in the output
-  # Bias (b0): intercept of regression of whole on partial
-  b0_line <- grep("bias|b0|intercept", out, value = TRUE, ignore.case = TRUE)
-  if (length(b0_line) > 0) stats$bias_lines <- b0_line
+  # Last number on a line (handles decimals, signs, exponents). The value
+  # trails the label, and labels like "b0"/"b1" contain digits we must skip,
+  # so take the final number rather than the first.
+  value_on_line <- function(lines) {
+    if (length(lines) == 0) return(NA_real_)
+    nums <- regmatches(
+      lines[1],
+      gregexpr("[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?", lines[1]))[[1]]
+    if (length(nums) == 0) NA_real_ else as.numeric(nums[length(nums)])
+  }
 
-  # Dispersion (b1): slope
-  b1_line <- grep("dispersion|slope|b1", out, value = TRUE, ignore.case = TRUE)
-  if (length(b1_line) > 0) stats$dispersion_lines <- b1_line
+  patterns <- list(
+    bias                = "bias|b0|intercept",
+    dispersion          = "dispersion|slope|b1",
+    accuracy            = "accuracy|correlation|rho",
+    predictive_ability  = "predictive.ability"
+  )
 
-  # Accuracy / correlation
-  acc_line <- grep("accuracy|correlation|rho", out, value = TRUE,
-                    ignore.case = TRUE)
-  if (length(acc_line) > 0) stats$accuracy_lines <- acc_line
-
-  # Predictive ability
-  pa_line <- grep("predictive.ability", out, value = TRUE, ignore.case = TRUE)
-  if (length(pa_line) > 0) stats$predictive_ability_lines <- pa_line
+  for (nm in names(patterns)) {
+    lines <- grep(patterns[[nm]], out, value = TRUE, ignore.case = TRUE)
+    if (length(lines) > 0) {
+      stats[[paste0(nm, "_lines")]] <- lines
+      stats[[nm]] <- value_on_line(lines)
+    }
+  }
 
   # Store full output for manual inspection
   stats$raw <- out
