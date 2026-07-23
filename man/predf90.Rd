@@ -10,6 +10,7 @@ predf90(
   acc = FALSE,
   acc_type = 1,
   use_diagG_acc = FALSE,
+  pedfile = NULL,
   outfile = "SNP_predictions",
   dir = tempdir()
 )
@@ -30,6 +31,12 @@ beef cattle (BIF accuracy). Default 1.0.}
 
 \item{use_diagG_acc}{logical. Use inbreeding from G in the reliability
 denominator (default FALSE).}
+
+\item{pedfile}{character or NULL. Pedigree file enabling reliability of
+prediction from the pedigree (RPG). When NULL (default), predf90 is run
+with \code{--no_rpg} and only genomic DGV are produced; predf90 aborts
+without writing predictions if neither a pedigree nor \code{--no_rpg} is
+supplied.}
 
 \item{outfile}{character. Name of the output file (default
 "SNP_predictions").}

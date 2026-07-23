@@ -100,3 +100,37 @@ test_that("postgsf90 refuses a fit made without save_ginverse", {
             data = globulus))
   expect_error(postgsf90(res.ng), "save_ginverse")
 })
+
+
+context("Genomic prediction of DGV (predf90)")
+
+test_that("predf90 predicts DGV from postgsf90 SNP effects", {
+  # In practice predf90 predicts for NEW animals; here we reuse the genotyped
+  # set as an end-to-end smoke test (predf90 needs postgsf90's snp_pred).
+  gp_snp <- file.path(tempdir(), "test_predf90_snp.txt")
+  write_snp_file(Gmat, ids = gen_ids, file = gp_snp)
+  file.remove(list.files(dirname(gp_snp), pattern = "_XrefID$",
+                         full.names = TRUE))
+  res.gp <- suppressMessages(
+    remlf90(fixed = phe_X ~ gg,
+            genetic = list(model = 'add_animal',
+                           pedigree = globulus[, 1:3], id = 'self'),
+            genomic = list(snp_file = gp_snp, verify_parentage = 0L,
+                           save_ginverse = TRUE),
+            data = globulus))
+  invisible(postgsf90(res.gp, manhattan_plot = TRUE))
+
+  pred <- predf90(snp_file = gp_snp)
+  expect_s3_class(pred, "data.frame")
+  expect_equal(nrow(pred), nrow(Gmat))          # one DGV per genotyped animal
+  expect_true(all(c("id", "dgv") %in% names(pred)))
+  expect_true(all(is.finite(pred$dgv)))
+})
+
+test_that("predf90 errors without a prior postgsf90 run", {
+  lone_snp <- file.path(tempdir(), "test_predf90_lone.txt")
+  write_snp_file(Gmat, ids = gen_ids, file = lone_snp)
+  expect_error(
+    predf90(snp_file = lone_snp, dir = file.path(tempdir(), "no_postgs")),
+    "snp_pred")
+})

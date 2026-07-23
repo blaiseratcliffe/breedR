@@ -844,6 +844,11 @@ parse_postgsf90 <- function(dir) {
 #'   beef cattle (BIF accuracy). Default 1.0.
 #' @param use_diagG_acc logical. Use inbreeding from G in the reliability
 #'   denominator (default FALSE).
+#' @param pedfile character or NULL. Pedigree file enabling reliability of
+#'   prediction from the pedigree (RPG). When NULL (default), predf90 is run
+#'   with \code{--no_rpg} and only genomic DGV are produced; predf90 aborts
+#'   without writing predictions if neither a pedigree nor \code{--no_rpg} is
+#'   supplied.
 #' @param outfile character. Name of the output file (default
 #'   "SNP_predictions").
 #' @param dir character. Working directory containing PostGSF90 output files
@@ -856,6 +861,7 @@ predf90 <- function(snp_file,
                     acc = FALSE,
                     acc_type = 1.0,
                     use_diagG_acc = FALSE,
+                    pedfile = NULL,
                     outfile = "SNP_predictions",
                     dir = tempdir()) {
 
@@ -895,6 +901,22 @@ predf90 <- function(snp_file,
     args <- c(args, "--acc_type", as.character(acc_type))
   }
   if (isTRUE(use_diagG_acc)) args <- c(args, "--use_diagG_acc")
+
+  # predf90 needs either a pedigree file (for reliability from the pedigree,
+  # RPG) or --no_rpg; without one it computes DGV but exits without writing the
+  # output file. This wrapper predicts genomic DGV, so default to --no_rpg.
+  if (!is.null(pedfile)) {
+    if (!file.exists(pedfile))
+      stop("Pedigree file not found: ", pedfile, call. = FALSE)
+    ped_dest <- file.path(dir, basename(pedfile))
+    if (normalizePath(pedfile, mustWork = FALSE) !=
+        normalizePath(ped_dest, mustWork = FALSE))
+      file.copy(pedfile, ped_dest, overwrite = TRUE)
+    args <- c(args, "--pedfile", basename(pedfile))
+  } else {
+    args <- c(args, "--no_rpg")
+  }
+
   if (!is.null(outfile)) args <- c(args, "--outfile", outfile)
 
   # Execute
@@ -924,7 +946,10 @@ predf90 <- function(snp_file,
   # Parse output
   out_path <- file.path(dir, outfile)
   if (!file.exists(out_path))
-    stop("predf90 did not produce output file: ", outfile, call. = FALSE)
+    stop("predf90 did not produce output file '", outfile,
+         "' despite a clean exit. Last lines of its output:\n",
+         paste(utils::tail(out, 8), collapse = "\n"),
+         "\nFull log: ", file.path(dir, "predf90.out"), call. = FALSE)
 
   predictions <- utils::read.table(out_path, header = FALSE)
   col_names <- c("id", "call_rate", "dgv")
