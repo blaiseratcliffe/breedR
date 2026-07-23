@@ -480,9 +480,13 @@ setMethod('coordinates<-', signature = 'metagene',
 )
 
 #' Define mapping between a lattice and nodes
-#' 
-#' Borrowed from {INLA}
-node2lattice_mapping <- function (nrow, ncol) 
+#'
+#' Borrowed from INLA.
+#'
+#' @param nrow integer. Number of rows in the lattice.
+#' @param ncol integer. Number of columns in the lattice.
+#' @keywords internal
+node2lattice_mapping <- function (nrow, ncol)
 {
   stopifnot(nrow > 0 && ncol > 0)
   return(inla.node2lattice(seq.int(nrow * ncol), nrow, ncol))

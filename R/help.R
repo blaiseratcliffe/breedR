@@ -33,20 +33,23 @@
 #'   data(m4)
 #'   summary(m4)
 #'   plot(m4)
-#' 
-#'   # Fit Mixed Model using REML
-#'   res.f90 <- remlf90(fixed = phe_X ~ gen, 
-#'                      genetic = list(model = 'add_animal', 
+#'
+#' \dontrun{
+#'   # Fit Mixed Model using REML. Requires the BLUPF90+ backend, which is
+#'   # downloaded at install time (see install_progsf90()).
+#'   res.f90 <- remlf90(fixed = phe_X ~ gen,
+#'                      genetic = list(model = 'add_animal',
 #'                                     pedigree = get_pedigree(m4),
 #'                                     id = 'self'),
 #'                      data = as.data.frame(m4))
-#'   
+#'
 #'   # Summary of results
 #'   summary(res.f90)
-#'   
+#'
 #'   # Observed phenotypes vs. Fitted values
 #'   library(ggplot2)
 #'   qplot(phe_X, fitted(res.f90), color=gen, data = as.data.frame(m4)) +
 #'     geom_abline(intercept=0, slope=1)
-#' 
+#' }
+#'
 NULL

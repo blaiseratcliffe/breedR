@@ -930,8 +930,10 @@ fitted.remlf90 <- function (object, ...) {
 #'   standard error
 #' @keywords models
 #' @examples
+#' \dontrun{
 #'     res <- remlf90(phe_X ~ gg + bl, data = globulus)
 #'     fixef(res)
+#' }
 #' @importFrom nlme fixef
 #' @export fixef
 #' @export
@@ -1169,6 +1171,7 @@ print.breedR_estimates <- function(x, ...) {
 #' @note To produce a (list of) \dQuote{caterpillar plots} of the random effects
 #'   apply \code{\link{plot}} to the result of a call to \code{ranef}.
 #' @examples
+#' \dontrun{
 #' res <- remlf90(phe_X ~ bl,
 #'                genetic = list(model = 'add_animal',
 #'                               pedigree = globulus[, 1:3],
@@ -1176,6 +1179,7 @@ print.breedR_estimates <- function(x, ...) {
 #'                data = globulus)
 #' str(rr <- ranef(res))
 #' plot(rr)
+#' }
 #' @importFrom nlme ranef
 #' @export ranef
 #' @export

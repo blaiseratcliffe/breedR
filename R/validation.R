@@ -56,10 +56,23 @@ validationf90 <- function(par_file,
                            focal_var = NULL,
                            dir = tempdir()) {
 
-  # Validate inputs
+  # Validate inputs before locating the binary, so bad inputs are reported
+  # regardless of whether the backend is installed.
   for (f in c(par_file, solutions_whole, solutions_partial)) {
     if (!file.exists(f))
       stop("File not found: ", f, call. = FALSE)
+  }
+  # validationf90 identifies the solutions layout from its header line and
+  # aborts opaquely on anything it does not recognise; check up front.
+  for (f in c(solutions_whole, solutions_partial)) {
+    hdr <- tryCatch(readLines(f, n = 1L), error = function(e) character(0))
+    if (!length(hdr) || !grepl("^\\s*trait/effect\\s+level", hdr))
+      stop("'", basename(f), "' does not start with a solutions header ",
+           "recognised by validationf90. Expected a first line like:\n",
+           "  trait/effect level  solution\n",
+           "  trait/effect level  solution          s.e.\n",
+           "Pass the unmodified 'solutions' file written by BLUPF90+.",
+           call. = FALSE)
   }
 
   bin_path <- breedR.getOption('breedR.bin')
@@ -82,21 +95,6 @@ validationf90 <- function(par_file,
             file.path(dir, "solutions_whole"), overwrite = TRUE)
   file.copy(solutions_partial,
             file.path(dir, "solutions_partial"), overwrite = TRUE)
-
-  # validationf90 identifies the solutions layout from its header line and
-  # rejects anything it does not recognise. Check up front so a missing or
-  # rewritten header is reported here rather than as an opaque Fortran abort.
-  for (f in c("solutions_whole", "solutions_partial")) {
-    hdr <- tryCatch(readLines(file.path(dir, f), n = 1L),
-                    error = function(e) character(0))
-    if (!length(hdr) || !grepl("^\\s*trait/effect\\s+level", hdr))
-      stop("'", f, "' does not start with a solutions header recognised by ",
-           "validationf90. Expected a first line like:\n",
-           "  trait/effect level  solution\n",
-           "  trait/effect level  solution          s.e.\n",
-           "Pass the unmodified 'solutions' file written by BLUPF90+.",
-           call. = FALSE)
-  }
 
   # Write validation ID file
   if (is.character(validation_ids) && length(validation_ids) == 1 &&

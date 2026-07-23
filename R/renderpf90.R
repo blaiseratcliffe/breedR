@@ -2,7 +2,7 @@
 #'   unsupported class. Failing early here prevents confusing downstream errors
 #'   when progsf90() tries to access fields that don't exist on the raw object.
 #' @export
-renderpf90.default <- function(x) {
+renderpf90.default <- function(x, ...) {
   stop('No renderpf90 method for class: ',
        paste(class(x), collapse = ', '),
        '. Supported effect types: fixed, diagonal, generic, ar, ',
@@ -15,7 +15,7 @@ renderpf90.default <- function(x) {
 
 #' @describeIn renderpf90 For fixed effects.
 #' @export
-renderpf90.fixed <- function(x) {
+renderpf90.fixed <- function(x, ...) {
   
   ## Do not use model.matrix() as this can be a factor
   mmx <- x$incidence.matrix
@@ -38,7 +38,7 @@ renderpf90.fixed <- function(x) {
 
 #' @describeIn renderpf90 For diagonal effects. Assumed grouping variables.
 #' @export
-renderpf90.diagonal <- function(x) {
+renderpf90.diagonal <- function(x, ...) {
   
   ## Do not use model.matrix() as this can be a factor
   mmx <- x$incidence.matrix
@@ -88,7 +88,7 @@ renderpf90.diagonal <- function(x) {
 #' @family renderpf90
 #' @import Matrix
 #' @export
-renderpf90.matrix <- function(x) {
+renderpf90.matrix <- function(x, ...) {
   
   ## Effective number of columns
   ## issue #37: excesive memory consumption
@@ -141,7 +141,7 @@ renderpf90.matrix <- function(x) {
 #' @param ntraits integer. Number of traits in the model.
 #' @param weights logical. Whether there is an additional column of weights.
 #' @export
-renderpf90.breedr_modelframe <- function(x, ntraits, weights) {
+renderpf90.breedr_modelframe <- function(x, ntraits, weights, ...) {
   
   xpf90 <- lapply(x, renderpf90)
   
@@ -185,7 +185,7 @@ renderpf90.breedr_modelframe <- function(x, ntraits, weights) {
 
 #' @describeIn renderpf90 Render groups of effects into pf90 code
 #' @export
-renderpf90.effect_group <- function(x) {
+renderpf90.effect_group <- function(x, ...) {
 
   ## Render each effect individually
   
@@ -250,7 +250,7 @@ renderpf90.effect_group <- function(x) {
 #' @describeIn renderpf90 Compute the parameters of a progsf90 representation of
 #'   a generic effect.
 #' @export
-renderpf90.generic <- function(x) {
+renderpf90.generic <- function(x, ...) {
   
   ## Incidence matrix in 'reduced' form
   mmpf90 <- renderpf90.matrix(model.matrix(x))
@@ -300,7 +300,7 @@ renderpf90.generic <- function(x) {
 #' @describeIn renderpf90 Compute the parameters of a progsf90 representation of
 #'   a additive_genetic_animal effect.
 #' @export
-renderpf90.additive_genetic_animal <- function(x) {
+renderpf90.additive_genetic_animal <- function(x, ...) {
   
   ## pedigree in data.frame format
   ped.dat <- as.data.frame(get_pedigree(x))
@@ -323,7 +323,7 @@ renderpf90.additive_genetic_animal <- function(x) {
 #' @describeIn renderpf90 Compute the parameters of a progsf90 representation of
 #'   a additive_genetic_competition effect.
 #' @export
-renderpf90.additive_genetic_competition <- function(x) {
+renderpf90.additive_genetic_competition <- function(x, ...) {
   
   ## pedigree in data.frame format
   ped.dat <- as.data.frame(get_pedigree(x))
@@ -352,7 +352,7 @@ renderpf90.additive_genetic_competition <- function(x) {
 #'   than the additive_genetic_competition effect but an unstructured covariance
 #'   matrix.
 #' @export
-renderpf90.permanent_environmental_competition <- function(x) {
+renderpf90.permanent_environmental_competition <- function(x, ...) {
   
   ## incidence matrix
   mmx <- model.matrix(x)  
@@ -381,7 +381,7 @@ renderpf90.permanent_environmental_competition <- function(x) {
 #' @describeIn renderpf90 Compute the parameters of a progsf90 representation of
 #'   a splines effect.
 #' @export
-renderpf90.splines <- function(x) {
+renderpf90.splines <- function(x, ...) {
   
   ans <- renderpf90.generic(x)
   ans$file_name = 'splines'
@@ -395,7 +395,7 @@ renderpf90.splines <- function(x) {
 #'   \code{diagonal}: a single cross-classified factor with no structure file.
 #' @describeIn renderpf90 Delegates to \code{renderpf90.diagonal}.
 #' @export
-renderpf90.blocks <- function(x) {
+renderpf90.blocks <- function(x, ...) {
   renderpf90.diagonal(x)
 }
 
@@ -405,7 +405,7 @@ renderpf90.blocks <- function(x) {
 #' @describeIn renderpf90 Compute the parameters of a progsf90 representation of
 #'   an AR effect.
 #' @export
-renderpf90.ar <- function(x) {
+renderpf90.ar <- function(x, ...) {
   
   ans <- renderpf90.generic(x)
   ans$file_name = 'ar'

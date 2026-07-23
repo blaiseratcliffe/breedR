@@ -16,34 +16,37 @@
 \alias{renderpf90.ar}
 \title{Render a progsf90 effect}
 \usage{
-renderpf90(x)
+renderpf90(x, ...)
 
-\method{renderpf90}{default}(x)
+\method{renderpf90}{default}(x, ...)
 
-\method{renderpf90}{fixed}(x)
+\method{renderpf90}{fixed}(x, ...)
 
-\method{renderpf90}{diagonal}(x)
+\method{renderpf90}{diagonal}(x, ...)
 
-\method{renderpf90}{breedr_modelframe}(x, ntraits, weights)
+\method{renderpf90}{breedr_modelframe}(x, ntraits, weights, ...)
 
-\method{renderpf90}{effect_group}(x)
+\method{renderpf90}{effect_group}(x, ...)
 
-\method{renderpf90}{generic}(x)
+\method{renderpf90}{generic}(x, ...)
 
-\method{renderpf90}{additive_genetic_animal}(x)
+\method{renderpf90}{additive_genetic_animal}(x, ...)
 
-\method{renderpf90}{additive_genetic_competition}(x)
+\method{renderpf90}{additive_genetic_competition}(x, ...)
 
-\method{renderpf90}{permanent_environmental_competition}(x)
+\method{renderpf90}{permanent_environmental_competition}(x, ...)
 
-\method{renderpf90}{splines}(x)
+\method{renderpf90}{splines}(x, ...)
 
-\method{renderpf90}{blocks}(x)
+\method{renderpf90}{blocks}(x, ...)
 
-\method{renderpf90}{ar}(x)
+\method{renderpf90}{ar}(x, ...)
 }
 \arguments{
 \item{x}{object of class breedr_modelframe, effect_group or breedr_effect.}
+
+\item{...}{further arguments passed to methods (e.g. \code{ntraits},
+\code{weights} for the \code{breedr_modelframe} method).}
 
 \item{ntraits}{integer. Number of traits in the model.}
 

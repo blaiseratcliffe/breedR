@@ -26,7 +26,9 @@ Extract the fixed-effects estimates
 Extract the estimates of the fixed-effects parameters from a fitted model.
 }
 \examples{
+\dontrun{
     res <- remlf90(phe_X ~ gg + bl, data = globulus)
     fixef(res)
+}
 }
 \keyword{models}

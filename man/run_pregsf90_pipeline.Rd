@@ -23,6 +23,9 @@ run_pregsf90_pipeline(
 \item{tmpdir}{working directory.}
 
 \item{breedR.bin}{binary directory.}
+
+\item{pedigree}{the renumbered pedigree (from the fitted genetic effect),
+used to derive the SNP cross-reference file. May be NULL.}
 }
 \value{
 List with updated \code{pf90} and \code{pregs_out}.

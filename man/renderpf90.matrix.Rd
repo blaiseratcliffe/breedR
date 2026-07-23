@@ -4,10 +4,13 @@
 \alias{renderpf90.matrix}
 \title{Render a sparse matrix into non-zero values and column indices}
 \usage{
-\method{renderpf90}{matrix}(x)
+\method{renderpf90}{matrix}(x, ...)
 }
 \arguments{
 \item{x}{object of class breedr_modelframe, effect_group or breedr_effect.}
+
+\item{...}{further arguments passed to methods (e.g. \code{ntraits},
+\code{weights} for the \code{breedr_modelframe} method).}
 }
 \value{
 A matrix with a number of columns equal to twice the maximum number of

@@ -30,9 +30,10 @@
 #' @param coord (optional) a two-column matrix with coordinates of observations
 #' @param z (optional) a numeric vector of values to be represented spatially
 #'   
-#' @examples 
+#' @examples
+#' \dontrun{
 #' data(globulus)
-#' 
+#'
 #' # No spatial effect
 #' res <- remlf90(fixed  = phe_X ~ 1,
 #'                random = ~ gg,
@@ -69,7 +70,8 @@
 #' 
 #' variogram(res.sp)
 #' variogram(res.sp, z = PBV)
-#' 
+#' }
+#'
 #'   
 #' @seealso \code{\link[fields]{vgram.matrix}}
 #' @importFrom stats residuals dist aggregate

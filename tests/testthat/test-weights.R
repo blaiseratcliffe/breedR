@@ -6,7 +6,9 @@ context("Interface for weights")
 ########################
 
 test_that("simulated example of WEIGHTS option", {
-  
+
+  skip_if_no_progsf90()   # fits a live model
+
   ## simulated dataset
   set.seed(123)
   n <- 1e4

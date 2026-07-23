@@ -41,6 +41,7 @@ To produce a (list of) \dQuote{caterpillar plots} of the random effects
   apply \code{\link{plot}} to the result of a call to \code{ranef}.
 }
 \examples{
+\dontrun{
 res <- remlf90(phe_X ~ bl,
                genetic = list(model = 'add_animal',
                               pedigree = globulus[, 1:3],
@@ -48,4 +49,5 @@ res <- remlf90(phe_X ~ bl,
                data = globulus)
 str(rr <- ranef(res))
 plot(rr)
+}
 }

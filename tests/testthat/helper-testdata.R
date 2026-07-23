@@ -1,6 +1,14 @@
 ## test data directory
 testdata <- system.file("testdata", package = "breedR")
 
+## Skip a test when the PROGSF90 binaries are not installed (e.g. during
+## R CMD check, where they are not bundled). Binary-dependent unit tests use
+## this so the suite passes without the downloaded backend.
+skip_if_no_progsf90 <- function() {
+  testthat::skip_if_not(isTRUE(check_progsf90(quiet = TRUE)),
+                        "PROGSF90 binaries not installed")
+}
+
 # Quick convenience function to fit a test model on globulus data
 breedR.result <- function(...) {
   dat <- breedR::globulus

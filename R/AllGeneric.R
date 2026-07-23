@@ -65,9 +65,11 @@ effect_type <- function(x) UseMethod('effect_type')
 #' }
 #'
 #' @param x object of class breedr_modelframe, effect_group or breedr_effect.
+#' @param ... further arguments passed to methods (e.g. \code{ntraits},
+#'   \code{weights} for the \code{breedr_modelframe} method).
 #' @return A named list as described above.
 #' @family renderpf90
-renderpf90 <- function(x) UseMethod('renderpf90')
+renderpf90 <- function(x, ...) UseMethod('renderpf90')
 
 #' Get the Pedigree from an object
 #' 

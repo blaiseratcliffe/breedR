@@ -64,6 +64,7 @@ spatial-temporal variogram be fitted?
 
 }}
 \examples{
+\dontrun{
 data(globulus)
 
 # No spatial effect
@@ -102,6 +103,7 @@ PBV <- Zd \%*\% ranef(res.sp)$genetic
 
 variogram(res.sp)
 variogram(res.sp, z = PBV)
+}
 
   
 }

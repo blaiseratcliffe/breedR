@@ -133,6 +133,8 @@ build_genomic_options <- function(genomic) {
 #' @param pf90 progsf90 object.
 #' @param tmpdir working directory.
 #' @param breedR.bin binary directory.
+#' @param pedigree the renumbered pedigree (from the fitted genetic effect),
+#'   used to derive the SNP cross-reference file. May be NULL.
 #' @return List with updated \code{pf90} and \code{pregs_out}.
 run_pregsf90_pipeline <- function(genomic, genomic_opts, pf90,
                                    tmpdir, breedR.bin, pedigree = NULL) {

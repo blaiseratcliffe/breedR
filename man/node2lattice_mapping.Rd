@@ -6,6 +6,12 @@
 \usage{
 node2lattice_mapping(nrow, ncol)
 }
-\description{
-Borrowed from {INLA}
+\arguments{
+\item{nrow}{integer. Number of rows in the lattice.}
+
+\item{ncol}{integer. Number of columns in the lattice.}
 }
+\description{
+Borrowed from INLA.
+}
+\keyword{internal}
