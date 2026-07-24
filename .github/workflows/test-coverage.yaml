@@ -45,15 +45,9 @@ jobs:
         with:
           extra-packages: any::covr
 
-      - name: Install PROGSF90 binaries
-        run: |
-          mkdir -p inst/bin
-          curl -fsSL "https://famuvie.github.io/breedR/bin/linux/64bit/pf90.tar.gz" -o pf90.tar.gz
-          tar xzf pf90.tar.gz -C inst/bin
-          chmod +x inst/bin/remlf90 inst/bin/airemlf90
-          ls -la inst/bin/
-          rm -f pf90.tar.gz
-
+      # No PROGSF90 binaries: the coverage run measures the pure-R paths; the
+      # binary-dependent tests skip without the backend (they are exercised by
+      # the integration job in the R-CMD-check workflow, which installs it).
       - name: Generate test coverage
         shell: Rscript {0}
         run: |

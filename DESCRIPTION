@@ -44,7 +44,6 @@ Suggests:
     fmesher,
     GGally,
     grid,
-    INLA,
     MASS,
     msm,
     parallel,

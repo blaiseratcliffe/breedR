@@ -62,40 +62,10 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
 
-      # Download and install PROGSF90 binaries into inst/bin/
-      # Linux tar.gz extracts flat (remlf90, airemlf90)
-      # macOS tar.gz extracts flat (remlf90, airemlf90)
-      # Windows zip extracts with subdirs (32bit/, 64bit/ each with .exe and .dll)
-      - name: Install PROGSF90 binaries (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p inst/bin
-          curl -fsSL "https://famuvie.github.io/breedR/bin/linux/64bit/pf90.tar.gz" -o pf90.tar.gz
-          tar xzf pf90.tar.gz -C inst/bin
-          chmod +x inst/bin/remlf90 inst/bin/airemlf90
-          ls -la inst/bin/
-          rm -f pf90.tar.gz
-
-      - name: Install PROGSF90 binaries (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          mkdir -p inst/bin
-          curl -fsSL "https://famuvie.github.io/breedR/bin/mac/pf90.tar.gz" -o pf90.tar.gz
-          tar xzf pf90.tar.gz -C inst/bin
-          chmod +x inst/bin/remlf90 inst/bin/airemlf90
-          ls -la inst/bin/
-          rm -f pf90.tar.gz
-
-      - name: Install PROGSF90 binaries (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          mkdir -p inst/bin
-          curl -fsSL "https://famuvie.github.io/breedR/bin/windows/pf90.zip" -o pf90.zip
-          unzip -o pf90.zip -d inst/bin
-          ls -laR inst/bin/
-          rm -f pf90.zip
-
+      # No PROGSF90 binaries are installed here: inst/bin is .Rbuildignore'd, so
+      # the checked tarball never contains them, and the unit tests skip the
+      # binary-dependent cases when the backend is absent. The integration job
+      # (below) installs the binaries via the package's own installers.
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-vignettes","--no-build-vignettes","--no-manual")'
