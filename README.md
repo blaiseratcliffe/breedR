@@ -92,6 +92,10 @@ res$rho   # evaluation grid with log-likelihoods
 
 ### Genomic evaluation (ssGBLUP)
 
+> For a full walkthrough of the genomic pipeline (genotype prep → ssGBLUP → GWAS
+> → prediction), see the *Genomic selection* vignette:
+> `vignette("Genomic-selection", package = "breedR")`.
+
 ```r
 res <- remlf90(
   fixed   = phe_X ~ gg,
@@ -375,6 +379,35 @@ snp_data$geno   # genotype matrix
 | `write_xref_file()` | Write cross-reference ID file |
 | `renumf90_from_data()` | Prepare data from R data.frames (no column positions needed) |
 | `build_gibbs_options()` | Generate GIBBSF90+ OPTION strings |
+
+## Comparison with other mixed-model tools
+
+An at-a-glance comparison with two widely used alternatives for
+quantitative-genetics mixed models. Capabilities of all three evolve — verify
+the details against the current documentation for your use case.
+
+| | **breedR** | **ASReml-R** | **sommer** |
+|---|---|---|---|
+| Engine | BLUPF90 (Fortran) | proprietary (VSNi) | R / C++ (Armadillo) |
+| License | GPL-3 (free) | commercial | GPL (free) |
+| REML | Yes (AI / EM) | Yes | Yes |
+| Bayesian / Gibbs | Yes (GIBBSF90+) | — | — |
+| Spatial (AR, splines) | Yes | Yes | Yes |
+| Multi-trait | Yes | Yes | Yes |
+| Single-step GBLUP | Yes (dedicated pipeline) | via user-supplied H | via user-supplied H |
+| GWAS / SNP effects | Yes (PostGSF90) | via SNP models | Yes |
+| Competition / IGE | Yes (built-in) | via custom structures | — |
+| Threshold / categorical | Yes (Gibbs) | Yes | limited |
+| Large sparse data | Yes (BLUPF90) | Yes (a core strength) | moderate (dense solver) |
+| Self-contained install | external binaries | Yes | Yes (pure R) |
+
+**In short:** ASReml-R is the mature commercial standard, especially for very
+large and spatially structured models; sommer is a flexible pure-R package
+strong in multivariate genomic prediction; breedR adds Bayesian inference,
+dedicated single-step GBLUP and GWAS, and competition models on the scalable
+BLUPF90 backend at no cost, in exchange for depending on external binaries.
+
+Sources: [BLUPF90 wiki](https://nce.ads.uga.edu/wiki/), [ASReml-R (VSNi)](https://vsni.co.uk/software/asreml-r/), [sommer (CRAN)](https://cran.r-project.org/package=sommer).
 
 ## Requirements
 
