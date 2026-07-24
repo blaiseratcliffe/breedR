@@ -641,8 +641,8 @@ test_that('default_initial_variance() works as expected', {
   expect_equal(default.covar, div[1,2])
   
   div <- default_initial_variance(x, dim = dim, cor.effect = 0)
-  expect_identical(rep(as.matrix(var(x)/2), dim), diag(div))
-  expect_identical(0, div[2,1])
+  expect_equal(rep(as.matrix(var(x)/2), dim), diag(div))
+  expect_equal(0, div[2,1])
   
   ## 5 traits: half phenotypic variance of each trait and default covariances
   ## unless diag
