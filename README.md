@@ -4,7 +4,7 @@
 
 breedR is an R package for fitting linear mixed models in breeding and quantitative genetics. It wraps the [BLUPF90](https://nce.ads.uga.edu/wiki/doku.php?id=start) family of programs to estimate variance components via REML, compute breeding values, and run genomic evaluations.
 
-> **Note:** This fork is in active development and testing. The genomic features (ssGBLUP, GWAS, PREDF90, RENUMF90) are functional but have not been validated on production datasets. Use at your own risk and please report issues.
+> **Note:** This fork is in active development. The genomic paths (ssGBLUP, GWAS, genomic prediction, RENUMF90, parentage verification, and QC) now run end to end and are verified on small test datasets, but they have **not** been validated on production data. Use at your own risk and please report issues. See [Known limitations](#known-limitations) for two features that need a newer binary or extra setup.
 
 This fork extends the [original breedR](https://github.com/famuvie/breedR) with:
 
@@ -22,6 +22,15 @@ This fork extends the [original breedR](https://github.com/famuvie/breedR) with:
 - **SNP file I/O** — `write_snp_file()` / `read_snp_file()` for integer and fractional genotype formats
 - **Convenience data preparation** — `renumf90_from_data()` takes R data.frames and column names instead of file positions
 - **Performance improvements** — vectorized spatial indexing, parallel AR grid search, resilient error handling
+
+## Known limitations
+
+- **`validate_prediction()` / `validationf90`** — the breedR wrapper is verified, but the bundled
+  `validationf90` v1.01 aborts on valid input (an end-of-file read error inside the program). LR
+  validation therefore needs a newer `validationf90` build; this is a binary-side limitation, not a
+  wrapper defect. The whole/partial model fits and the partial-data construction work correctly.
+- **`predf90(acc = TRUE)`** — reliabilities require an `OPTION snp_var` file from the `postgsf90()`
+  run, which is not wired up yet. Direct genomic values (`acc = FALSE`, the default) work.
 
 ## Installation
 
@@ -106,7 +115,19 @@ res$genomic$excluded_snp
 
 ### GWAS
 
+`postgsf90()` back-solves SNP effects from the genomic G-inverse, so the model must be fitted with
+`save_ginverse = TRUE` (otherwise `postgsf90()` stops and asks you to refit):
+
 ```r
+res <- remlf90(
+  fixed   = phe_X ~ gg,
+  genetic = list(model = 'add_animal', pedigree = dat[, 1:3], id = 'self'),
+  data    = dat,
+  genomic = list(snp_file = "genotypes.txt",
+                 map_file = "snp_map.txt",
+                 save_ginverse = TRUE)     # required for a later GWAS
+)
+
 gwas <- postgsf90(res,
   windows_variance = 20,
   manhattan_plot    = TRUE
@@ -143,14 +164,20 @@ res_bin <- gibbsf90(survival ~ site,
 
 ### Predict new animals
 
+`predf90()` reads the SNP effects (`snp_pred`) written by `postgsf90()`, so run it in the same R
+session as the GWAS step above:
+
 ```r
+# ... after gwas <- postgsf90(res, ...) in the same session ...
 predictions <- predf90(
-  snp_file     = "new_genotypes.txt",
-  use_mu_hat   = TRUE,
-  acc          = TRUE
+  snp_file   = "new_genotypes.txt",
+  use_mu_hat = TRUE       # add the base so DGV are comparable to GEBV
 )
-# Returns: data.frame(id, call_rate, dgv, reliability)
+# Returns: data.frame(id, call_rate, dgv)
 ```
+
+Reliabilities (`acc = TRUE`) additionally require an `OPTION snp_var` file — see
+[Known limitations](#known-limitations).
 
 ### RENUMF90 data preparation
 
@@ -272,12 +299,16 @@ result$assigned    # corrected pedigree after parent assignment
 
 ### Prediction validation
 
+> Requires a `validationf90` build that runs to completion — see
+> [Known limitations](#known-limitations).
+
 ```r
 # Full LR validation workflow (Legarra & Reverter 2018)
 val <- validate_prediction(
   renum            = renum_output,     # from renumf90()
   validation_ids   = young_animal_ids, # animals to validate
-  effect           = 2                 # genetic effect number
+  effect           = 2,                # genetic effect number
+  trait            = 1                 # focal trait to hold out (multi-trait)
 )
 val$statistics     # bias, dispersion, accuracy
 ```

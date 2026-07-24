@@ -3,6 +3,20 @@
 Source: https://nce.ads.uga.edu/wiki/doku.php?id=readme.pregsf90
 Last modified: 2025/10/03
 
+## How breedR sets these
+
+Most users do not write these options directly — breedR builds them from the
+`genomic` list passed to `remlf90()`. Two points worth knowing:
+
+- **ssGBLUP fit:** breedR runs PREGSF90 to build the G matrix and `GimA22i`, then
+  BLUPF90+ reads it with `OPTION readGimA22i`. breedR also auto-generates the
+  `<genotype_file>_XrefID` file from its own pedigree renumbering, so you do not
+  have to run RENUMF90 first for a basic ssGBLUP fit.
+- **GWAS-ready fit:** pass `genomic = list(..., save_ginverse = TRUE)` to emit
+  `OPTION saveGInverse`. A later `postgsf90()` then reads the plain genomic
+  G-inverse with `OPTION readGInverse` (it does **not** reuse `readGimA22i`) and,
+  when a `map_file` was supplied, `OPTION chrinfo` for marker positions.
+
 ## Input Files
 
 ### Required

@@ -2,7 +2,32 @@
 
 All notable changes from the original [famuvie/breedR](https://github.com/famuvie/breedR) repository.
 
-## [0.13.0] - 2026-03-20
+## [0.13.0] - 2026-07-23
+
+### Genomic pipelines now run end to end
+
+Verified against the BLUPF90 binaries on small test datasets:
+
+- **Single-step GBLUP** (`remlf90(genomic = ...)`) now completes. breedR derives
+  the PREGSF90 cross-reference (XrefID) file from its pedigree renumbering, and
+  `parse_pregsf90_qc()` reads the real two-column `freqdata.count.after.clean`
+  and reports correct passed/excluded SNP counts.
+- **Genome-wide association** (`postgsf90()`) works. A new opt-in
+  `genomic = list(..., save_ginverse = TRUE)` saves the genomic G-inverse; GWAS
+  reads it with `OPTION readGInverse` (not the ssGBLUP `readGimA22i`), writes a
+  zero-inbreeding `renf90.inb`, and returns per-marker SNP solutions plus
+  Manhattan data. `postgsf90()` errors clearly if the fit was not GWAS-ready.
+- **Genomic prediction** (`predf90()`) now produces its `SNP_predictions`
+  output (runs with `--no_rpg`; a new optional `pedfile` enables the RPG path).
+- **Parentage** (`seekparentf90()`) reads its real output files
+  (`Parent_Progeny_Conflicts.txt` and its summary) instead of a non-existent name.
+- **Genotype QC** (`qcf90()`) no longer fails on every default call (the
+  `--save-log` flag now receives its required file name).
+- **LR validation** (`validate_prediction()`) gains a `trait` argument to
+  remove only the focal trait's phenotype in multi-trait models; the whole and
+  partial fits and partial-data construction are verified. *Known limitation:*
+  `validationf90` v1.01 aborts on valid input, so the final step needs a newer
+  `validationf90` binary.
 
 ### Fixes and hardening
 
@@ -11,9 +36,14 @@ All notable changes from the original [famuvie/breedR](https://github.com/famuvi
   and `get_structure()` for groups of three or more same-type effects.
 - Fractional SNP I/O now rejects values that break the fixed-width layout
   instead of silently corrupting them; `read_snp_file()` validates row lengths.
+- The genomic wrappers (`postgsf90`, `predf90`, `validationf90`, `qcf90`,
+  `seekparentf90`) now surface a fatal error instead of returning an empty or
+  garbled result when a program exits cleanly but failed.
 - Added download-integrity checks (scheme validation and executable magic-byte
   verification) and validation of remote-sourced ids/PIDs in `breedR.qdel()`.
 - Assorted guards, a spurious pedigree recode warning, and dead-code cleanup.
+- `R CMD check` passes cleanly (no errors or warnings) without the downloaded
+  binaries present.
 
 ### BLUPF90+ Migration
 
