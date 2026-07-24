@@ -18,6 +18,9 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       _R_CHECK_FORCE_SUGGESTS_: false
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+      # Coverage measures the pure-R paths; the binary-dependent tests skip
+      # without the backend, so do not download it at install time.
+      BREEDR_SKIP_INSTALL_BINARIES: true
 
     steps:
       - uses: actions/checkout@v4

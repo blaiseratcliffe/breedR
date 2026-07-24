@@ -12,5 +12,20 @@
 source('../R/binaries.R')
 source('../R/os.R')
 
-message("Downloading BLUPF90+ from:\n", breedr_progsf90_repo())
-install_progsf90(dest = file.path(R_PACKAGE_DIR, 'bin'))
+# Set BREEDR_SKIP_INSTALL_BINARIES=true to install the package without
+# downloading the BLUPF90+ backend (used in CI checks, where the binaries are
+# not needed and may not run on the runner). Users can fetch them later with
+# install_progsf90(). The download is also wrapped so a network failure does
+# not abort installation.
+if (identical(tolower(Sys.getenv("BREEDR_SKIP_INSTALL_BINARIES")), "true")) {
+  message("BREEDR_SKIP_INSTALL_BINARIES is set; skipping BLUPF90+ download. ",
+          "Run install_progsf90() to fetch the backend.")
+} else {
+  message("Downloading BLUPF90+ from:\n", breedr_progsf90_repo())
+  tryCatch(
+    install_progsf90(dest = file.path(R_PACKAGE_DIR, 'bin')),
+    error = function(e)
+      message("BLUPF90+ download failed (run install_progsf90() later): ",
+              conditionMessage(e))
+  )
+}
