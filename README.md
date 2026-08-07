@@ -444,6 +444,10 @@ inference with dedicated single-step GBLUP and GWAS, and competition models, on
 the scalable BLUPF90 backend at no cost, in exchange for depending on external
 binaries.
 
+For packages that bring **environmental covariates** into the model — envirotyping
+pipelines, reaction-norm and G×E kernel models in the tradition of Jarquín *et
+al.* (2014) — see [ENVIROTYPING.md](ENVIROTYPING.md).
+
 Sources: [BLUPF90 wiki](https://nce.ads.uga.edu/wiki/), [ASReml-R (VSNi)](https://vsni.co.uk/software/asreml-r/), [sommer (CRAN)](https://cran.r-project.org/package=sommer), [lme4 (CRAN)](https://cran.r-project.org/package=lme4), [Bates *et al.* (2015), *J. Stat. Softw.* 67(1)](https://doi.org/10.18637/jss.v067.i01), [MCMCglmm (CRAN)](https://cran.r-project.org/package=MCMCglmm), [Hadfield (2010), *J. Stat. Softw.* 33(2)](https://doi.org/10.18637/jss.v033.i02), [BGLR (CRAN)](https://cran.r-project.org/package=BGLR), [Pérez & de los Campos (2014), *Genetics* 198:483–495](https://doi.org/10.1534/genetics.114.164442), [Pérez-Rodríguez & de los Campos (2022), *Genetics* 222:iyac112](https://doi.org/10.1093/genetics/iyac112).
 
 ## Requirements
