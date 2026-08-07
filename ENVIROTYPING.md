@@ -1,8 +1,8 @@
 # Modelling environmental covariates (enviromics and reaction norms)
 
-A companion to the [tool comparison in the README](README.md#comparison-with-other-mixed-model-tools).
-That table covers packages that fit mixed models over pedigrees, markers and
-space. This page covers a different problem: bringing *environmental*
+A companion to the [tool comparison](COMPARISON.md), which covers packages that
+fit mixed models over pedigrees, markers and space. This page covers a different
+problem: bringing *environmental*
 information — weather, soil, elevation, management — into the model as
 covariates, so that genotype × environment interaction becomes something you can
 predict rather than merely describe.
