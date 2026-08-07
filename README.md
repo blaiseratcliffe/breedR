@@ -382,24 +382,44 @@ snp_data$geno   # genotype matrix
 
 ## Comparison with other mixed-model tools
 
-An at-a-glance comparison with three widely used alternatives for
-quantitative-genetics mixed models. Capabilities of all four evolve — verify
+An at-a-glance comparison with five widely used alternatives for
+quantitative-genetics mixed models. Capabilities of all six evolve — verify
 the details against the current documentation for your use case.
 
-| | **breedR** | **ASReml-R** | **sommer** | **BGLR** |
-|---|---|---|---|---|
-| Engine | BLUPF90 (Fortran) | proprietary (VSNi) | R / C++ (Armadillo) | R / C (Gibbs sampler) |
-| License | GPL-3 (free) | commercial | GPL (free) | GPL-3 (free) |
-| REML | Yes (AI / EM) | Yes | Yes | — (Bayesian only) |
-| Bayesian / Gibbs | Yes (GIBBSF90+) | — | — | Yes (the entire package) |
-| Spatial (AR, splines) | Yes | Yes | Yes | via user-supplied kernel |
-| Multi-trait | Yes | Yes | Yes | Yes (`Multitrait()`) |
-| Single-step GBLUP | Yes (dedicated pipeline) | via user-supplied H | via user-supplied H | via user-supplied H kernel |
-| GWAS / SNP effects | Yes (PostGSF90) | via SNP models | Yes | Yes (BayesB/C + `BFDR()`) |
-| Competition / IGE | Yes (built-in) | via custom structures | — | — |
-| Threshold / categorical | Yes (Gibbs) | Yes | limited | Yes (ordinal probit, censored) |
-| Large sparse data | Yes (BLUPF90) | Yes (a core strength) | moderate (dense solver) | moderate (dense marker matrix) |
-| Self-contained install | external binaries | Yes | Yes (pure R) | Yes (compiled C/Fortran) |
+| | **breedR** | **ASReml-R** | **sommer** | **lme4** | **BGLR** | **MCMCglmm** |
+|---|---|---|---|---|---|---|
+| Engine | BLUPF90 (Fortran) | proprietary (VSNi) | R / C++ (Armadillo) | R / C++ (Eigen) | R / C (Gibbs sampler) | R / C (MCMC) |
+| License | GPL-3 (free) | commercial | GPL (free) | GPL (≥ 2) | GPL-3 (free) | GPL (≥ 2) |
+| REML | Yes (AI / EM) | Yes | Yes | Yes (the default) | — (Bayesian only) | — (Bayesian only) |
+| Bayesian / MCMC | Yes (GIBBSF90+) | — | — | — | Yes (the entire package) | Yes (the entire package) |
+| Pedigree / **A** matrix | Yes (built-in) | Yes | Yes | — (needs `pedigreemm`) | via RKHS kernel | Yes (`pedigree=`) |
+| Spatial (AR, splines) | Yes | Yes | Yes | — | via user-supplied kernel | via `ginverse=` |
+| Multi-trait | Yes | Yes | Yes | — | Yes (`Multitrait()`) | Yes (a core strength) |
+| Single-step GBLUP | Yes (dedicated pipeline) | via user-supplied H | via user-supplied H | — | via user-supplied H kernel | via `ginverse=` (H⁻¹) |
+| GWAS / SNP effects | Yes (PostGSF90) | via SNP models | Yes | — | Yes (BayesB/C + `BFDR()`) | — |
+| Competition / IGE | Yes (built-in) | via custom structures | — | — | — | — |
+| Threshold / categorical | Yes (Gibbs) | Yes | limited | binary/count only | Yes (ordinal probit, censored) | Yes (many families + censoring) |
+| Large sparse data | Yes (BLUPF90) | Yes (a core strength) | moderate (dense solver) | Yes (a core strength) | moderate (dense marker matrix) | moderate (MCMC cost) |
+| Self-contained install | external binaries | Yes | Yes (pure R) | Yes | Yes (compiled C/Fortran) | Yes |
+
+lme4 is the general-purpose R workhorse, not a quantitative-genetics tool. Its
+sparse-Cholesky engine is fast and its `lmer`/`glmer` interface is the one most
+R users already know, but random effects are restricted to i.i.d. grouping
+factors: there is no way to supply a covariance matrix for a random term, so an
+animal model is out of reach without an extension such as `pedigreemm` (pedigree
+annotations) or `lme4qtl` (arbitrary covariance structures). No spatial
+correlation, no multi-trait, no genomic features. Reach for it when the design
+is a clean nested/crossed hierarchy and you need speed and familiarity.
+
+MCMCglmm is the closest Bayesian analogue to breedR. It fits multi-response
+GLMMs by MCMC, with native animal-model support via a `pedigree=` argument and
+arbitrary structured random effects via `ginverse=` — which is also the route to
+genomic or single-step relationship matrices, and to spatial (e.g. CAR)
+structures. Its distribution list is unusually broad (gaussian, poisson,
+categorical, ordinal, threshold, multinomial, zero-inflated and censored
+variants), and traits in a multi-response model may follow different
+distributions. The costs are the usual MCMC ones: prior specification matters,
+chains need diagnosing, and runtimes grow quickly with data size.
 
 BGLR is the odd one out: rather than a general mixed-model fitter, it is a
 whole-genome regression package built around a Gibbs sampler. Models are
@@ -414,14 +434,17 @@ Everything is posterior samples, not REML point estimates with standard errors.
 
 **In short:** ASReml-R is the mature commercial standard, especially for very
 large and spatially structured models; sommer is a flexible pure-R package
-strong in multivariate genomic prediction; BGLR is the reference for Bayesian
-whole-genome regression and shrinkage/variable-selection priors, but leaves
-pedigree, spatial and single-step structures to the user as kernels; breedR adds
-Bayesian inference, dedicated single-step GBLUP and GWAS, and competition models
-on the scalable BLUPF90 backend at no cost, in exchange for depending on
-external binaries.
+strong in multivariate genomic prediction; lme4 is the fast, familiar choice for
+plain hierarchical designs but has no genetic machinery; MCMCglmm is the
+Bayesian generalist, excellent for multi-response and non-Gaussian animal
+models; BGLR is the reference for Bayesian whole-genome regression and
+shrinkage/variable-selection priors, but leaves pedigree, spatial and
+single-step structures to the user as kernels; breedR combines REML and Bayesian
+inference with dedicated single-step GBLUP and GWAS, and competition models, on
+the scalable BLUPF90 backend at no cost, in exchange for depending on external
+binaries.
 
-Sources: [BLUPF90 wiki](https://nce.ads.uga.edu/wiki/), [ASReml-R (VSNi)](https://vsni.co.uk/software/asreml-r/), [sommer (CRAN)](https://cran.r-project.org/package=sommer), [BGLR (CRAN)](https://cran.r-project.org/package=BGLR), [Pérez & de los Campos (2014), *Genetics* 198:483–495](https://doi.org/10.1534/genetics.114.164442), [Pérez-Rodríguez & de los Campos (2022), *Genetics* 222:iyac112](https://doi.org/10.1093/genetics/iyac112).
+Sources: [BLUPF90 wiki](https://nce.ads.uga.edu/wiki/), [ASReml-R (VSNi)](https://vsni.co.uk/software/asreml-r/), [sommer (CRAN)](https://cran.r-project.org/package=sommer), [lme4 (CRAN)](https://cran.r-project.org/package=lme4), [Bates *et al.* (2015), *J. Stat. Softw.* 67(1)](https://doi.org/10.18637/jss.v067.i01), [MCMCglmm (CRAN)](https://cran.r-project.org/package=MCMCglmm), [Hadfield (2010), *J. Stat. Softw.* 33(2)](https://doi.org/10.18637/jss.v033.i02), [BGLR (CRAN)](https://cran.r-project.org/package=BGLR), [Pérez & de los Campos (2014), *Genetics* 198:483–495](https://doi.org/10.1534/genetics.114.164442), [Pérez-Rodríguez & de los Campos (2022), *Genetics* 222:iyac112](https://doi.org/10.1093/genetics/iyac112).
 
 ## Requirements
 
