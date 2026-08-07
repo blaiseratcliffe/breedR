@@ -383,24 +383,45 @@ snp_data$geno   # genotype matrix
 ## Comparison with other mixed-model tools
 
 An at-a-glance comparison with eight widely used alternatives for
-quantitative-genetics mixed models. Capabilities of all nine evolve — verify
-the details against the current documentation for your use case.
+quantitative-genetics mixed models. They are split by how variance components
+are estimated, since that shapes everything else about how a package is used;
+breedR appears in both tables because it offers both. Capabilities of all nine
+evolve — verify the details against the current documentation for your use case.
 
-| | **breedR** | **ASReml-R** | **sommer** | **lme4** | **gremlin** | **SpATS** | **BGLR** | **MCMCglmm** | **hibayes** |
-|---|---|---|---|---|---|---|---|---|---|
-| Engine | BLUPF90 (Fortran) | proprietary (VSNi) | R / C++ (Armadillo) | R / C++ (Eigen) | R / C++ (Matrix) | R (SAP algorithm) | R / C (Gibbs sampler) | R / C (MCMC) | R / C++ (MCMC) |
-| License | GPL-3 (free) | commercial | GPL (free) | GPL (≥ 2) | GPL-3 (free) | GPL-2/3 (free) | GPL-3 (free) | GPL (≥ 2) | GPL-3 (free) |
-| REML | Yes (AI / EM) | Yes | Yes | Yes (the default) | Yes (AI) | Yes (SAP) | — (Bayesian only) | — (Bayesian only) | — (Bayesian only) |
-| Bayesian / MCMC | Yes (GIBBSF90+) | — | — | — | — | — | Yes (the entire package) | Yes (the entire package) | Yes (the entire package) |
-| Pedigree / **A** matrix | Yes (built-in) | Yes | Yes | — (needs `pedigreemm`) | Yes (generalised inverse) | — | via RKHS kernel | Yes (`pedigree=`) | Yes (`ssbrm()`) |
-| Spatial (AR, splines) | Yes | Yes | Yes | — | via user-supplied inverse | Yes (2D P-splines) | via user-supplied kernel | via `ginverse=` | — |
-| Multi-trait | Yes | Yes | Yes | — | — (univariate only) | — | Yes (`Multitrait()`) | Yes (a core strength) | — |
-| Single-step GBLUP | Yes (dedicated pipeline) | via user-supplied H | via user-supplied H | — | via user-supplied H⁻¹ | — | via user-supplied H kernel | via `ginverse=` (H⁻¹) | Yes (`ssbrm()`) |
-| GWAS / SNP effects | Yes (PostGSF90) | via SNP models | Yes | — | — | — | Yes (BayesB/C + `BFDR()`) | — | Yes (PIP / WPPA) |
-| Competition / IGE | Yes (built-in) | via custom structures | — | — | — | — | — | — | — |
-| Threshold / categorical | Yes (Gibbs) | Yes | limited | binary/count only | — (Gaussian only) | Yes (`family=`) | Yes (ordinal probit, censored) | Yes (many families + censoring) | — (Gaussian only) |
-| Large sparse data | Yes (BLUPF90) | Yes (a core strength) | moderate (dense solver) | Yes (a core strength) | Yes (sparse AI) | single trials | moderate (dense marker matrix) | moderate (MCMC cost) | Yes (big genotype files) |
-| Self-contained install | external binaries | Yes | Yes (pure R) | Yes | Yes | Yes (pure R) | Yes (compiled C/Fortran) | Yes | Yes |
+### Likelihood-based (REML)
+
+| | **breedR** | **ASReml-R** | **sommer** | **lme4** | **gremlin** | **SpATS** |
+|---|---|---|---|---|---|---|
+| Engine | BLUPF90 (Fortran) | proprietary (VSNi) | R / C++ (Armadillo) | R / C++ (Eigen) | R / C++ (Matrix) | R (SAP algorithm) |
+| License | GPL-3 (free) | commercial | GPL (free) | GPL (≥ 2) | GPL-3 (free) | GPL-2/3 (free) |
+| REML algorithm | AI / EM | AI | Newton-Raphson / AI | profiled REML criterion | AI | SAP |
+| Pedigree / **A** matrix | Yes (built-in) | Yes | Yes | — (needs `pedigreemm`) | Yes (generalised inverse) | — |
+| Spatial (AR, splines) | Yes | Yes | Yes | — | via user-supplied inverse | Yes (2D P-splines) |
+| Multi-trait | Yes | Yes | Yes | — | — (univariate only) | — |
+| Single-step GBLUP | Yes (dedicated pipeline) | via user-supplied H | via user-supplied H | — | via user-supplied H⁻¹ | — |
+| GWAS / SNP effects | Yes (PostGSF90) | via SNP models | Yes | — | — | — |
+| Competition / IGE | Yes (built-in) | via custom structures | — | — | — | — |
+| Non-Gaussian / threshold | Yes (via Gibbs) | Yes | limited | binary/count only | — (Gaussian only) | Yes (`family=`) |
+| Large sparse data | Yes (BLUPF90) | Yes (a core strength) | moderate (dense solver) | Yes (a core strength) | Yes (sparse AI) | single trials |
+| Self-contained install | external binaries | Yes | Yes (pure R) | Yes | Yes | Yes (pure R) |
+
+### Bayesian (MCMC)
+
+| | **breedR** | **BGLR** | **MCMCglmm** | **hibayes** |
+|---|---|---|---|---|
+| Engine | GIBBSF90+ (Fortran) | R / C (Gibbs sampler) | R / C (MCMC) | R / C++ (MCMC) |
+| License | GPL-3 (free) | GPL-3 (free) | GPL (≥ 2) | GPL-3 (free) |
+| REML also available | Yes | — | — | — |
+| Model / prior classes | variance-component Gibbs | `FIXED`, `BRR`, `BayesA/B/C`, `BL`, `RKHS` | Gaussian random effects, inverse-Wishart priors | `BayesRR/A/B/Bpi/C/Cpi/L/R`, `BSLMM` |
+| Pedigree / **A** matrix | Yes (built-in) | via RKHS kernel | Yes (`pedigree=`) | Yes (`ssbrm()`) |
+| Spatial (AR, splines) | Yes | via user-supplied kernel | via `ginverse=` | — |
+| Multi-trait | Yes | Yes (`Multitrait()`) | Yes (a core strength) | — |
+| Single-step GBLUP | Yes (dedicated pipeline) | via user-supplied H kernel | via `ginverse=` (H⁻¹) | Yes (`ssbrm()`) |
+| GWAS / SNP effects | Yes (PostGSF90) | Yes (BayesB/C + `BFDR()`) | — | Yes (PIP / WPPA) |
+| Summary-statistics input | — | — | — | Yes (`sbrm()` + LD matrix) |
+| Non-Gaussian / threshold | Yes | Yes (ordinal probit, censored) | Yes (many families + censoring) | — (Gaussian only) |
+| Large data | Yes (BLUPF90) | moderate (dense marker matrix) | moderate (MCMC cost) | Yes (big genotype files) |
+| Self-contained install | external binaries | Yes (compiled C/Fortran) | Yes | Yes |
 
 lme4 is the general-purpose R workhorse, not a quantitative-genetics tool. Its
 sparse-Cholesky engine is fast and its `lmer`/`glmer` interface is the one most
