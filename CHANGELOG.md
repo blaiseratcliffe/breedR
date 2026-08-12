@@ -4,6 +4,57 @@ All notable changes from the original [famuvie/breedR](https://github.com/famuvi
 
 ## [Unreleased]
 
+### `remlf90()` can be followed while it runs, and resumed after it dies
+
+A REML fit returns everything or nothing. On a three-site joint MET with
+AR1⊗AR1 spatial structure — 15,269 trees, 25,272 spatial cells per trait, three
+responses — a fit takes 1,015 minutes over 1,146 rounds. A crash at round 1,100
+lost seventeen hours and returned nothing, and while the job ran there was no
+way to see the round counter: `system2()` was called with `stdout = TRUE`, which
+holds the output in a pipe until the fit returns ([#9]).
+
+Two new arguments:
+
+- **`progress_file`** writes the backend's output to a path as it is produced,
+  so a multi-day fit can be followed with `tail -F`, or inspected with the new
+  `reml_checkpoint()`, from a second R session. The backend's error stream goes
+  to a companion `.err` file rather than into the log, so that what
+  `parse_results()` sees is unchanged.
+- **`cont = TRUE`** resumes from that log. AIREMLF90 prints the residual and
+  genetic (co)variance matrices at *every* round, and those matrices are the
+  entire state of the optimiser, so the log is a complete per-round checkpoint.
+  On the `globulus` example a cold fit takes 12 rounds and a resumed one takes
+  3, reaching identical variance components and the same `-2logL`.
+
+`reml_checkpoint()` is exported for reading the components out of any breedR
+REML log, including one still being written.
+
+The most useful case is not a crash. A fit that exhausts `maxrounds` returns
+**all-`NA` variance components** with a warning, while its log holds every round
+intact — `cont = TRUE` picks up exactly where that otherwise useless result
+object left off.
+
+Resuming can start slightly earlier than the last round printed, and
+deliberately so. A log truncated by a crash ends mid-line, and a number cut
+inside its exponent parses cleanly while being wrong by orders of magnitude
+(`0.57309E+09` becoming `0.573`), so a block that is not followed by further
+output is never trusted. A round whose matrices are not positive definite is
+skipped in favour of an earlier one. The round actually used is reported and
+stored in `res$reml$resumed_from`.
+
+**`cont = TRUE` cannot be combined with an explicit `var.ini`** — it errors
+rather than silently overriding what you typed. Both arguments are local only,
+and are rejected for `breedR.bin = "remote"`/`"submit"` and for an AR `rho` grid
+search, which fits one model per `rho`. Under `genomic` they cover the REML
+phase only: PREGSF90 runs first, is not streamed, and is not skipped on resume.
+
+No `save_halfway` argument was added, despite `gibbsf90()` having one. There it
+is a pass-through to the GIBBSF90+ option `save_halfway_samples`; AIREMLF90 has
+no counterpart, and there is no interval worth choosing, because every round is
+already a checkpoint.
+
+[#9]: https://github.com/blaiseratcliffe/breedR/issues/9
+
 ### `summary()` reports the estimate of a variance function, not its sampling mean
 
 AIREMLF90 returns three numbers for every `OPTION se_covar_function`: the
