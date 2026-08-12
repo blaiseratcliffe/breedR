@@ -27,6 +27,21 @@ layout, which is now documented in `?remlf90`.
 
 [#13]: https://github.com/blaiseratcliffe/breedR/issues/13
 
+### `res$fit$AIC` is parsed again
+
+Current BLUPF90+ versions append the log-likelihood convergence to the AIC field
+of the REML output:
+
+```
+-2logL = 5748.877 : AIC = 5754.877  logL convergence 0.7277E-14
+```
+
+`parse_results()` coerced that whole field to numeric, so `res$fit$AIC` was `NA`
+for every fitted model and each fit emitted a `NAs introduced by coercion`
+warning. It now reads the leading number of each field. `summary()` is
+unaffected — it computes AIC from `logLik()` and only fell back to `res$fit$AIC`
+on error.
+
 ## [0.13.0] - 2026-07-23
 
 ### Genomic pipelines now run end to end

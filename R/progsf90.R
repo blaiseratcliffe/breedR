@@ -315,6 +315,18 @@ write.progsf90 <- function (pf90, dir) {
 
 
 
+# Leading number of each string, as a numeric vector (NA where there is none).
+# Some fields in the REML output carry trailing text after their value, e.g.
+#   -2logL = 5748.877 : AIC = 5754.877  logL convergence 0.7277E-14
+# where coercing the whole AIC field would give NA with a warning.
+first_number <- function(x) {
+  m <- regexpr('[-+]?[0-9]*\\.?[0-9]+([EeDd][-+]?[0-9]+)?', x)
+  ans <- rep(NA_real_, length(x))
+  ans[m != -1L] <- as.numeric(regmatches(x, m))
+  ans
+}
+
+
 # Parse results from a progsf90 'solutions' file
 parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
 
@@ -567,9 +579,9 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
   }
 
   # Fit info
-  last.fit <- as.numeric(strsplit(strsplit(reml.out[last.round.idx-1],
-                                           split='-2logL =')[[1]][2],
-                                  split=': AIC =')[[1]])
+  last.fit <- first_number(strsplit(strsplit(reml.out[last.round.idx-1],
+                                             split='-2logL =')[[1]][2],
+                                    split=': AIC =')[[1]])
   fit <- list(
     '-2logL' = last.fit[1],
     AIC = last.fit[2]
