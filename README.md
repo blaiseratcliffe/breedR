@@ -281,7 +281,9 @@ res <- remlf90(phe_X ~ gg,
   progsf90.options = var_functions(n_traits = 1, genetic_effect = 2,
                                     other_random = 3)
 )
-# h2 and spatial proportion with SEs in res$funvars
+# h2 and spatial proportion in res$funvars: one column per function, with rows
+# 'mean' (the estimate, at the REML solution), 'sample mean' and 'sample sd'
+# (mean and SE of the Monte Carlo draws). summary() prints all three.
 
 # For multi-trait: heritabilities + all genetic correlations
 var_functions(n_traits = 3, genetic_effect = 2, correlations = TRUE)

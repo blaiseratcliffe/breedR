@@ -88,12 +88,23 @@ test_that('AI-remlf90() returns heritability and inverse AI matrix', {
   
   # parsed heritability and inverse AI matrix
   expect_is(res$funvars, 'matrix')
+  expect_identical(rownames(res$funvars),
+                   c('mean', 'sample mean', 'sample sd'))
   expect_is(res$reml$invAI, 'matrix')
   expect_identical(dim(res$reml$invAI), c(4L, 4L))
-  
-  # heritability shown in summary
+
+  # the reported estimate is the plug-in value implied by the variance
+  # components, not the mean of the Monte Carlo draws (issue #13)
+  v <- res$var[, 'Estimated variances']
+  expect_equal(unname(res$funvars['mean', 'Heritability']),
+               unname(v['genetic'] / sum(v)),
+               tol = 1e-04)
+
+  # heritability shown in summary, with all three reported numbers
   expect_output(print(summary(res)), "Heritability")
-  
+  expect_output(print(summary(res)), "Estimate")
+  expect_output(print(summary(res)), "Sample Mean")
+
   # reported SE are consistent with AI matrix
   expect_equal(res$var[, 'S.E.'], sqrt(diag(res$reml$invAI)),
                tol = 1e-04, check.attributes = FALSE)

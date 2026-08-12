@@ -225,8 +225,31 @@
 #'   jobs can be submitted in parallel. See \code{?remote} to learn how to 
 #'   configure breedR for remote computing, and how to manage submitted jobs.}
 #'   
-#' @return An object of class 'remlf90' that can be further questioned by 
+#' @return An object of class 'remlf90' that can be further questioned by
 #'   \code{\link{fixef}}, \code{\link{ranef}}, \code{\link{fitted}}, etc.
+#'
+#'   Among its components, \code{funvars} holds the functions of (co)variances
+#'   requested through \code{OPTION se_covar_function} (see
+#'   \code{\link{var_functions}}), and is a matrix with one column per requested
+#'   function and three rows:
+#'
+#'   \describe{
+#'   \item{\code{mean}}{the plug-in value of the function evaluated at the REML
+#'   solution. This is the estimate, and is consistent with the variance
+#'   components reported in the same object.}
+#'   \item{\code{sample mean}}{the mean of the draws AIREMLF90 takes from the
+#'   asymptotic distribution of the variance components, evaluating the function
+#'   at each draw.}
+#'   \item{\code{sample sd}}{the standard deviation of those draws, used as the
+#'   standard error of the estimate.}
+#'   }
+#'
+#'   \code{summary()} prints all three. A gap between the first two means the
+#'   sampling distribution of the function is skewed, either by the
+#'   non-linearity of the function itself or by the boundary of the parameter
+#'   space, and therefore that the variance components are poorly determined.
+#'   When no variance functions are requested (e.g. \code{method = 'em'}, or a
+#'   model with no genetic effect), \code{funvars} is an empty list.
 #' @seealso \code{\link[pedigreemm]{pedigree}}
 #' @references progsf90 wiki page: \url{http://nce.ads.uga.edu/wiki/doku.php}
 #'   
@@ -1404,6 +1427,37 @@ print.remlf90 <- function(x, digits = max(3, getOption("digits") - 3), ...) {
 
 
 
+## AIREMLF90 reports three numbers for each OPTION se_covar_function: the
+## plug-in value of the function at the REML solution ('mean'), and the mean
+## and standard deviation of the draws it takes from the asymptotic
+## distribution of the variance components ('sample mean', 'sample sd').
+## The plug-in value is the estimate; the sampling SD is its standard error.
+
+## Divergence beyond this fraction of the sampling SD is worth flagging.
+## The Monte Carlo standard error of the sample mean is sd/sqrt(5000), about
+## 0.014 sd, so a tenth of a SD is well beyond mere sampling noise.
+funvars_divergence_tol <- 0.1
+
+## Reshape the 3 x n matrix of parsed functions into the printed table
+funvars_table <- function(funvars) {
+  ans <- t(funvars)
+  colnames(ans) <- c("Estimate", "Sample Mean", "S.E.")
+  ans
+}
+
+## Which functions have a sample mean far away from the plug-in estimate?
+## Compare multiplicatively rather than scaling the gap by the SD, which
+## would give NaN whenever the sampling SD is zero.
+funvars_divergent <- function(funvars, tol = funvars_divergence_tol) {
+  if (!length(funvars)) return(logical(0))
+  ans <- abs(funvars['mean', ] - funvars['sample mean', ]) >
+    tol * funvars['sample sd', ]
+  ans[is.na(ans)] <- FALSE
+  ## indexing a single-column matrix by row drops the column name
+  stats::setNames(ans, colnames(funvars))
+}
+
+
 ## This is modeled a bit after  print.summary.lm :
 #' @method print summary.remlf90
 #' @importFrom stats printCoefmat
@@ -1441,12 +1495,23 @@ print.summary.remlf90 <- function(x, digits = max(3, getOption("digits") - 3),
   print(x$var, quote = FALSE, digits = digits, ...)
   
   if (length(x$funvars)) {
-    cat("\n")
-    funvars <- t(x$funvars[-1, , drop = FALSE])
-    colnames(funvars) <- c("Estimate", "S.E.")
-    print(funvars, quote = FALSE, digits = digits, ...)
+    cat("\nFunctions of variance components:\n")
+    print(funvars_table(x$funvars), quote = FALSE, digits = digits, ...)
+    div <- funvars_divergent(x$funvars)
+    if (any(div)) {
+      cat("\nNote: for ", paste(names(div)[div], collapse = ", "),
+          " the Sample Mean departs from the Estimate.\n",
+          "  The S.E. is obtained by drawing the variance components from their\n",
+          "  asymptotic distribution at the REML solution and evaluating the\n",
+          "  function at each draw. Because the function is non-linear, the mean\n",
+          "  of those draws need not equal the function of the means, and draws\n",
+          "  falling outside the parameter space are pulled back to its boundary.\n",
+          "  Both effects grow with the S.E., so a gap here means the variance\n",
+          "  components are poorly determined: read the S.E. as indicative only.\n",
+          sep = "")
+    }
   }
-    
+
   cat('\nFixed effects:\n')
   printCoefmat(x$coefficients)
   invisible(x)

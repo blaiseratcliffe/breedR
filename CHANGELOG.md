@@ -2,6 +2,31 @@
 
 All notable changes from the original [famuvie/breedR](https://github.com/famuvie/breedR) repository.
 
+## [Unreleased]
+
+### `summary()` reports the estimate of a variance function, not its sampling mean
+
+AIREMLF90 returns three numbers for every `OPTION se_covar_function`: the
+plug-in value of the function at the REML solution, and the mean and standard
+deviation of the draws it takes from the asymptotic distribution of the variance
+components. `summary()` was printing the *sampling mean* under the heading
+`Estimate` and discarding the plug-in value ([#13]).
+
+The two agree when the variance components are well determined and diverge when
+they are not, so the printed heritability could be inconsistent with the
+variance components printed directly above it in the same table. On a 65-record
+example the reported heritability was 0.6237 where the printed variance
+components imply 0.7174.
+
+`summary()` now prints all three columns — `Estimate` (the plug-in value),
+`Sample Mean` and `S.E.` — under a *Functions of variance components* heading,
+and adds a note explaining the cause when the first two differ by more than a
+tenth of the S.E. **Printed heritabilities will therefore shift slightly for
+existing users.** The parser is unchanged and `res$funvars` keeps its three-row
+layout, which is now documented in `?remlf90`.
+
+[#13]: https://github.com/blaiseratcliffe/breedR/issues/13
+
 ## [0.13.0] - 2026-07-23
 
 ### Genomic pipelines now run end to end

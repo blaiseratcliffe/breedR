@@ -63,13 +63,35 @@ res.animal <- remlf90(fixed  = phe_X ~ 1,
 summary(res.animal)
 ```
 
-The heritability is shown automatically in the `summary()` along with its standard error.
-In this case, the formula used was genetic/(gg+genetic+Residual)`.
+The heritability is shown automatically in the `summary()`, under *Functions of
+variance components*. In this case, the formula used was
+`genetic/(gg+genetic+Residual)`.
 
-The calculation method is by simulation from the asymptotic Gaussian joint 
-sampling distribution of the variance components. The
-approximation makes use of the Average Information matrix, and therefore can
-only be used when `method = 'ai'`.
+Three numbers are reported for each function:
+
+- **Estimate** — the value of the formula evaluated at the REML solution. This
+  is the point estimate, and it is exactly what you would obtain by applying the
+  formula by hand to the variance components printed just above it.
+
+- **Sample Mean** and **S.E.** — the mean and standard deviation of a sample
+  drawn from the asymptotic Gaussian joint sampling distribution of the variance
+  components, with the formula evaluated at each draw. The approximation makes
+  use of the Average Information matrix, and therefore can only be used when
+  `method = 'ai'`.
+
+All three are available in `res.animal$funvars`.
+
+The Estimate and the Sample Mean usually agree closely, and here they do. When
+they do not, the gap is informative. Two things push them apart, and both scale
+with the reported S.E.: the formula is *non-linear* — a heritability is a ratio,
+so the mean of $f(\theta)$ over the draws need not equal $f$ of the mean — and
+draws that land outside the parameter space are pulled back onto its *boundary*,
+truncating one tail of the sampling distribution. A heritability with a large
+S.E. is bounded in $[0, 1]$ and so is squeezed hard against both ends.
+
+`summary()` prints a note when the two diverge by more than a tenth of the S.E.
+Read it as a warning that the variance components are poorly determined, and
+that the S.E. is only indicative — not as a defect in either number.
 
 In summary, there are two requirements for this approach to work:
 
@@ -135,8 +157,11 @@ More specifically, `G_3_3_1_1` means: the variance of *the third effect* in the
 model for the *first trait*, while `R_1_1` stands for the residual variance for
 the first trait.
 
-Since `breedR` for the moment supports single trait models only, the last two
-numbers for all the terms in the formula will always be 1.
+The last two numbers are trait indices, so in a single-trait model like this one
+they are always 1. In a multi-trait model they select the trait: `G_3_3_2_2` is
+the variance of the third effect for the *second* trait, and `G_3_3_1_2` its
+covariance between traits 1 and 2. See `h2_formula()`, `rg_formula()` and
+`var_functions()`, which build these strings for you.
 For the effect numbers count fixed effects also: `gg` (1), `bl` (2), `fam` (3).
 
 For more details, see the `se_covar_function`
@@ -183,6 +208,13 @@ if (require(msm, quietly = TRUE)) {
 }
 ```
 
+
+Note that `h2hat` here is the formula evaluated at the estimated variance
+components — the same quantity reported as **Estimate** in 2.1. Only the
+standard errors differ, and they differ in how they approximate the same
+sampling distribution: the delta method linearises the formula, whereas 2.1
+samples from the distribution directly and so also picks up the boundary
+effects the linearisation ignores.
 
 I think there is currently little reason for using this method, as 2.1 is
 feasible under the same conditions, and is always preferable.

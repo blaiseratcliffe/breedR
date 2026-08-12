@@ -94,8 +94,31 @@ cores. Requires the \code{parallel} package (default FALSE).}
 and their output are shown, but results are not parsed.}
 }
 \value{
-An object of class 'remlf90' that can be further questioned by 
+An object of class 'remlf90' that can be further questioned by
   \code{\link{fixef}}, \code{\link{ranef}}, \code{\link{fitted}}, etc.
+
+  Among its components, \code{funvars} holds the functions of (co)variances
+  requested through \code{OPTION se_covar_function} (see
+  \code{\link{var_functions}}), and is a matrix with one column per requested
+  function and three rows:
+
+  \describe{
+  \item{\code{mean}}{the plug-in value of the function evaluated at the REML
+  solution. This is the estimate, and is consistent with the variance
+  components reported in the same object.}
+  \item{\code{sample mean}}{the mean of the draws AIREMLF90 takes from the
+  asymptotic distribution of the variance components, evaluating the function
+  at each draw.}
+  \item{\code{sample sd}}{the standard deviation of those draws, used as the
+  standard error of the estimate.}
+  }
+
+  \code{summary()} prints all three. A gap between the first two means the
+  sampling distribution of the function is skewed, either by the
+  non-linearity of the function itself or by the boundary of the parameter
+  space, and therefore that the variance components are poorly determined.
+  When no variance functions are requested (e.g. \code{method = 'em'}, or a
+  model with no genetic effect), \code{funvars} is an empty list.
 }
 \description{
 Fits a Linear Mixed Model by Restricted Maximum Likelihood
