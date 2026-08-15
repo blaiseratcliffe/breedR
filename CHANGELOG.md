@@ -43,10 +43,17 @@ skipped in favour of an earlier one. The round actually used is reported and
 stored in `res$reml$resumed_from`.
 
 **`cont = TRUE` cannot be combined with an explicit `var.ini`** — it errors
-rather than silently overriding what you typed. Both arguments are local only,
-and are rejected for `breedR.bin = "remote"`/`"submit"` and for an AR `rho` grid
-search, which fits one model per `rho`. Under `genomic` they cover the REML
-phase only: PREGSF90 runs first, is not streamed, and is not skipped on resume.
+rather than silently overriding what you typed, and it is refused under
+`debug = TRUE`, which parses nothing and would consume the log for no result.
+Both arguments are local only, and are rejected for
+`breedR.bin = "remote"`/`"submit"` and for an AR `rho` grid search, which fits
+one model per `rho`. Under `genomic` they cover the REML phase only: PREGSF90
+runs first, is not streamed, and is not skipped on resume.
+
+Interrupting a streamed fit returns control immediately but leaves the backend
+running: closing the connection would block until the fit finished, which on a
+multi-day job is worse than the orphan. The orphan holds files in `tempdir()`,
+so start a fresh session after interrupting one.
 
 No `save_halfway` argument was added, despite `gibbsf90()` having one. There it
 is a pass-through to the GIBBSF90+ option `save_halfway_samples`; AIREMLF90 has
