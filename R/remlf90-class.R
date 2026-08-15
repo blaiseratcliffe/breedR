@@ -260,6 +260,13 @@
 #'   before starting, so a follower attached by name would otherwise be left on
 #'   the old file. Those backups are never cleaned up.
 #'
+#'   Interrupting a streamed fit returns control immediately but leaves the
+#'   backend running to completion in the background; breedR does not wait for
+#'   it, because closing the connection would block until the fit finished. The
+#'   orphaned process keeps files open in \code{tempdir()}, which can disturb a
+#'   further fit in the same R session, so start a fresh session after
+#'   interrupting one.
+#'
 #'   Resuming may start slightly earlier than the last round printed. The final
 #'   round of a log is deliberately never used, because a log truncated by a
 #'   crash ends mid-line and a number cut inside its exponent parses cleanly
@@ -994,13 +1001,22 @@ remlf90 <- function(fixed,
       ## working directory. cmd.exe misparses a command line carrying more than
       ## one quoted absolute path around a redirection, so the error stream is
       ## collected locally and moved to its final name afterwards.
-      writeLines('parameters', 'pf90_stdin')
-      con <- pipe(paste0(shQuote(breedR.call),
-                         ' < pf90_stdin 2> pf90_stderr'), 'r')
+      ## Open the log *before* starting the backend. This is the one fallible
+      ## step here, and doing it first means a failure leaves no child process
+      ## to orphan -- an orphaned backend holds files in tempdir() and breaks
+      ## the next fit in the same session.
       lcon <- file(progress_file, 'w')
       ## Idempotent: the connection is closed as soon as the run ends, and
       ## this is only the safety net for an error part-way through.
       on.exit(try(close(lcon), silent = TRUE), add = TRUE)
+
+      ## `con` is deliberately not registered with on.exit: close() on a pipe
+      ## waits for the child to finish, so on an interrupted multi-day fit it
+      ## would hang R instead of returning. The read loop below is therefore
+      ## still a window in which an error leaves the backend running.
+      writeLines('parameters', 'pf90_stdin')
+      con <- pipe(paste0(shQuote(breedR.call),
+                         ' < pf90_stdin 2> pf90_stderr'), 'r')
 
       message('Streaming REML progress to ', progress_file)
 

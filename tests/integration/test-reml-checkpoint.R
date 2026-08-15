@@ -263,3 +263,22 @@ test_that("a non-zero exit from the streamed backend is surfaced", {
   expect_error(stop_progsf90_failure(out, attr(out, 'status')),
                "some output")
 })
+
+
+test_that("a failure to open the log does not leave a backend running", {
+
+  ## The log is opened before the backend is started, so the one fallible step
+  ## in that sequence cannot orphan a child. An orphan holds files in
+  ## tempdir(), and the symptom is that the *next* fit in the same session
+  ## fails with "The process cannot access the file because it is being used
+  ## by another process" -- so that is what this asserts.
+  d <- file.path(wd, "not_a_file.log")
+  dir.create(d, showWarnings = FALSE)
+
+  ## file() also warns; the error is what matters here
+  expect_error(suppressWarnings(fit_globulus(progress_file = d)))
+
+  ## the session must still be usable
+  expect_error(after <- fit_globulus(), NA)
+  expect_true(after$reml$rounds > 0L)
+})

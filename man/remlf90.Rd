@@ -332,6 +332,13 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   before starting, so a follower attached by name would otherwise be left on
   the old file. Those backups are never cleaned up.
 
+  Interrupting a streamed fit returns control immediately but leaves the
+  backend running to completion in the background; breedR does not wait for
+  it, because closing the connection would block until the fit finished. The
+  orphaned process keeps files open in \code{tempdir()}, which can disturb a
+  further fit in the same R session, so start a fresh session after
+  interrupting one.
+
   Resuming may start slightly earlier than the last round printed. The final
   round of a log is deliberately never used, because a log truncated by a
   crash ends mid-line and a number cut inside its exponent parses cleanly
