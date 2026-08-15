@@ -57,9 +57,23 @@
 #' @param parallel logical or integer. If \code{TRUE}, the AR rho grid search
 #'   runs in parallel using all available cores. If an integer, uses that many
 #'   cores. Requires the \code{parallel} package (default FALSE).
+#' @param progress_file character. Path of a file where the backend's output is
+#'   written as it is produced, so that a long fit can be followed with
+#'   \code{tail -F} or inspected with \code{\link{reml_checkpoint}} from another
+#'   R session. A relative path is resolved against the working directory at the
+#'   time of the call. The backend's error stream goes to a companion file with
+#'   the suffix \code{.err}. Local fits only. Default \code{NULL}, which keeps
+#'   the output silent until the fit returns.
+#' @param cont logical. Resume a previous fit, taking its initial variances from
+#'   the last usable round of \code{progress_file}. Cannot be combined with an
+#'   explicit \code{var.ini}. The previous log is renamed with a timestamp
+#'   before the new one is written. Default \code{FALSE}. Named after the
+#'   equivalent argument of \code{\link{gibbsf90}}, though the mechanism
+#'   differs: for Gibbs it is a backend \code{OPTION}, whereas AIREMLF90 has no
+#'   such option and the log itself is the checkpoint.
 #' @param debug logical. If \code{TRUE}, the input files for blupf90 programs
 #'   and their output are shown, but results are not parsed.
-#'   
+#'
 #' @details If either \code{genetic} or \code{spatial} are not \code{NULL}, the 
 #'   model residuals are assumed to have an additive genetic effects or a 
 #'   spatially structured random effect, respectively. In those cases, 
@@ -222,9 +236,58 @@
 #'   job will be submitted to the server, and the job-id and other relevant 
 #'   information about the model will be returned instantly. The returned object
 #'   can be used to retrieve the results or check the status of the job. Several
-#'   jobs can be submitted in parallel. See \code{?remote} to learn how to 
+#'   jobs can be submitted in parallel. See \code{?remote} to learn how to
 #'   configure breedR for remote computing, and how to manage submitted jobs.}
-#'   
+#'
+#'   \subsection{Following and resuming a long fit}{ A REML fit returns
+#'   everything or nothing: on a large model it can run for days, and a crash
+#'   at the last round leaves no partial result and nothing to restart from.
+#'   \code{progress_file} and \code{cont} address both halves of that.
+#'
+#'   The backend prints the residual and genetic (co)variance matrices at
+#'   \emph{every} round, and those matrices are the whole state of the
+#'   optimiser. A streamed log is therefore a complete per-round checkpoint,
+#'   and resuming is simply a matter of reading the last usable round back into
+#'   the initial variances -- which typically converges in a couple of rounds.
+#'   The recovered components are distributed to the right places
+#'   automatically, so unlike \code{\link{reml_checkpoint}} there is nothing to
+#'   assemble by hand.
+#'
+#'   Because \code{remlf90} blocks while the backend runs, watching a fit in
+#'   progress means reading its log from a \emph{second} R session, with
+#'   \code{tail -F} or \code{\link{reml_checkpoint}}. Note \code{-F} rather than
+#'   \code{-f}: \code{cont = TRUE} renames the previous log with a timestamp
+#'   before starting, so a follower attached by name would otherwise be left on
+#'   the old file. Those backups are never cleaned up.
+#'
+#'   Interrupting a streamed fit returns control immediately but leaves the
+#'   backend running to completion in the background; breedR does not wait for
+#'   it, because closing the connection would block until the fit finished. The
+#'   orphaned process keeps files open in \code{tempdir()}, which can disturb a
+#'   further fit in the same R session, so start a fresh session after
+#'   interrupting one.
+#'
+#'   Resuming uses the last \emph{usable} round, normally the last one printed
+#'   but sometimes earlier, for three reasons. A block running to the end of the
+#'   file is refused, because a log truncated by a crash ends mid-line and a
+#'   number cut inside its exponent parses cleanly while being wrong by orders
+#'   of magnitude. A round whose matrices are not positive definite is skipped
+#'   in favour of an earlier one. And a run may not print every block in its
+#'   final round — REMLF90 under EM omits the last \code{G} — in which case the
+#'   round before it is used. The round actually used is reported and stored in
+#'   \code{res$reml$resumed_from}.
+#'
+#'   The most valuable case is not a crash but a fit that exhausted its
+#'   iterations: that returns \code{NA} variance components with a warning,
+#'   while the log holds every round intact, so \code{cont = TRUE} picks up
+#'   exactly where an otherwise useless result object left off.
+#'
+#'   Both arguments are for local fits. They are rejected for
+#'   \code{breedR.bin = 'remote'} or \code{'submit'}, and for an AR \code{rho}
+#'   grid search, which fits one model per \code{rho}. With \code{genomic},
+#'   they cover the REML phase only: PREGSF90 runs first and is not streamed,
+#'   nor is it skipped when resuming.}
+#'
 #' @return An object of class 'remlf90' that can be further questioned by
 #'   \code{\link{fixef}}, \code{\link{ranef}}, \code{\link{fitted}}, etc.
 #'
@@ -250,7 +313,14 @@
 #'   space, and therefore that the variance components are poorly determined.
 #'   When no variance functions are requested (e.g. \code{method = 'em'}, or a
 #'   model with no genetic effect), \code{funvars} is an empty list.
-#' @seealso \code{\link[pedigreemm]{pedigree}}
+#'
+#'   When \code{progress_file} is given, \code{res$reml$progress_file} records
+#'   the path used; when \code{cont = TRUE}, \code{res$reml$resumed_from}
+#'   records the round the initial variances were taken from.
+#' @seealso \code{\link{reml_checkpoint}} to read the variance components of a
+#'   log, including one still being written.
+#'
+#'   \code{\link[pedigreemm]{pedigree}}
 #' @references progsf90 wiki page: \url{http://nce.ads.uga.edu/wiki/doku.php}
 #'   
 #'   E. P. Cappa and R. J. C. Cantet (2007). Bayesian estimation of a surface to
@@ -283,6 +353,22 @@
 #'                    random = ~ f3,
 #'                    data   = dat)
 #' 
+#' ## Following a long fit, and picking it up again
+#' ## While this runs, `tail -F run.log` in a shell, or from a second R
+#' ## session: reml_checkpoint("run.log")
+#' res.slow <- remlf90(fixed  = y ~ x,
+#'                     random = ~ f3,
+#'                     data   = dat,
+#'                     progress_file = "run.log")
+#'
+#' ## Had it crashed, or exhausted its iterations, resume from that log:
+#' res.again <- remlf90(fixed  = y ~ x,
+#'                      random = ~ f3,
+#'                      data   = dat,
+#'                      progress_file = "run.log",
+#'                      cont   = TRUE)
+#' res.again$reml$resumed_from
+#'
 #' ## Generic model (used to manually fit the previous model)
 #' inc.mat <- model.matrix(~ 0 + f3, dat)
 #' cov.mat <- diag(3)
@@ -369,6 +455,8 @@ remlf90 <- function(fixed,
                     progsf90.options = NULL,
                     weights = NULL,
                     parallel = FALSE,
+                    progress_file = NULL,
+                    cont = FALSE,
                     debug = FALSE) {
   
   ## Assumptions:
@@ -416,10 +504,14 @@ remlf90 <- function(fixed,
     if( !check.random )
       stop("random should be a response-less formula\n")
   }
+  ## Checked before the binaries so that these guards are reachable without
+  ## the backend installed.
+  progress_file <- check_progress_args(progress_file, cont, breedR.bin, debug)
+
   if (!check_progsf90(quiet = debug | !interactive())) {
     stop('Binary dependencies missing. See ?install_progsf90')
   }
-  
+
   ### Parse arguments
   method <- tolower(method)
   method <- match.arg(method)
@@ -458,6 +550,15 @@ remlf90 <- function(fixed,
         ## grid case
         ## Each rho combination is independent — fit with tryCatch so one
         ## failure doesn't kill the entire search.
+
+        ## A grid is N fits, not one: a single log would be overwritten once
+        ## per rho, and a single checkpoint would seed every rho alike. Keyed
+        ## on the grid rather than on `parallel`, which is inert outside here.
+        if (!is.null(progress_file) || isTRUE(cont))
+          stop("'progress_file' and 'cont' are not supported for an AR rho ",
+               "grid search, which fits one model per rho.\n",
+               " Fix rho to a single pair and re-run.", call. = FALSE)
+
         n_rho <- nrow(spatial$rho)
 
         # Determine number of cores for parallel execution
@@ -726,8 +827,16 @@ remlf90 <- function(fixed,
   if (any(var.ini.checks, na.rm = TRUE) && any(!var.ini.checks, na.rm = TRUE))
     stop(paste('Some initial variances missing.\n',
                'Please specify either all or none.'))
+
+  ## Resuming supplies every initial variance, so an explicit specification
+  ## would be silently discarded. Say so instead of quietly ignoring it.
+  if (isTRUE(cont) && any(!var.ini.checks, na.rm = TRUE))
+    stop("'cont = TRUE' takes the initial variances from ", progress_file,
+         ".\n Drop the explicit var.ini specifications, or set cont = FALSE.",
+         call. = FALSE)
+
   ## Issue a warning in the case of no specification
-  if (all(var.ini.checks, na.rm = TRUE)) {
+  if (all(var.ini.checks, na.rm = TRUE) && !isTRUE(cont)) {
     message(paste0('Using default initial variances given by ',
                   breedR.getOption('default.initial.variance'), '()\n',
                   'See ?breedR.getOption.\n'))
@@ -736,6 +845,28 @@ remlf90 <- function(fixed,
   
   # Build a list of parameters and information for each effect
   effects <- build.effects(mf, genetic, spatial, generic, var.ini)
+
+  ## Resume from a previous run's log.
+  ##
+  ## Done here rather than on the arguments, because the initial variances of
+  ## the genetic, spatial and generic components live inside their own lists
+  ## and have already been consumed by check_genetic()/check_spatial()/
+  ## check_generic() further up. Only after build.effects() are the components
+  ## named the way the log keys them -- the very same vector that
+  ## parse_results() will use to label the results.
+  resumed_round <- NULL
+  if (isTRUE(cont)) {
+    ckpt <- reml_checkpoint_var.ini(progress_file, effects,
+                                    ntraits = ncol(responsem))
+    resumed_round <- ckpt$round
+    message('Resuming from round ', resumed_round, ' of ', progress_file)
+
+    ## Assigning cov.ini directly bypasses effect_group(), where the variance
+    ## is validated; reml_checkpoint_var.ini() has already run those checks.
+    for (nm in setdiff(names(ckpt$var), 'residuals'))
+      effects[[nm]]$cov.ini <- ckpt$var[[nm]]
+    var.ini$residuals <- ckpt$var[['residuals']]
+  }
 
   # Generate progsf90 parameters
   # TODO: Memory efficiency. At this point there are three copies of the 
@@ -789,11 +920,16 @@ remlf90 <- function(fixed,
   on.exit(setwd(cdir))
   
   ## write breedR_model for recovery
+  ## Under `cont` the saved `effects` carry the recovered variances rather than
+  ## the ones the call asks for, so record where they came from; otherwise the
+  ## bundle silently claims a starting point the user never chose. `mcout` is
+  ## left as typed -- it is the call, and falsifying it to avoid a replay
+  ## re-triggering the resume would be the worse trade.
   save(
-    effects, mf, method, mcout,
+    effects, mf, method, mcout, resumed_round,
     file = file.path("breedR_model.RData")
   )
-  
+
   ## Determine the breedR program to use (either local or remote)
   remote = FALSE
   submit = FALSE
@@ -832,22 +968,118 @@ remlf90 <- function(fixed,
   } else {
     breedR.call = file.path(breedR.bin, progsf90_files(breedR.os.type()))
 
-    reml.out <- system2(breedR.call, 
-                        input  = 'parameters',
-                        stdout = ifelse(debug, '', TRUE))
+    if (is.null(progress_file)) {
+      reml.out <- system2(breedR.call,
+                          input  = 'parameters',
+                          stdout = ifelse(debug, '', TRUE))
+    } else {
+      ## Read the backend through a pipe and write the log ourselves.
+      ##
+      ## system2(stdout = <file>) would be the obvious way, but on Windows the
+      ## redirect holds an exclusive lock: readLines(), file.copy() and even
+      ## `type` fail with permission denied until the process exits. That would
+      ## give a progress file that cannot be followed while it matters.
+      ##
+      ## stderr is deliberately not merged. The plain call above leaves it at
+      ## its default of "", so it reaches the console and never enters
+      ## reml.out; folding it in would change what parse_results() sees, and a
+      ## runtime message landing between two rows of a `new G` block breaks
+      ## extract_block() outright. It goes to a companion file instead.
+      ##
+      ## Only the binary is quoted; both redirections use relative names in the
+      ## working directory. cmd.exe misparses a command line carrying more than
+      ## one quoted absolute path around a redirection, so the error stream is
+      ## collected locally and moved to its final name afterwards.
+      ## Set the previous log aside, as late as possible. Everything that can
+      ## reject the run -- the binaries check, the component checks, the AR-grid
+      ## guard, the checkpoint parse, PREGSF90 -- has already happened, so a
+      ## failed resume leaves the log where the user left it, under the name
+      ## their retry will use.
+      bak <- NULL
+      if (isTRUE(cont)) {
+        bak <- paste0(progress_file, '.', format(Sys.time(), '%Y%m%d-%H%M%S'))
+        if (file.rename(progress_file, bak)) {
+          message('Previous log kept as ', bak)
+          ## Carry the error stream with it. That file usually holds the
+          ## diagnostic that prompted the resume, so preserving the log while
+          ## deleting it below would keep the wrong half. Guard on existence:
+          ## most resumes have no stderr at all, and file.rename() on a missing
+          ## source both returns FALSE and warns.
+          if (file.exists(paste0(progress_file, '.err')))
+            file.rename(paste0(progress_file, '.err'), paste0(bak, '.err'))
+        } else {
+          bak <- NULL
+          warning('Could not preserve the previous log; it will be overwritten.',
+                  call. = FALSE)
+        }
+      }
+
+      ## Open the log *before* starting the backend. This is the one fallible
+      ## step here, and doing it first means a failure leaves no child process
+      ## to orphan -- an orphaned backend holds files in tempdir() and breaks
+      ## the next fit in the same session.
+      ##
+      ## It is also the last thing that can fail after the rename above, so put
+      ## the previous log back if it does; otherwise a resume that cannot open
+      ## its log would consume the very file it was resuming from.
+      lcon <- tryCatch(
+        file(progress_file, 'w'),
+        error = function(e) {
+          if (!is.null(bak)) file.rename(bak, progress_file)
+          stop(e)
+        })
+      ## Idempotent: the connection is closed as soon as the run ends, and
+      ## this is only the safety net for an error part-way through.
+      on.exit(try(close(lcon), silent = TRUE), add = TRUE)
+
+      ## `con` is deliberately not registered with on.exit: close() on a pipe
+      ## waits for the child to finish, so on an interrupted multi-day fit it
+      ## would hang R instead of returning. The read loop below is therefore
+      ## still a window in which an error leaves the backend running.
+      writeLines('parameters', 'pf90_stdin')
+      con <- pipe(paste0(shQuote(breedR.call),
+                         ' < pf90_stdin 2> pf90_stderr'), 'r')
+
+      message('Streaming REML progress to ', progress_file)
+
+      reml.out <- character(0)
+      repeat {
+        l <- readLines(con, n = 1L, warn = FALSE)
+        if (!length(l)) break
+        reml.out <- c(reml.out, l)
+        writeLines(l, lcon)
+        flush(lcon)
+        if (debug) cat(l, '\n')
+      }
+      status <- close(con)
+      close(lcon)
+
+      ## Keep the error stream beside the log, but only when there is one.
+      ## Under `cont` the previous .err has already been renamed alongside the
+      ## previous log, so this only clears a stale companion of a fresh run.
+      err_file <- paste0(progress_file, '.err')
+      unlink(err_file)
+      if (file.exists('pf90_stderr') && file.info('pf90_stderr')$size > 0)
+        file.copy('pf90_stderr', err_file)
+
+      ## Restore the contract of stdout = TRUE, which the code below relies on.
+      if (!identical(as.integer(status), 0L))
+        attr(reml.out, 'status') <- as.integer(status)
+    }
   }
   
   
   
+  ## A streamed run still reports a failing backend under debug, where the
+  ## check below is skipped along with the parsing.
+  if (debug && !is.null(attr(reml.out, 'status')))
+    stop_progsf90_failure(reml.out, attr(reml.out, 'status'))
+
   if( !debug ) {
     # Check whether the PROGSF90 binary exited with an error.
     # Include the tail of the REML output so users can see the actual diagnostic.
-    if (!is.null(attr(reml.out, 'status'))) {
-      stop("PROGSF90 binary failed with exit code ",
-           attr(reml.out, 'status'), ".\nOutput:\n",
-           paste(utils::tail(reml.out, 20), collapse = "\n"),
-           call. = FALSE)
-    }
+    if (!is.null(attr(reml.out, 'status')))
+      stop_progsf90_failure(reml.out, attr(reml.out, 'status'))
 
     if( !submit ) {
       ## Save reml.out for recovery
@@ -855,6 +1087,13 @@ remlf90 <- function(fixed,
       
       # Parse solutions
       ans <- parse_results(file.path(tmpdir, 'solutions'), effects, mf, reml.out, method, mcout)
+
+      ## Recorded here rather than inside parse_results(), whose signature and
+      ## output existing tests pin down. The cost is that these do not survive
+      ## a breedR.qget() recovery, which rebuilds the object by calling
+      ## parse_results() directly -- immaterial while remote fits are refused.
+      if (!is.null(progress_file)) ans$reml$progress_file <- progress_file
+      if (!is.null(resumed_round)) ans$reml$resumed_from <- resumed_round
     } else {
       # Submitted job (solutions are parsed later with breedR.qget)
       ans <- list(id = submit.id,

@@ -108,9 +108,16 @@ or "all" (store all samples — creates large files).}
 
 \item{save_effects}{integer vector or NULL. Which effects to save.}
 
-\item{cont}{logical. Continue from a previous run (default FALSE).}
+\item{cont}{logical. Continue from a previous run (default FALSE). Emitted
+as the GIBBSF90+ \code{OPTION cont}, so the backend does the restarting.
+\code{\link{remlf90}} has an argument of the same name and meaning, but a
+different mechanism: AIREMLF90 offers no such option, so breedR resumes
+from its own log, which records every round.}
 
-\item{save_halfway}{integer or NULL. Save checkpoint every N rounds.}
+\item{save_halfway}{integer or NULL. Save checkpoint every N rounds.
+Emitted as \code{OPTION save_halfway_samples}. There is no counterpart in
+\code{\link{remlf90}}: a REML log already holds a checkpoint for every
+round, so there is no interval to choose.}
 
 \item{hetres_int}{list or NULL. Heterogeneous residual variances.
 List with \code{col} and \code{n}.}

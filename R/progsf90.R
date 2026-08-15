@@ -831,12 +831,17 @@ parse.txtmat <- function(x, names = NULL, square = TRUE) {
 #' @param l numeric. Line number where the block starts. Just
 #'   \emph{after} the section heading.
 #' @param x character vector. Lines of the log.
+#' @param text_lines integer vector. Line numbers of the non-numeric lines of
+#'   \code{x}. Computed by default; supply it to avoid rescanning the whole log
+#'   once per block when extracting many blocks from the same vector. It
+#'   \emph{must} have been computed from the very \code{x} passed here — an
+#'   index taken from a different vector silently yields wrong block bounds.
 #'
 #' @return character vector. Lines of text corresponding to numeric
 #'   values under the section.
 #'
 #' @examples
-#'   test_log <- 
+#'   test_log <-
 #'     c("REML log",
 #'       "Some info",
 #'       "Covariance matrix",
@@ -844,21 +849,17 @@ parse.txtmat <- function(x, names = NULL, square = TRUE) {
 #'       "   1.23E2   4.56E-02   7.89E-03    "
 #'       )
 #'   breedR:::extract_block(4, test_log)
-extract_block <- function(l, x) {
-  
-  numeric_exp <- "^[-E[:digit:][:space:]\\.]*$"
-  text_exp <- "^[[:alpha:][:punct:][:space:]]*$"
-  
+extract_block <- function(l, x, text_lines = which(!is_numericlog(x))) {
+
   ## The content of the line l-1 must be text (section heading)
   ## While the current one must be numeric (beginning of the block)
   stopifnot(
     !is_numericlog(x[l-1]),
     is_numericlog(x[l])
   )
-  
+
   ## Next text line (beginning of next block)
   ## There is always a last block of SE
-  text_lines <- which(!is_numericlog(x))
   if ( l - 1 == tail(text_lines, 1) ) {
     ## last block in the file
     end.l <- length(x)

@@ -18,6 +18,8 @@ remlf90(
   progsf90.options = NULL,
   weights = NULL,
   parallel = FALSE,
+  progress_file = NULL,
+  cont = FALSE,
   debug = FALSE
 )
 }
@@ -90,6 +92,22 @@ performed, handle with care.}
 runs in parallel using all available cores. If an integer, uses that many
 cores. Requires the \code{parallel} package (default FALSE).}
 
+\item{progress_file}{character. Path of a file where the backend's output is
+written as it is produced, so that a long fit can be followed with
+\code{tail -F} or inspected with \code{\link{reml_checkpoint}} from another
+R session. A relative path is resolved against the working directory at the
+time of the call. The backend's error stream goes to a companion file with
+the suffix \code{.err}. Local fits only. Default \code{NULL}, which keeps
+the output silent until the fit returns.}
+
+\item{cont}{logical. Resume a previous fit, taking its initial variances from
+the last usable round of \code{progress_file}. Cannot be combined with an
+explicit \code{var.ini}. The previous log is renamed with a timestamp
+before the new one is written. Default \code{FALSE}. Named after the
+equivalent argument of \code{\link{gibbsf90}}, though the mechanism
+differs: for Gibbs it is a backend \code{OPTION}, whereas AIREMLF90 has no
+such option and the log itself is the checkpoint.}
+
 \item{debug}{logical. If \code{TRUE}, the input files for blupf90 programs
 and their output are shown, but results are not parsed.}
 }
@@ -119,6 +137,10 @@ An object of class 'remlf90' that can be further questioned by
   space, and therefore that the variance components are poorly determined.
   When no variance functions are requested (e.g. \code{method = 'em'}, or a
   model with no genetic effect), \code{funvars} is an empty list.
+
+  When \code{progress_file} is given, \code{res$reml$progress_file} records
+  the path used; when \code{cont = TRUE}, \code{res$reml$resumed_from}
+  records the round the initial variances were taken from.
 }
 \description{
 Fits a Linear Mixed Model by Restricted Maximum Likelihood
@@ -286,8 +308,57 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   job will be submitted to the server, and the job-id and other relevant 
   information about the model will be returned instantly. The returned object
   can be used to retrieve the results or check the status of the job. Several
-  jobs can be submitted in parallel. See \code{?remote} to learn how to 
+  jobs can be submitted in parallel. See \code{?remote} to learn how to
   configure breedR for remote computing, and how to manage submitted jobs.}
+
+  \subsection{Following and resuming a long fit}{ A REML fit returns
+  everything or nothing: on a large model it can run for days, and a crash
+  at the last round leaves no partial result and nothing to restart from.
+  \code{progress_file} and \code{cont} address both halves of that.
+
+  The backend prints the residual and genetic (co)variance matrices at
+  \emph{every} round, and those matrices are the whole state of the
+  optimiser. A streamed log is therefore a complete per-round checkpoint,
+  and resuming is simply a matter of reading the last usable round back into
+  the initial variances -- which typically converges in a couple of rounds.
+  The recovered components are distributed to the right places
+  automatically, so unlike \code{\link{reml_checkpoint}} there is nothing to
+  assemble by hand.
+
+  Because \code{remlf90} blocks while the backend runs, watching a fit in
+  progress means reading its log from a \emph{second} R session, with
+  \code{tail -F} or \code{\link{reml_checkpoint}}. Note \code{-F} rather than
+  \code{-f}: \code{cont = TRUE} renames the previous log with a timestamp
+  before starting, so a follower attached by name would otherwise be left on
+  the old file. Those backups are never cleaned up.
+
+  Interrupting a streamed fit returns control immediately but leaves the
+  backend running to completion in the background; breedR does not wait for
+  it, because closing the connection would block until the fit finished. The
+  orphaned process keeps files open in \code{tempdir()}, which can disturb a
+  further fit in the same R session, so start a fresh session after
+  interrupting one.
+
+  Resuming uses the last \emph{usable} round, normally the last one printed
+  but sometimes earlier, for three reasons. A block running to the end of the
+  file is refused, because a log truncated by a crash ends mid-line and a
+  number cut inside its exponent parses cleanly while being wrong by orders
+  of magnitude. A round whose matrices are not positive definite is skipped
+  in favour of an earlier one. And a run may not print every block in its
+  final round — REMLF90 under EM omits the last \code{G} — in which case the
+  round before it is used. The round actually used is reported and stored in
+  \code{res$reml$resumed_from}.
+
+  The most valuable case is not a crash but a fit that exhausted its
+  iterations: that returns \code{NA} variance components with a warning,
+  while the log holds every round intact, so \code{cont = TRUE} picks up
+  exactly where an otherwise useless result object left off.
+
+  Both arguments are for local fits. They are rejected for
+  \code{breedR.bin = 'remote'} or \code{'submit'}, and for an AR \code{rho}
+  grid search, which fits one model per \code{rho}. With \code{genomic},
+  they cover the REML phase only: PREGSF90 runs first and is not streamed,
+  nor is it skipped when resuming.}
 }
 \examples{
 \dontrun{
@@ -308,6 +379,22 @@ dat <- transform(dat,
 res.lmm <- remlf90(fixed  = y ~ x,
                    random = ~ f3,
                    data   = dat)
+
+## Following a long fit, and picking it up again
+## While this runs, `tail -F run.log` in a shell, or from a second R
+## session: reml_checkpoint("run.log")
+res.slow <- remlf90(fixed  = y ~ x,
+                    random = ~ f3,
+                    data   = dat,
+                    progress_file = "run.log")
+
+## Had it crashed, or exhausted its iterations, resume from that log:
+res.again <- remlf90(fixed  = y ~ x,
+                     random = ~ f3,
+                     data   = dat,
+                     progress_file = "run.log",
+                     cont   = TRUE)
+res.again$reml$resumed_from
 
 ## Generic model (used to manually fit the previous model)
 inc.mat <- model.matrix(~ 0 + f3, dat)
@@ -395,5 +482,8 @@ progsf90 wiki page: \url{http://nce.ads.uga.edu/wiki/doku.php}
   Research} \strong{32}(12):2201-2214}.
 }
 \seealso{
-\code{\link[pedigreemm]{pedigree}}
+\code{\link{reml_checkpoint}} to read the variance components of a
+  log, including one still being written.
+
+  \code{\link[pedigreemm]{pedigree}}
 }

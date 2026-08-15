@@ -27,8 +27,15 @@
 #' @param save_samples character or NULL. "mean" (posterior means + SDs only)
 #'   or "all" (store all samples — creates large files).
 #' @param save_effects integer vector or NULL. Which effects to save.
-#' @param cont logical. Continue from a previous run (default FALSE).
+#' @param cont logical. Continue from a previous run (default FALSE). Emitted
+#'   as the GIBBSF90+ \code{OPTION cont}, so the backend does the restarting.
+#'   \code{\link{remlf90}} has an argument of the same name and meaning, but a
+#'   different mechanism: AIREMLF90 offers no such option, so breedR resumes
+#'   from its own log, which records every round.
 #' @param save_halfway integer or NULL. Save checkpoint every N rounds.
+#'   Emitted as \code{OPTION save_halfway_samples}. There is no counterpart in
+#'   \code{\link{remlf90}}: a REML log already holds a checkpoint for every
+#'   round, so there is no interval to choose.
 #' @param hetres_int list or NULL. Heterogeneous residual variances.
 #'   List with \code{col} and \code{n}.
 #' @param residual_var numeric or NULL. Fixed residual variance for

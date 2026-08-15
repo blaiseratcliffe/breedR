@@ -40,6 +40,28 @@
 		"matrix_rank": 6454,
 		"n_rounds": 18,
 		"converged": "TRUE",
-		"notes": "parse invAI matrix difficult: matrix lines are wrapped"
+		"notes": "parse invAI matrix difficult: matrix lines are wrapped. Rounds 13-18 are not positive definite, so a checkpoint requiring SPD falls back to round 12"
+	},
+	{
+		"file_name": "airemlf90_log_4.txt",
+		"program": "AIREMLF90",
+		"data_type": "log",
+		"n_traits": 10,
+		"n_effects": 1,
+		"n_random_effects": 0,
+		"n_rounds": 6,
+		"converged": "TRUE",
+		"notes": "10 traits: every matrix row is wrapped over two physical lines"
+	},
+	{
+		"file_name": "remlf90_log_1.txt",
+		"program": "REMLF90",
+		"data_type": "log",
+		"n_traits": 5,
+		"n_effects": 10,
+		"n_random_effects": 1,
+		"n_rounds": 542,
+		"converged": "TRUE",
+		"notes": "EM dialect: rounds print ' new r' and a bare ' G' rather than ' new R'/' new G'. The file is complete, but its final round omits the G block, so a checkpoint legitimately falls back to round 541"
 	}
 ]
