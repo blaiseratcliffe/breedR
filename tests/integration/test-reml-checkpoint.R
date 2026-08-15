@@ -333,3 +333,40 @@ test_that("a resume that cannot open its log puts the previous one back", {
   expect_true(file.exists(f))
   expect_identical(readLines(f, warn = FALSE), before)
 })
+
+
+test_that("cont preserves the previous run's error stream too", {
+
+  ## .err normally holds the diagnostic that prompted the resume, so keeping
+  ## the log while deleting it would preserve the wrong half.
+  f <- file.path(wd, "err.log")
+  fit_globulus(progress_file = f)
+  writeLines("forrtl: severe: something went wrong", paste0(f, ".err"))
+
+  expect_message(remlf90(fixed = phe_X ~ gg, random = ~ bl, genetic = ped,
+                         data = dat, progress_file = f, cont = TRUE),
+                 "Resuming from round")
+
+  bak <- grep("^err[.]log[.][0-9]{8}-[0-9]{6}$", list.files(wd), value = TRUE)
+  expect_length(bak, 1L)
+  expect_true(file.exists(file.path(wd, paste0(bak, ".err"))))
+  expect_match(readLines(file.path(wd, paste0(bak, ".err")))[1], "forrtl")
+})
+
+
+test_that("a resume with no error stream warns about nothing", {
+
+  ## file.rename() on a missing source returns FALSE *and* warns. Most resumes
+  ## have no .err -- the documented flagship case, a fit that exhausted its
+  ## iterations, emits no stderr at all -- so an unguarded rename would warn
+  ## on nearly every resume.
+  f <- file.path(wd, "noerr.log")
+  fit_globulus(progress_file = f)
+  unlink(paste0(f, ".err"))
+
+  expect_warning(
+    suppressMessages(
+      remlf90(fixed = phe_X ~ gg, random = ~ bl, genetic = ped,
+              data = dat, progress_file = f, cont = TRUE)),
+    NA)
+})

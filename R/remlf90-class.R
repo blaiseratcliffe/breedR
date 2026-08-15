@@ -997,6 +997,13 @@ remlf90 <- function(fixed,
         bak <- paste0(progress_file, '.', format(Sys.time(), '%Y%m%d-%H%M%S'))
         if (file.rename(progress_file, bak)) {
           message('Previous log kept as ', bak)
+          ## Carry the error stream with it. That file usually holds the
+          ## diagnostic that prompted the resume, so preserving the log while
+          ## deleting it below would keep the wrong half. Guard on existence:
+          ## most resumes have no stderr at all, and file.rename() on a missing
+          ## source both returns FALSE and warns.
+          if (file.exists(paste0(progress_file, '.err')))
+            file.rename(paste0(progress_file, '.err'), paste0(bak, '.err'))
         } else {
           bak <- NULL
           warning('Could not preserve the previous log; it will be overwritten.',
@@ -1045,6 +1052,8 @@ remlf90 <- function(fixed,
       close(lcon)
 
       ## Keep the error stream beside the log, but only when there is one.
+      ## Under `cont` the previous .err has already been renamed alongside the
+      ## previous log, so this only clears a stale companion of a fresh run.
       err_file <- paste0(progress_file, '.err')
       unlink(err_file)
       if (file.exists('pf90_stderr') && file.info('pf90_stderr')$size > 0)
