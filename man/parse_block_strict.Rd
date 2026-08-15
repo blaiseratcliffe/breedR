@@ -4,12 +4,15 @@
 \alias{parse_block_strict}
 \title{Extract a (co)variance block, refusing blocks that run to the end of file}
 \usage{
-parse_block_strict(l, x)
+parse_block_strict(l, x, text_lines = which(!is_numericlog(x)))
 }
 \arguments{
 \item{l}{numeric. Line where the block starts (just after the heading).}
 
 \item{x}{character vector. Lines of the log.}
+
+\item{text_lines}{integer vector. Non-numeric line numbers of \code{x},
+computed once by the caller. Must come from this same \code{x}.}
 }
 \value{
 numeric matrix, or \code{NULL} if the block is unusable.

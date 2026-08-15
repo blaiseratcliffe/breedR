@@ -4,13 +4,19 @@
 \alias{extract_block}
 \title{Extract a block of lines from a section of the REML log}
 \usage{
-extract_block(l, x)
+extract_block(l, x, text_lines = which(!is_numericlog(x)))
 }
 \arguments{
 \item{l}{numeric. Line number where the block starts. Just
 \emph{after} the section heading.}
 
 \item{x}{character vector. Lines of the log.}
+
+\item{text_lines}{integer vector. Line numbers of the non-numeric lines of
+\code{x}. Computed by default; supply it to avoid rescanning the whole log
+once per block when extracting many blocks from the same vector. It
+\emph{must} have been computed from the very \code{x} passed here — an
+index taken from a different vector silently yields wrong block bounds.}
 }
 \value{
 character vector. Lines of text corresponding to numeric
@@ -20,7 +26,7 @@ character vector. Lines of text corresponding to numeric
 Extract a block of lines from a section of the REML log
 }
 \examples{
-  test_log <- 
+  test_log <-
     c("REML log",
       "Some info",
       "Covariance matrix",

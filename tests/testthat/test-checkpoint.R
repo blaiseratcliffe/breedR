@@ -323,3 +323,65 @@ test_that("resuming is refused under debug", {
   ## the combination is only refused together
   expect_error(check_progress_args(NULL, FALSE, "/bin", debug = TRUE), NA)
 })
+
+
+## -- the line index -------------------------------------------------------
+
+test_that("a supplied line index gives identical results", {
+
+  ## extract_block() classifies every line of the log to find the end of a
+  ## block. Callers that extract many blocks from one vector can compute that
+  ## once; the answer must not change.
+  idx <- which(!is_numericlog(x3))
+  mk <- grep("^[[:space:]]*new G[[:space:]]*$", x3)[1]
+
+  expect_identical(extract_block(mk + 1L, x3),
+                   extract_block(mk + 1L, x3, idx))
+  expect_identical(parse_block_strict(mk + 1L, x3),
+                   parse_block_strict(mk + 1L, x3, idx))
+
+  a <- last_reml_checkpoint(x3, n_groups = 3L, spd = FALSE)
+  expect_equal(attr(a, "round"), 18L)
+  for (nm in seq_along(a))
+    expect_equal(unname(a[[nm]]),
+                 unname(parse.txtmat(extract_block(
+                   (grep("Genetic variance|Residual variance", x3) + 1L)[nm], x3))))
+})
+
+
+test_that("the whole log is classified once per walk, not once per block", {
+
+  ## The regression guard for the O(rounds x lines) rescan. Counting sweeps is
+  ## deterministic where a wall-clock threshold would flake on a loaded runner.
+  ns <- asNamespace("breedR")
+  full <- length(y1)
+  count <- new.env(parent = emptyenv())
+
+  watch <- function(expr) {
+    count$n <- 0L
+    invisible(capture.output(
+      trace(is_numericlog, where = ns, print = FALSE,
+            tracer = function() {
+              if (length(get("x", envir = parent.frame())) == full)
+                count$n <- count$n + 1L
+            })))
+    on.exit(invisible(capture.output(untrace(is_numericlog, where = ns))),
+            add = TRUE)
+    force(expr)
+    count$n
+  }
+
+  ## n_groups it can never satisfy, so all 542 rounds are visited
+  swept <- watch(last_reml_checkpoint(y1, n_groups = 9L, spd = FALSE))
+  expect_equal(swept, 1L)
+
+  ## for contrast: without a supplied index, five rounds alone cost five sweeps
+  anchors <- reml_round_index(y1)
+  naive <- watch({
+    for (i in utils::tail(seq_along(anchors), 5)) {
+      to <- if (i < length(anchors)) anchors[[i + 1L]] - 1L else length(y1)
+      reml_round_covariances(y1, anchors[[i]], to)
+    }
+  })
+  expect_gte(naive, 5L)
+})

@@ -4,12 +4,15 @@
 \alias{reml_round_covariances}
 \title{(Co)variance matrices printed within one round of a REML log}
 \usage{
-reml_round_covariances(x, from, to)
+reml_round_covariances(x, from, to, text_lines = which(!is_numericlog(x)))
 }
 \arguments{
 \item{x}{character vector. The whole log.}
 
 \item{from, to}{integer. Bounds of the round segment, inclusive.}
+
+\item{text_lines}{integer vector. Non-numeric line numbers of \code{x},
+computed once by the caller. Must come from this same \code{x}.}
 }
 \value{
 list with elements \code{R} (matrix or \code{NULL}) and \code{G}

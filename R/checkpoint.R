@@ -57,13 +57,15 @@ reml_round_index <- function(x) {
 #'
 #' @param l numeric. Line where the block starts (just after the heading).
 #' @param x character vector. Lines of the log.
+#' @param text_lines integer vector. Non-numeric line numbers of \code{x},
+#'   computed once by the caller. Must come from this same \code{x}.
 #'
 #' @return numeric matrix, or \code{NULL} if the block is unusable.
 #' @keywords internal
-parse_block_strict <- function(l, x) {
+parse_block_strict <- function(l, x, text_lines = which(!is_numericlog(x))) {
 
   tryCatch({
-    blk <- extract_block(l, x)
+    blk <- extract_block(l, x, text_lines)
 
     ## Refuse a block that is not terminated by a following line.
     if (l + length(blk) - 1L >= length(x)) return(NULL)
@@ -86,11 +88,14 @@ parse_block_strict <- function(l, x) {
 #'
 #' @param x character vector. The whole log.
 #' @param from,to integer. Bounds of the round segment, inclusive.
+#' @param text_lines integer vector. Non-numeric line numbers of \code{x},
+#'   computed once by the caller. Must come from this same \code{x}.
 #'
 #' @return list with elements \code{R} (matrix or \code{NULL}) and \code{G}
 #'   (list of matrices, in parameter-file order).
 #' @keywords internal
-reml_round_covariances <- function(x, from, to) {
+reml_round_covariances <- function(x, from, to,
+                                   text_lines = which(!is_numericlog(x))) {
 
   ## Anchored on the whole log so that extract_block() sees the real
   ## surroundings of the block, and never the parameter echo near the top of
@@ -104,9 +109,11 @@ reml_round_covariances <- function(x, from, to) {
   r_at <- win[grepl(res_re, x[win])]
   g_at <- win[grepl(grp_re, x[win])]
 
-  list(R = if (length(r_at)) parse_block_strict(utils::tail(r_at, 1) + 1L, x)
+  list(R = if (length(r_at))
+             parse_block_strict(utils::tail(r_at, 1) + 1L, x, text_lines)
            else NULL,
-       G = lapply(g_at + 1L, parse_block_strict, x = x))
+       G = lapply(g_at + 1L, parse_block_strict, x = x,
+                  text_lines = text_lines))
 }
 
 
@@ -144,6 +151,19 @@ last_reml_checkpoint <- function(x, n_groups, dims = NULL,
   if (!length(anchors))
     return(failed("no completed round"))
 
+  ## Classify every line once. extract_block() would otherwise rescan the whole
+  ## log for each block, which is one scan per random group per round: on a
+  ## 542-round, 16,686-line log a full walk back took 35 s, essentially all of
+  ## it rescanning.
+  ##
+  ## This must stay inside this function, keyed to the `x` it was given. Hoist
+  ## it any higher and it could be paired with a different vector -- notably
+  ## reml_checkpoint_var.ini(), which chooses between a caller-supplied `lines`
+  ## and a fresh read of a file that may still be growing. A stale index gives
+  ## block bounds past the end of `x`, and parse_block_strict() would swallow
+  ## the resulting error as NULL: a silently skipped round, not a failure.
+  text_lines <- which(!is_numericlog(x))
+
   if (is.null(names))
     names <- c(if (n_groups) paste0("G", seq_len(n_groups)), "residuals")
 
@@ -159,7 +179,7 @@ last_reml_checkpoint <- function(x, n_groups, dims = NULL,
     from <- anchors[[i]]
     to <- if (i < length(anchors)) anchors[[i + 1L]] - 1L else length(x)
 
-    cv <- reml_round_covariances(x, from, to)
+    cv <- reml_round_covariances(x, from, to, text_lines)
     blocks <- c(cv$G, list(cv$R))
 
     ## A round the backend never finished writing, or that a crash cut short.
