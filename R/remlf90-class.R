@@ -505,19 +505,6 @@ remlf90 <- function(fixed,
   ## the backend installed.
   progress_file <- check_progress_args(progress_file, cont, breedR.bin)
 
-  ## Read the previous log now: the new run writes to the same path, and would
-  ## otherwise destroy the very thing we are resuming from.
-  cont.log <- NULL
-  if (isTRUE(cont)) {
-    cont.log <- readLines(progress_file, warn = FALSE)
-    bak <- paste0(progress_file, '.', format(Sys.time(), '%Y%m%d-%H%M%S'))
-    if (file.rename(progress_file, bak))
-      message('Previous log kept as ', bak)
-    else
-      warning('Could not preserve the previous log; it will be overwritten.',
-              call. = FALSE)
-  }
-
   if (!check_progsf90(quiet = debug | !interactive())) {
     stop('Binary dependencies missing. See ?install_progsf90')
   }
@@ -867,8 +854,7 @@ remlf90 <- function(fixed,
   resumed_round <- NULL
   if (isTRUE(cont)) {
     ckpt <- reml_checkpoint_var.ini(progress_file, effects,
-                                    ntraits = ncol(responsem),
-                                    lines = cont.log)
+                                    ntraits = ncol(responsem))
     resumed_round <- ckpt$round
     message('Resuming from round ', resumed_round, ' of ', progress_file)
 
@@ -1001,11 +987,37 @@ remlf90 <- function(fixed,
       ## working directory. cmd.exe misparses a command line carrying more than
       ## one quoted absolute path around a redirection, so the error stream is
       ## collected locally and moved to its final name afterwards.
+      ## Set the previous log aside, as late as possible. Everything that can
+      ## reject the run -- the binaries check, the component checks, the AR-grid
+      ## guard, the checkpoint parse, PREGSF90 -- has already happened, so a
+      ## failed resume leaves the log where the user left it, under the name
+      ## their retry will use.
+      bak <- NULL
+      if (isTRUE(cont)) {
+        bak <- paste0(progress_file, '.', format(Sys.time(), '%Y%m%d-%H%M%S'))
+        if (file.rename(progress_file, bak)) {
+          message('Previous log kept as ', bak)
+        } else {
+          bak <- NULL
+          warning('Could not preserve the previous log; it will be overwritten.',
+                  call. = FALSE)
+        }
+      }
+
       ## Open the log *before* starting the backend. This is the one fallible
       ## step here, and doing it first means a failure leaves no child process
       ## to orphan -- an orphaned backend holds files in tempdir() and breaks
       ## the next fit in the same session.
-      lcon <- file(progress_file, 'w')
+      ##
+      ## It is also the last thing that can fail after the rename above, so put
+      ## the previous log back if it does; otherwise a resume that cannot open
+      ## its log would consume the very file it was resuming from.
+      lcon <- tryCatch(
+        file(progress_file, 'w'),
+        error = function(e) {
+          if (!is.null(bak)) file.rename(bak, progress_file)
+          stop(e)
+        })
       ## Idempotent: the connection is closed as soon as the run ends, and
       ## this is only the safety net for an error part-way through.
       on.exit(try(close(lcon), silent = TRUE), add = TRUE)

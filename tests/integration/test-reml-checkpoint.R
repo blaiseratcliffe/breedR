@@ -282,3 +282,54 @@ test_that("a failure to open the log does not leave a backend running", {
   expect_error(after <- fit_globulus(), NA)
   expect_true(after$reml$rounds > 0L)
 })
+
+
+test_that("a failed resume leaves the previous log where it was", {
+
+  ## The log is the artefact the whole feature exists to protect, so nothing
+  ## that can still reject the run may run after it has been moved aside.
+  f <- file.path(wd, "survive.log")
+  fit_globulus(progress_file = f)
+  expect_true(file.exists(f))
+
+  ## resume with a model whose random groups differ from the log's
+  expect_error(
+    suppressMessages(
+      remlf90(fixed = phe_X ~ gg, genetic = ped, data = dat,
+              progress_file = f, cont = TRUE)),
+    "Cannot resume"
+  )
+
+  ## the error named this file; it must still be there
+  expect_true(file.exists(f))
+  expect_false(any(grepl("^survive[.]log[.][0-9]{8}-[0-9]{6}$", list.files(wd))))
+
+  ## and the retry the user will actually type must work
+  expect_message(ok <- remlf90(fixed = phe_X ~ gg, random = ~ bl, genetic = ped,
+                               data = dat, progress_file = f, cont = TRUE),
+                 "Resuming from round")
+  expect_true(ok$reml$resumed_from > 0L)
+})
+
+
+test_that("a resume that cannot open its log puts the previous one back", {
+
+  ## The rename is the last step before the log is opened, and that open can
+  ## still fail; without a restore the user would be left with a timestamped
+  ## backup and no file under the name their retry uses.
+  f <- file.path(wd, "restore.log")
+  fit_globulus(progress_file = f)
+  before <- readLines(f, warn = FALSE)
+
+  ## make the open fail: hold the path open elsewhere is unreliable across
+  ## platforms, so drop a directory in the way after the log has been written
+  lock <- file.path(wd, "restore_lock")
+  dir.create(lock, showWarnings = FALSE)
+
+  expect_error(suppressWarnings(
+    fit_globulus(progress_file = lock, cont = TRUE)))
+
+  ## the real log is untouched, and its own resume still works
+  expect_true(file.exists(f))
+  expect_identical(readLines(f, warn = FALSE), before)
+})
