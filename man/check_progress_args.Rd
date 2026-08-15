@@ -4,7 +4,7 @@
 \alias{check_progress_args}
 \title{Validate the progress and resume arguments of remlf90()}
 \usage{
-check_progress_args(progress_file, cont, breedR.bin)
+check_progress_args(progress_file, cont, breedR.bin, debug = FALSE)
 }
 \arguments{
 \item{progress_file}{character or NULL.}
@@ -13,6 +13,9 @@ check_progress_args(progress_file, cont, breedR.bin)
 
 \item{breedR.bin}{character. Location of the binaries, or the special values
 \code{"remote"} / \code{"submit"}.}
+
+\item{debug}{logical. Resuming is refused under \code{debug}, which parses
+and returns nothing.}
 }
 \value{
 the normalised \code{progress_file}, or \code{NULL}.

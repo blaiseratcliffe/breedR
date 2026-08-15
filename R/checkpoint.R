@@ -371,13 +371,26 @@ reml_checkpoint <- function(file, model = NULL, spd = TRUE) {
 #' @param cont logical.
 #' @param breedR.bin character. Location of the binaries, or the special values
 #'   \code{"remote"} / \code{"submit"}.
+#' @param debug logical. Resuming is refused under \code{debug}, which parses
+#'   and returns nothing.
 #'
 #' @return the normalised \code{progress_file}, or \code{NULL}.
 #' @keywords internal
-check_progress_args <- function(progress_file, cont, breedR.bin) {
+check_progress_args <- function(progress_file, cont, breedR.bin,
+                                debug = FALSE) {
 
   if (!is.logical(cont) || length(cont) != 1L || is.na(cont))
     stop("'cont' must be TRUE or FALSE.", call. = FALSE)
+
+  ## Under debug the streaming branch still runs -- it is selected on
+  ## progress_file, not on debug -- so a resume would rename the previous log
+  ## aside, overwrite it, and then return NULL without parsing anything. There
+  ## is nothing to recover from such a run, so refuse rather than consume the
+  ## log for no result.
+  if (isTRUE(cont) && isTRUE(debug))
+    stop("'cont = TRUE' cannot be combined with 'debug = TRUE': a debug run ",
+         "parses no results, so resuming would consume the previous log ",
+         "without returning anything.", call. = FALSE)
 
   if (is.null(progress_file)) {
     if (isTRUE(cont))

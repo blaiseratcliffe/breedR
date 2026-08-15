@@ -310,3 +310,16 @@ test_that("a relative progress_file is resolved against the caller's wd", {
   expect_identical(basename(pf), "rel.log")
   expect_false(startsWith(pf, normalizePath(tempdir(), winslash = "/")))
 })
+
+
+test_that("resuming is refused under debug", {
+
+  ## The streaming branch is selected on progress_file, not on debug, so a
+  ## debug resume would rename the previous log aside, overwrite it, then skip
+  ## all parsing and return NULL -- the log consumed for no result.
+  expect_error(check_progress_args("x.log", TRUE, "/bin", debug = TRUE),
+               "cannot be combined with 'debug = TRUE'")
+
+  ## the combination is only refused together
+  expect_error(check_progress_args(NULL, FALSE, "/bin", debug = TRUE), NA)
+})

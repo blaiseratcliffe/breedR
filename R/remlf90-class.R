@@ -503,7 +503,7 @@ remlf90 <- function(fixed,
   }
   ## Checked before the binaries so that these guards are reachable without
   ## the backend installed.
-  progress_file <- check_progress_args(progress_file, cont, breedR.bin)
+  progress_file <- check_progress_args(progress_file, cont, breedR.bin, debug)
 
   if (!check_progsf90(quiet = debug | !interactive())) {
     stop('Binary dependencies missing. See ?install_progsf90')
