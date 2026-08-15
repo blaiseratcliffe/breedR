@@ -339,12 +339,15 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   further fit in the same R session, so start a fresh session after
   interrupting one.
 
-  Resuming may start slightly earlier than the last round printed. The final
-  round of a log is deliberately never used, because a log truncated by a
-  crash ends mid-line and a number cut inside its exponent parses cleanly
-  while being wrong by orders of magnitude; and a round whose matrices are
-  not positive definite is skipped in favour of an earlier one. The round
-  actually used is reported and stored in \code{res$reml$resumed_from}.
+  Resuming uses the last \emph{usable} round, normally the last one printed
+  but sometimes earlier, for three reasons. A block running to the end of the
+  file is refused, because a log truncated by a crash ends mid-line and a
+  number cut inside its exponent parses cleanly while being wrong by orders
+  of magnitude. A round whose matrices are not positive definite is skipped
+  in favour of an earlier one. And a run may not print every block in its
+  final round — REMLF90 under EM omits the last \code{G} — in which case the
+  round before it is used. The round actually used is reported and stored in
+  \code{res$reml$resumed_from}.
 
   The most valuable case is not a crash but a fit that exhausted its
   iterations: that returns \code{NA} variance components with a warning,

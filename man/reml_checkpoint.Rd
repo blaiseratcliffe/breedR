@@ -32,10 +32,15 @@ a crashed or non-converged run be reused.
 Because \code{remlf90} blocks while the backend runs, checking on a fit in
 progress means calling this from a \emph{second} R session.
 
-The last round of the log is deliberately never used: a log truncated by a
-crash ends mid-line, and a value cut inside its exponent parses cleanly while
-being wrong by orders of magnitude. The last round that is followed by
-further output is the last one that can be trusted.
+What is returned is the last \emph{usable} round, which is normally the last
+one printed but can be earlier for three reasons. A block that runs to the
+end of the file is refused, because a log truncated by a crash ends mid-line
+and a value cut inside its exponent parses cleanly while being wrong by
+orders of magnitude. A round whose matrices are not positive definite is
+skipped, since it could not seed a fit anyway. And some runs simply do not
+print every block in their final round — REMLF90 under EM omits the last
+\code{G} — in which case the round before it is used. The round chosen is
+returned in the \code{round} attribute.
 
 
 The result is not a drop-in for the \code{var.ini} argument of
