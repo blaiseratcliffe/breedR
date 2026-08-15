@@ -359,13 +359,16 @@ test_that("the whole log is classified once per walk, not once per block", {
 
   watch <- function(expr) {
     count$n <- 0L
+    ## Name given as a string: trace()/untrace() otherwise resolve it by
+    ## non-standard evaluation, which finds an unexported function under
+    ## load_all() but not under R CMD check's test_check().
     invisible(capture.output(
-      trace(is_numericlog, where = ns, print = FALSE,
+      trace("is_numericlog", where = ns, print = FALSE,
             tracer = function() {
               if (length(get("x", envir = parent.frame())) == full)
                 count$n <- count$n + 1L
             })))
-    on.exit(invisible(capture.output(untrace(is_numericlog, where = ns))),
+    on.exit(invisible(capture.output(untrace("is_numericlog", where = ns))),
             add = TRUE)
     force(expr)
     count$n
