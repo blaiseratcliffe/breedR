@@ -37,6 +37,7 @@ Imports:
     nlme,
     pedigree,
     pedigreemm,
+    processx (>= 3.5.0),
     splines,
     stats,
     utils

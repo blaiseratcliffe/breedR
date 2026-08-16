@@ -260,12 +260,13 @@
 #'   before starting, so a follower attached by name would otherwise be left on
 #'   the old file. Those backups are never cleaned up.
 #'
-#'   Interrupting a streamed fit returns control immediately but leaves the
-#'   backend running to completion in the background; breedR does not wait for
-#'   it, because closing the connection would block until the fit finished. The
-#'   orphaned process keeps files open in \code{tempdir()}, which can disturb a
-#'   further fit in the same R session, so start a fresh session after
-#'   interrupting one.
+#'   Interrupting a streamed fit stops the backend as well, immediately, and
+#'   leaves the session able to fit again — the REML phase is run under
+#'   \pkg{processx} so that it can be killed without waiting for it to finish.
+#'   Note the fit really does stop: its log ends where the interrupt fell, and
+#'   there is no result to collect. Resume from that log with \code{cont}. Under
+#'   \code{genomic}, this covers the REML phase only; PREGSF90 pre-processing
+#'   runs before it and is not interruptible in the same way.
 #'
 #'   Resuming uses the last \emph{usable} round, normally the last one printed
 #'   but sometimes earlier, for three reasons. A block running to the end of the
@@ -973,23 +974,25 @@ remlf90 <- function(fixed,
                           input  = 'parameters',
                           stdout = ifelse(debug, '', TRUE))
     } else {
-      ## Read the backend through a pipe and write the log ourselves.
+      ## Run the backend under processx and write the log ourselves.
       ##
       ## system2(stdout = <file>) would be the obvious way, but on Windows the
       ## redirect holds an exclusive lock: readLines(), file.copy() and even
       ## `type` fail with permission denied until the process exits. That would
       ## give a progress file that cannot be followed while it matters.
       ##
+      ## A plain pipe() gets the streaming right but cannot be cleaned up: an
+      ## interrupt leaves the child with a full, undrained buffer, where it
+      ## blocks forever holding this session's tempdir files, so every later fit
+      ## fails. close() on a pipe waits for the child, so it cannot be used to
+      ## clear that up either. processx gives the missing piece, a kill that
+      ## returns immediately.
+      ##
       ## stderr is deliberately not merged. The plain call above leaves it at
       ## its default of "", so it reaches the console and never enters
       ## reml.out; folding it in would change what parse_results() sees, and a
       ## runtime message landing between two rows of a `new G` block breaks
       ## extract_block() outright. It goes to a companion file instead.
-      ##
-      ## Only the binary is quoted; both redirections use relative names in the
-      ## working directory. cmd.exe misparses a command line carrying more than
-      ## one quoted absolute path around a redirection, so the error stream is
-      ## collected locally and moved to its final name afterwards.
       ## Set the previous log aside, as late as possible. Everything that can
       ## reject the run -- the binaries check, the component checks, the AR-grid
       ## guard, the checkpoint parse, PREGSF90 -- has already happened, so a
@@ -1032,26 +1035,58 @@ remlf90 <- function(fixed,
       ## this is only the safety net for an error part-way through.
       on.exit(try(close(lcon), silent = TRUE), add = TRUE)
 
-      ## `con` is deliberately not registered with on.exit: close() on a pipe
-      ## waits for the child to finish, so on an interrupted multi-day fit it
-      ## would hang R instead of returning. The read loop below is therefore
-      ## still a window in which an error leaves the backend running.
+      ## No shell, so no quoting: stdin and stderr are given directly. Their
+      ## names stay relative to the working directory, which setwd() above has
+      ## already made tmpdir -- processx resolves relative redirection names
+      ## against *R's* directory, not any `wd` argument, so do not pass one.
       writeLines('parameters', 'pf90_stdin')
-      con <- pipe(paste0(shQuote(breedR.call),
-                         ' < pf90_stdin 2> pf90_stderr'), 'r')
+      px <- processx::process$new(breedR.call, stdin = 'pf90_stdin',
+                                  stdout = '|', stderr = 'pf90_stderr')
+
+      ## Prepended, so it fires before close(lcon): stop the child first, then
+      ## release the log. This is what makes an interrupt safe -- kill returns
+      ## at once, and is a no-op once the process has exited normally.
+      ##
+      ## Wrapped in try() because R abandons the remaining on-exit expressions
+      ## once one signals: an error out of kill() would otherwise skip both
+      ## setwd(cdir) and close(lcon), leaving the caller's session sitting in
+      ## tempdir() with the log still open -- the same kind of damage this is
+      ## here to prevent.
+      on.exit(try(px$kill(), silent = TRUE), add = TRUE, after = FALSE)
 
       message('Streaming REML progress to ', progress_file)
 
       reml.out <- character(0)
       repeat {
-        l <- readLines(con, n = 1L, warn = FALSE)
-        if (!length(l)) break
-        reml.out <- c(reml.out, l)
-        writeLines(l, lcon)
-        flush(lcon)
-        if (debug) cat(l, '\n')
+        px$poll_io(1000)
+        l <- px$read_output_lines()
+        if (length(l)) {
+          reml.out <- c(reml.out, l)
+          writeLines(l, lcon)
+          flush(lcon)
+          if (debug) {
+            cat(l, sep = '\n')
+            cat('\n')
+          }
+        } else if (!px$is_alive()) break
       }
-      status <- close(con)
+
+      ## read_output_lines() returns complete lines only, so a final line with
+      ## no newline stays buffered and would be dropped. Draining after the
+      ## loop costs nothing and avoids depending on the backend always ending
+      ## its output with a newline.
+      ## Split on \r?\n, not \n: read_output_lines() translates CRLF but
+      ## read_output() does not, so splitting on \n alone would leave a
+      ## trailing \r on every drained line and make this path disagree with
+      ## the one above.
+      tail_out <- px$read_output()
+      if (nzchar(tail_out)) {
+        tail_out <- strsplit(tail_out, '\r?\n')[[1]]
+        reml.out <- c(reml.out, tail_out)
+        writeLines(tail_out, lcon)
+      }
+
+      status <- px$get_exit_status()
       close(lcon)
 
       ## Keep the error stream beside the log, but only when there is one.

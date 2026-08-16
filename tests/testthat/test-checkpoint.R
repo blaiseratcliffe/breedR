@@ -388,3 +388,74 @@ test_that("the whole log is classified once per walk, not once per block", {
   })
   expect_gte(naive, 5L)
 })
+
+
+
+## -- the streamed execution path ------------------------------------------
+
+test_that("remlf90() guards the backend it starts", {
+
+  ## Source-level assertions, deliberately. These behaviours cannot be reached
+  ## from a test: remlf90() exposes no handle on the process, there is no
+  ## portable way to deliver an interrupt to our own session, and the backend
+  ## always ends its output with a newline so the drain never fires in
+  ## practice. Without these, deleting any of the three lines leaves the whole
+  ## suite green -- which was true of the commit that introduced them.
+  src <- paste(deparse(body(remlf90)), collapse = "\n")
+
+  ## the child must be killed on exit, prepended so it runs before the log is
+  ## closed, and guarded so a failure cannot skip the handlers after it
+  expect_true(grepl("try(px$kill", src, fixed = TRUE))
+  expect_true(grepl("after = FALSE", src, fixed = TRUE))
+
+  ## and the buffered tail must still be drained
+  expect_true(grepl("tail_out", src, fixed = TRUE))
+})
+
+
+test_that("the tail drain recovers a newline-less line", {
+
+  ## read_output_lines() returns complete lines only, so a final line with no
+  ## newline stays buffered and the loop would walk away from it.
+  skip_if_not_installed("processx")
+
+  rs <- file.path(R.home("bin"), "Rscript")
+  d <- file.path(tempdir(), "drain"); dir.create(d, showWarnings = FALSE)
+  f <- file.path(d, "tail.R")
+  writeLines("cat(\"alpha\\nbeta\\nno-trailing-newline\")", f)
+
+  px <- processx::process$new(rs, f, stdout = "|")
+  out <- character(0)
+  repeat {
+    px$poll_io(1000)
+    l <- px$read_output_lines()
+    if (length(l)) out <- c(out, l) else if (!px$is_alive()) break
+  }
+
+  ## the loop alone loses it
+  expect_false("no-trailing-newline" %in% out)
+
+  tail_out <- px$read_output()
+  out <- c(out, strsplit(tail_out, "\r?\n")[[1]])
+  expect_true("no-trailing-newline" %in% out)
+  expect_false(any(grepl("\r", out)))
+})
+
+
+test_that("the tail drain splits CRLF the way the line reader does", {
+
+  ## The other thing the drain can pick up is whole lines, when the backend
+  ## writes its last block and exits between the line reader coming up empty
+  ## and is_alive() being checked. Those arrive with their terminators, and
+  ## read_output() does not translate CRLF the way read_output_lines() does --
+  ## so splitting on \\n alone would leave a stray CR on every one of them and
+  ## make the drained path disagree with the main one.
+  crlf <- "alpha\r\nbeta\r\n"
+
+  naive <- strsplit(crlf, "\n", fixed = TRUE)[[1]]
+  expect_true(any(grepl("\r", naive)))
+
+  drained <- strsplit(crlf, "\r?\n")[[1]]
+  expect_identical(drained, c("alpha", "beta"))
+  expect_false(any(grepl("\r", drained)))
+})

@@ -236,14 +236,15 @@ test_that("the progress and resume arguments are guarded", {
 
 test_that("a non-zero exit from the streamed backend is surfaced", {
 
-  ## When streaming, the exit status comes back from close(<pipe>) rather than
-  ## as an attribute of the captured output, so the plumbing differs from the
-  ## plain path and needs its own cover.
+  ## When streaming, the exit status comes back from the process object rather
+  ## than as an attribute of the captured output, so the plumbing differs from
+  ## the plain path and needs its own cover.
   ##
   ## It cannot be exercised through remlf90(): BLUPF90+ exits 0 even on fatal
   ## input errors ("There is no such data file", "NUMBER_OF_EFFECTS not
   ## found"), which is why breedR reports those as parse failures instead.
-  ## Only an outright crash returns non-zero. So drive the mechanism directly.
+  ## Only an outright crash returns non-zero. So drive the mechanism directly,
+  ## in the same shape remlf90() uses it.
   rs <- file.path(R.home("bin"), "Rscript")
   d <- file.path(wd, "status"); dir.create(d, showWarnings = FALSE)
   owd <- setwd(d); on.exit(setwd(owd))
@@ -251,9 +252,15 @@ test_that("a non-zero exit from the streamed backend is surfaced", {
   writeLines('cat("some output\\n"); quit(status = 7)', "boom.R")
   writeLines("parameters", "pf90_stdin")
 
-  con <- pipe(paste0(shQuote(rs), ' boom.R < pf90_stdin 2> pf90_stderr'), 'r')
-  out <- readLines(con, warn = FALSE)
-  status <- close(con)
+  px <- processx::process$new(rs, "boom.R", stdin = "pf90_stdin",
+                              stdout = "|", stderr = "pf90_stderr")
+  out <- character(0)
+  repeat {
+    px$poll_io(1000)
+    l <- px$read_output_lines()
+    if (length(l)) out <- c(out, l) else if (!px$is_alive()) break
+  }
+  status <- px$get_exit_status()
 
   expect_equal(as.integer(status), 7L)
 
@@ -369,4 +376,53 @@ test_that("a resume with no error stream warns about nothing", {
       remlf90(fixed = phe_X ~ gg, random = ~ bl, genetic = ped,
               data = dat, progress_file = f, cont = TRUE)),
     NA)
+})
+
+
+test_that("killing the backend frees the session it was poisoning", {
+
+  ## Abandoning a running backend is not benign: once its output buffer fills
+  ## with nobody reading, it blocks forever holding this session's tempdir
+  ## files, and every later fit in the session fails with "Permission denied"
+  ## on tempdir()/parameters. That is why remlf90() registers a kill on exit.
+  ##
+  ## Scope: this drives the mechanism rather than remlf90(), because remlf90()
+  ## exposes no handle on the process and there is no portable way to deliver
+  ## an interrupt to our own R session from testthat. What it does reproduce
+  ## faithfully is the poisoning and its cure, in one session, against the real
+  ## backend -- which is the part that used to be broken.
+  fit_globulus(progress_file = file.path(wd, "prime.log"))   # populate tempdir
+  td <- tempdir()
+  owd <- setwd(td); on.exit(setwd(owd), add = TRUE)
+  writeLines("parameters", "pf90_stdin")
+
+  bin <- file.path(breedR.getOption("breedR.bin"),
+                   progsf90_files(breedR.os.type()))
+  px <- processx::process$new(bin, stdin = "pf90_stdin",
+                              stdout = "|", stderr = "pf90_stderr")
+
+  ## read a little, then walk away exactly as an interrupt would
+  seen <- 0L
+  deadline <- Sys.time() + 60
+  repeat {
+    px$poll_io(1000)
+    l <- px$read_output_lines()
+    seen <- seen + sum(grepl("In round", l))
+    if (seen >= 3L || !px$is_alive() || Sys.time() > deadline) break
+  }
+  expect_true(px$is_alive())
+
+  t0 <- Sys.time()
+  px$kill()
+  elapsed <- as.numeric(difftime(Sys.time(), t0, units = "secs"))
+
+  expect_lt(elapsed, 5)            # must not wait for the fit to finish
+  expect_false(px$is_alive())
+
+  ## the files it held are released ...
+  expect_error({ h <- file(file.path(td, "parameters"), "w"); close(h) }, NA)
+
+  ## ... and the session can still fit, which is the symptom users hit
+  expect_error(after <- fit_globulus(), NA)
+  expect_true(after$reml$rounds > 0L)
 })
