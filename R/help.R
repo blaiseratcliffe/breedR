@@ -2,7 +2,7 @@
 #' forest genetic resources analysts.
 #' 
 #' This package provides statistical tools to build predictive models for the
-#' breeders, quantitative genetists and forest genetic resources analysts
+#' breeders, quantitative geneticists and forest genetic resources analysts
 #' communities.  It aims to assess the genetic value of individuals under a
 #' number of situations, including spatial autocorrelation, genetic/environment
 #' interaction and competition. It was originally developed for forest genetic
@@ -10,11 +10,12 @@
 #' other situations as well.
 #' 
 #' The package functionality builds up on a wrapping up of Ignacy Misztal's 
-#' progsf90 suite of Fortran programs. Particularly, the function \code{reml} 
-#' performs classical Restricted-Maximum Likelihood inference by interfacing 
-#' Misztal's programs with several high-level options such as spatial 
-#' components, etc. The Fortran back-end allows for fast inference on rather
-#' large datasets (hundreds of thousands of individuals) with complex pedigrees.
+#' progsf90 suite of Fortran programs. Particularly, the function
+#' \code{\link{remlf90}} performs classical Restricted-Maximum Likelihood
+#' inference by interfacing Misztal's programs with several high-level options
+#' such as spatial components, etc. The Fortran back-end allows for fast
+#' inference on rather large datasets (hundreds of thousands of individuals)
+#' with complex pedigrees.
 #' 
 #' @name breedR-package
 #' @aliases breedR-package breedR
