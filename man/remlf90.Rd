@@ -244,9 +244,9 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   \emph{fixed} autoregressive parameters. \code{remlf90()} will fit as many 
   models as rows in \code{rho}, and return the results of the most likely. It
   will also return the list of log-likelihoods for each tried combination of 
-  autoregressive parameters, in the component \code{rho} of the \code{reml} 
-  object. This is useful for visualization, and further refinement of the 
-  search for appropriate parameters.
+  autoregressive parameters, in the component \code{rho} of the
+  \code{remlf90} object. This is useful for visualization, and further
+  refinement of the search for appropriate parameters.
   
   If any of the values in either column of \code{rho} is \code{NA}, then a 
   default set of values for the corresponding dimension will be set. See 
