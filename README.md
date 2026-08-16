@@ -4,7 +4,9 @@
 
 breedR is an R package for fitting linear mixed models in breeding and quantitative genetics. It wraps the [BLUPF90](https://nce.ads.uga.edu/wiki/doku.php?id=start) family of programs to estimate variance components via REML, compute breeding values, and run genomic evaluations.
 
-> **Note:** This fork is in active development. The genomic paths (ssGBLUP, GWAS, genomic prediction, RENUMF90, parentage verification, and QC) now run end to end and are verified on small test datasets, but they have **not** been validated on production data. Use at your own risk and please report issues. See [Known limitations](#known-limitations) for two features that need a newer binary or extra setup.
+> **Note:** This fork is in active development and is written with the assistance of [Claude Code](https://claude.com/claude-code). The genomic paths (ssGBLUP, GWAS, genomic prediction, RENUMF90, parentage verification, and QC) now run end to end and are verified on small test datasets. See [Known limitations](#known-limitations) for two features that need a newer binary or extra setup.
+>
+> **Testing help is especially welcome.** The most useful thing you can do is run breedR on your own data and compare the estimates against whatever you use now — BLUPF90 run directly, ASReml-R, sommer — then [open an issue](https://github.com/blaiseratcliffe/breedR/issues) with anything that diverges. If a fit errors, the message already ends with the last 20 lines of backend output; paste that along with your R and OS versions. For the full backend log, rerun with `progress_file = "run.log"`, which streams the output to that file as it is produced, and writes a companion `run.log.err` if the backend put anything on stderr; both survive the error. When your data are confidential, a synthetic reproduction built with `breedR.sample.phenotype()` is just as useful.
 
 This fork extends the [original breedR](https://github.com/famuvie/breedR) with:
 
@@ -416,6 +418,8 @@ R CMD check breedR_*.tar.gz --no-vignettes
 ## Credits
 
 breedR was originally developed by [Facundo Munoz](https://github.com/famuvie) as part of the Trees4Future and ProCoGen projects. The BLUPF90 programs are developed by [Ignacy Misztal's group](https://nce.ads.uga.edu/) at the University of Georgia.
+
+This fork is maintained by [Blaise Ratcliffe](https://github.com/blaiseratcliffe).
 
 ## License
 

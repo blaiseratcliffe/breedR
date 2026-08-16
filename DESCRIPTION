@@ -4,16 +4,19 @@ Title: Statistical Methods for Forest Genetics, Animal Breeding and
     Genomic Selection
 Version: 0.13-0
 Encoding: UTF-8
-Authors@R: c(person("Facundo", "Muñoz",
+Authors@R: c(person("Blaise", "Ratcliffe",
     role=c("aut", "cre"),
+    email="blaiseratcliffe@users.noreply.github.com"),
+    person("Facundo", "Muñoz",
+    role="aut",
     email="facundo.munoz@cirad.fr"),
     person("Leopoldo", "Sanchez", role="aut"),
     person("Ignacy", "Misztal", role="ctb"),
     person("Pablo", "Cappa", role="ctb"),
     person("Timothée", "Flutre", role="ctb")
     )
-Author: Facundo Muñoz with libraries by Ignacy Misztal
-Maintainer: Facundo Muñoz <facundo.munoz@cirad.fr>
+Author: Blaise Ratcliffe and Facundo Muñoz, with libraries by Ignacy Misztal
+Maintainer: Blaise Ratcliffe <blaiseratcliffe@users.noreply.github.com>
 Description: Statistical tools to build predictive models for the breeders
     community, assessing the genetic value of individuals under a number of
     situations, including spatial autocorrelation, genetic/environment

@@ -61,10 +61,11 @@ Traits}. Sinauer Associates, Inc.
 \code{\link[pedigreemm]{pedigreemm}}
 }
 \author{
-\strong{Maintainer}: Facundo Muñoz \email{facundo.munoz@cirad.fr}
+\strong{Maintainer}: Blaise Ratcliffe \email{blaiseratcliffe@users.noreply.github.com}
 
 Authors:
 \itemize{
+  \item Facundo Muñoz \email{facundo.munoz@cirad.fr}
   \item Leopoldo Sanchez
 }
 
