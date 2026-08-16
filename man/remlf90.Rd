@@ -332,12 +332,13 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   before starting, so a follower attached by name would otherwise be left on
   the old file. Those backups are never cleaned up.
 
-  Interrupting a streamed fit returns control immediately but leaves the
-  backend running to completion in the background; breedR does not wait for
-  it, because closing the connection would block until the fit finished. The
-  orphaned process keeps files open in \code{tempdir()}, which can disturb a
-  further fit in the same R session, so start a fresh session after
-  interrupting one.
+  Interrupting a streamed fit stops the backend as well, immediately, and
+  leaves the session able to fit again — the REML phase is run under
+  \pkg{processx} so that it can be killed without waiting for it to finish.
+  Note the fit really does stop: its log ends where the interrupt fell, and
+  there is no result to collect. Resume from that log with \code{cont}. Under
+  \code{genomic}, this covers the REML phase only; PREGSF90 pre-processing
+  runs before it and is not interruptible in the same way.
 
   Resuming uses the last \emph{usable} round, normally the last one printed
   but sometimes earlier, for three reasons. A block running to the end of the

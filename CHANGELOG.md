@@ -50,10 +50,15 @@ Both arguments are local only, and are rejected for
 one model per `rho`. Under `genomic` they cover the REML phase only: PREGSF90
 runs first, is not streamed, and is not skipped on resume.
 
-Interrupting a streamed fit returns control immediately but leaves the backend
-running: closing the connection would block until the fit finished, which on a
-multi-day job is worse than the orphan. The orphan holds files in `tempdir()`,
-so start a fresh session after interrupting one.
+Interrupting a streamed fit stops the backend too, immediately, and leaves the
+session usable. The REML phase runs under `processx` (a new dependency) so that
+it can be killed without waiting for it to finish. An earlier draft of this
+feature abandoned the process instead, on the assumption that it would run to
+completion in the background — it does not. Once its output buffer filled with
+nobody reading, it blocked forever holding `tempdir()`, and **every subsequent
+fit in that R session failed** with `Permission denied` on
+`tempdir()/parameters`. Under `genomic` this covers the REML phase only;
+PREGSF90 runs before it.
 
 No `save_halfway` argument was added, despite `gibbsf90()` having one. There it
 is a pass-through to the GIBBSF90+ option `save_halfway_samples`; AIREMLF90 has
