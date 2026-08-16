@@ -5,9 +5,9 @@
 #' breeders, quantitative genetists and forest genetic resources analysts
 #' communities.  It aims to assess the genetic value of individuals under a
 #' number of situations, including spatial autocorrelation, genetic/environment
-#' interaction and competition. It is under active development as part of the
-#' Trees4Future project, particularly developed having forest genetic trials in
-#' mind. But can be used for animals or other situations as well.
+#' interaction and competition. It was originally developed for forest genetic
+#' trials as part of the Trees4Future project, but can be used for animals or
+#' other situations as well.
 #' 
 #' The package functionality builds up on a wrapping up of Ignacy Misztal's 
 #' progsf90 suite of Fortran programs. Particularly, the function \code{reml} 
