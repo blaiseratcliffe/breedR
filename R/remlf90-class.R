@@ -1046,7 +1046,13 @@ remlf90 <- function(fixed,
       ## Prepended, so it fires before close(lcon): stop the child first, then
       ## release the log. This is what makes an interrupt safe -- kill returns
       ## at once, and is a no-op once the process has exited normally.
-      on.exit(px$kill(), add = TRUE, after = FALSE)
+      ##
+      ## Wrapped in try() because R abandons the remaining on-exit expressions
+      ## once one signals: an error out of kill() would otherwise skip both
+      ## setwd(cdir) and close(lcon), leaving the caller's session sitting in
+      ## tempdir() with the log still open -- the same kind of damage this is
+      ## here to prevent.
+      on.exit(try(px$kill(), silent = TRUE), add = TRUE, after = FALSE)
 
       message('Streaming REML progress to ', progress_file)
 
@@ -1069,9 +1075,13 @@ remlf90 <- function(fixed,
       ## no newline stays buffered and would be dropped. Draining after the
       ## loop costs nothing and avoids depending on the backend always ending
       ## its output with a newline.
+      ## Split on \r?\n, not \n: read_output_lines() translates CRLF but
+      ## read_output() does not, so splitting on \n alone would leave a
+      ## trailing \r on every drained line and make this path disagree with
+      ## the one above.
       tail_out <- px$read_output()
       if (nzchar(tail_out)) {
-        tail_out <- strsplit(tail_out, '\n', fixed = TRUE)[[1]]
+        tail_out <- strsplit(tail_out, '\r?\n')[[1]]
         reml.out <- c(reml.out, tail_out)
         writeLines(tail_out, lcon)
       }
