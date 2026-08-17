@@ -56,14 +56,14 @@ library(ggplot2)
 
 ## Installation
 
-- Project web page [http://famuvie.github.io/breedR/](http://famuvie.github.io/breedR/)
-    - Set up this URL as a package repository in `.Rprofile` (detailed instructions on the web)
-    - `install.packages('breedR')`
+- GitHub dev-site [https://github.com/blaiseratcliffe/breedR](https://github.com/blaiseratcliffe/breedR)
+    - `if( !require(devtools) ) install.packages('devtools')`
+    - `devtools::install_github('blaiseratcliffe/breedR')`
     - Not possible to use `CRAN` due to closed-source [`BLUPF90`](http://nce.ads.uga.edu/wiki/doku.php) programs
 
-- GitHub dev-site [https://github.com/famuvie/breedR](https://github.com/famuvie/breedR)
-    - `if( !require(devtools) ) install.packages('devtools')`
-    - `devtools::install_github('famuvie/breedR')`
+- This is a fork of the original [famuvie/breedR](https://github.com/famuvie/breedR).
+  The genomic, Gibbs sampling and RENUMF90 features described in the package
+  README are only in the fork.
 
 
 
@@ -74,15 +74,16 @@ library(ggplot2)
     - Code demos `demo(topic, package = 'breedR')` (omit `topic` for a list)
     - Vignettes `vignette(package = 'breedR')` (pkg and wiki)
   
-- [Wiki pages](https://github.com/famuvie/breedR/wiki)
-    - Guides, tutorials, FAQ
-
-- Mailing list [http://groups.google.com/group/breedr](http://groups.google.com/group/breedr)
-    - Questions and debates about usage and interface
-
-- [Issues page](https://github.com/famuvie/breedR/issues)
+- [Issues page](https://github.com/blaiseratcliffe/breedR/issues)
     - Bug reports
     - Feature requests
+
+- [Wiki pages](https://github.com/famuvie/breedR/wiki) (upstream project)
+    - Guides, tutorials, FAQ
+    - Still the best reference for the core models; predates the fork's additions
+
+- Mailing list [http://groups.google.com/group/breedr](http://groups.google.com/group/breedr) (upstream project)
+    - Questions and debates about usage and interface
     
 
 ## License
