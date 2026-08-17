@@ -4,7 +4,7 @@
 \alias{breedR.remote}
 \title{Perform a job remotely}
 \usage{
-breedR.remote(jobid, breedR.call, verbose = TRUE)
+breedR.remote(jobid, breedR.call, verbose = TRUE, dest = tempdir())
 }
 \arguments{
 \item{jobid}{character. A string uniquely identifying the current job.}
@@ -12,6 +12,9 @@ breedR.remote(jobid, breedR.call, verbose = TRUE)
 \item{breedR.call}{character. A full string path to the executable program in the server.}
 
 \item{verbose}{logical. If \code{TRUE} (default) it shows informative messages.}
+
+\item{dest}{character. Local directory to retrieve the results into. The
+caller's own working directory, since each fit has one of its own.}
 }
 \description{
 Assumes that all the relevant files are in the current directory.

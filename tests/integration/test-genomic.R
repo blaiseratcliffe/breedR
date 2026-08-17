@@ -118,9 +118,13 @@ test_that("predf90 predicts DGV from postgsf90 SNP effects", {
             genomic = list(snp_file = gp_snp, verify_parentage = 0L,
                            save_ginverse = TRUE),
             data = globulus))
-  invisible(postgsf90(res.gp, manhattan_plot = TRUE))
+  gwas <- postgsf90(res.gp, manhattan_plot = TRUE)
 
-  pred <- predf90(snp_file = gp_snp)
+  ## postgsf90() reports where it wrote the SNP effects; predf90() has to be
+  ## pointed at that, since each fit works in its own directory.
+  expect_identical(gwas$dir, res.gp$reml$dir)
+
+  pred <- predf90(snp_file = gp_snp, dir = gwas$dir)
   expect_s3_class(pred, "data.frame")
   expect_equal(nrow(pred), nrow(Gmat))          # one DGV per genotyped animal
   expect_true(all(c("id", "dgv") %in% names(pred)))

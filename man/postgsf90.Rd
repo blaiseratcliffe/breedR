@@ -55,13 +55,16 @@ A list with components:
     \item{windows}{data.frame of variance explained by windows}
     \item{snp_variance}{data.frame of per-SNP variance by chromosome}
     \item{output}{character vector of PostGSF90 stdout}
+    \item{dir}{the working directory the SNP effects were written to. Pass
+      it to \code{\link{predf90}} as its \code{dir}.}
   }
 }
 \description{
 Back-solves the genomic breeding values into SNP effects and runs a
 genome-wide association analysis on a fitted single-step model. Must be
 called in the same R session as the \code{\link{remlf90}} call that produced
-the model, since it reads files from \code{tempdir()}.
+the model, since it reads that fit's working directory
+(\code{model$reml$dir}), which lives under \code{tempdir()}.
 }
 \details{
 The model must have been fitted with \code{save_ginverse = TRUE} in its

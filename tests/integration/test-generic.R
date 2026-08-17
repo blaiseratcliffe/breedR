@@ -26,7 +26,30 @@ res <- try(
 
 
 test_that("The generic model runs with AI-REML without errors", {
-  expect_error(res, NA)
+  ## Not expect_error(res, NA): `res` is an already-evaluated object, so there
+  ## is nothing left to signal and the assertion passes even when the fit
+  ## failed. That is how #22 -- generic effects not working at all -- got past
+  ## this file and reported as a dozen unrelated-looking accessor failures.
+  expect_true(!inherits(res, 'try-error'))
+})
+
+test_that("the generic structure matrix reaches the backend", {
+
+  ## #22: an identity covariance is stored as a unit-diagonal Matrix, whose
+  ## diagonal is implicit, and as.triplet() used to drop every entry of it.
+  ## The parameter file still named the structure file, so the only visible
+  ## sign was the backend reporting 'read 0 elements' before giving up. Assert
+  ## on the file itself: the fitted object cannot show this.
+  skip_if(inherits(res, 'try-error'), 'the model did not fit')
+
+  sm_file <- file.path(res$reml$dir, 'generic_bl')
+  expect_true(file.exists(sm_file))
+  expect_gt(file.info(sm_file)$size, 0)
+
+  ## one row per level of bl, in (i, j, value) triplet form
+  sm <- utils::read.table(sm_file)
+  expect_equal(nrow(sm), nlevels.random)
+  expect_equal(ncol(sm), 3L)
 })
 
 test_that("coef() gets a named vector of coefficients", {

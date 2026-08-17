@@ -42,7 +42,9 @@ supplied.}
 "SNP_predictions").}
 
 \item{dir}{character. Working directory containing PostGSF90 output files
-(snp_pred). Default \code{tempdir()}.}
+(snp_pred). Pass the \code{dir} element of the \code{\link{postgsf90}}
+result: each fit now works in its own subdirectory of \code{tempdir()},
+so the default is only right when no model was fitted in this session.}
 }
 \value{
 A data.frame with columns: id, call_rate, dgv, and optionally

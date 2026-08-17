@@ -532,7 +532,8 @@ write_xref_from_pedigree <- function(snp_file, pedigree, tmpdir) {
 #' Back-solves the genomic breeding values into SNP effects and runs a
 #' genome-wide association analysis on a fitted single-step model. Must be
 #' called in the same R session as the \code{\link{remlf90}} call that produced
-#' the model, since it reads files from \code{tempdir()}.
+#' the model, since it reads that fit's working directory
+#' (\code{model$reml$dir}), which lives under \code{tempdir()}.
 #'
 #' The model must have been fitted with \code{save_ginverse = TRUE} in its
 #' \code{genomic} list; postGSf90 reads the saved genomic G-inverse. For
@@ -567,6 +568,8 @@ write_xref_from_pedigree <- function(snp_file, pedigree, tmpdir) {
 #'     \item{windows}{data.frame of variance explained by windows}
 #'     \item{snp_variance}{data.frame of per-SNP variance by chromosome}
 #'     \item{output}{character vector of PostGSF90 stdout}
+#'     \item{dir}{the working directory the SNP effects were written to. Pass
+#'       it to \code{\link{predf90}} as its \code{dir}.}
 #'   }
 #' @export
 postgsf90 <- function(model,
@@ -593,10 +596,12 @@ postgsf90 <- function(model,
          "genomic = list(..., save_ginverse = TRUE) before calling postgsf90().",
          call. = FALSE)
 
-  # Files should be in tempdir() from the remlf90() call
-  tmpdir <- tempdir()
+  ## Read the working directory of *this* model rather than the session's.
+  ## Objects rebuilt by breedR.qget() predate the recording, hence the
+  ## fallback; a fit from this session always carries its own path.
+  tmpdir <- if (!is.null(model$reml$dir)) model$reml$dir else tempdir()
   if (!file.exists(file.path(tmpdir, "solutions")))
-    stop("Solutions file not found in tempdir(). ",
+    stop("Solutions file not found in ", tmpdir, ". ",
          "postgsf90() must be run in the same R session as remlf90().",
          call. = FALSE)
 
@@ -620,7 +625,13 @@ postgsf90 <- function(model,
   # map_file -> chrinfo (postGSf90 uses chrinfo for chromosome/position info)
   kept_lines <- sub("^OPTION map_file ", "OPTION chrinfo ", kept_lines)
   new_par <- c(kept_lines, "OPTION readGInverse", paste("OPTION", postgs_opts))
-  writeLines(new_par, file.path(tmpdir, "parameters"))
+  ## Write it beside the fit's parameter file rather than over it. That file is
+  ## part of what the model object now advertises through res$reml$dir, and
+  ## rewriting it in place both destroyed it and made a second postgsf90() on
+  ## the same model wrong -- drop_opts above does not match readGInverse or the
+  ## GWAS options, so they accumulated on every call.
+  postgs_par <- "parameters_postgs"
+  writeLines(new_par, file.path(tmpdir, postgs_par))
 
   # postGSf90 reads external inbreeding coefficients (renf90.inb) when a
   # pedigree is present. breedR's ssGBLUP fit does not track inbreeding (A22 is
@@ -642,7 +653,7 @@ postgsf90 <- function(model,
     stop("Genomic program binaries (postGSf90) not installed. ",
          "See ?install_genomic_programs", call. = FALSE)
 
-  postgs_out <- run_postgsf90(tmpdir, bin_path)
+  postgs_out <- run_postgsf90(tmpdir, bin_path, par_name = postgs_par)
   writeLines(postgs_out, file.path(tmpdir, "postgsf90.out"))
 
   # postGSf90 can exit 0 (or write a stub snp_sol) while its log reports an
@@ -660,6 +671,9 @@ postgsf90 <- function(model,
   # Parse output files
   result <- parse_postgsf90(tmpdir)
   result$output <- postgs_out
+  ## Where the SNP effects landed, so predf90() can be pointed at them without
+  ## guessing at the session's tempdir().
+  result$dir <- tmpdir
 
   return(result)
 }
@@ -703,8 +717,11 @@ build_postgsf90_options <- function(windows_variance, windows_variance_mbp,
 #' @param dir working directory containing parameter file, solutions,
 #'   genotype file, and map file.
 #' @param bin_path directory containing the postGSf90 binary.
+#' @param par_name name of the parameter file to feed the program, relative to
+#'   \code{dir}. Defaults to the GWAS parameter file postgsf90() writes, which
+#'   is kept separate from the fit's own \code{parameters}.
 #' @return Character vector of program stdout.
-run_postgsf90 <- function(dir, bin_path) {
+run_postgsf90 <- function(dir, bin_path, par_name = 'parameters_postgs') {
 
   postgs_name <- genomic_program_files(breedR.os.type())[2]
   postgs_src <- file.path(bin_path, postgs_name)
@@ -723,7 +740,7 @@ run_postgsf90 <- function(dir, bin_path) {
     unlink(postgs_bin)
   })
 
-  out <- system2(file.path(".", postgs_name), input = 'parameters',
+  out <- system2(file.path(".", postgs_name), input = par_name,
                  stdout = TRUE, stderr = TRUE)
 
   if (!is.null(attr(out, 'status'))) {
@@ -854,7 +871,9 @@ parse_postgsf90 <- function(dir) {
 #' @param outfile character. Name of the output file (default
 #'   "SNP_predictions").
 #' @param dir character. Working directory containing PostGSF90 output files
-#'   (snp_pred). Default \code{tempdir()}.
+#'   (snp_pred). Pass the \code{dir} element of the \code{\link{postgsf90}}
+#'   result: each fit now works in its own subdirectory of \code{tempdir()},
+#'   so the default is only right when no model was fitted in this session.
 #' @return A data.frame with columns: id, call_rate, dgv, and optionally
 #'   reliability.
 #' @export

@@ -4,10 +4,14 @@
 \alias{retrieve_remote}
 \title{Retrieve results stored in some remote directory}
 \usage{
-retrieve_remote(rdir)
+retrieve_remote(rdir, dest = tempdir())
 }
 \arguments{
 \item{rdir}{string. Remote directory where the results are stored.}
+
+\item{dest}{string. Local directory to retrieve into. Defaults to
+\code{tempdir()}; \code{remlf90()} passes its own per-fit directory, so
+that the retrieved files land where the rest of the fit's files are.}
 }
 \value{
 dir name where the results are retrieved

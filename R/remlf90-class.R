@@ -315,6 +315,12 @@
 #'   When no variance functions are requested (e.g. \code{method = 'em'}, or a
 #'   model with no genetic effect), \code{funvars} is an empty list.
 #'
+#'   \code{res$reml$dir} is the working directory of this particular fit, a
+#'   fresh subdirectory of \code{tempdir()} holding its parameter file, data,
+#'   structure files and solutions. Every fit gets its own, so a later fit in
+#'   the same session cannot overwrite these; pass it to anything that needs to
+#'   read them, such as \code{\link{postgsf90}}. It is removed with the session.
+#'
 #'   When \code{progress_file} is given, \code{res$reml$progress_file} records
 #'   the path used; when \code{cont = TRUE}, \code{res$reml$resumed_from}
 #'   records the round the initial variances were taken from.
@@ -618,15 +624,25 @@ remlf90 <- function(fixed,
             suppressMessages(eval(mc_first, envir = caller_env)),
             error = function(e) NULL)
 
-          # Copy base files from tempdir to each rho-specific directory
-          base_files <- list.files(tempdir(), full.names = TRUE)
+          ## Guard on the path, not on the object. first_result is NULL under
+          ## debug, and under breedR.bin = 'submit' it is a result with no
+          ## fitted directory to seed from -- and list.files(NULL) is an error,
+          ## not an empty answer, so an unguarded read fails opaquely here.
+          base_dir <- first_result$reml$dir
+          if (is.null(base_dir))
+            stop("The first rho of the grid produced no fit directory; ",
+                 "cannot seed the grid search.", call. = FALSE)
+
+          ## Copy this fit's files -- not the whole of tempdir(), which also
+          ## holds every other package's leavings and, now, the other fits'.
+          base_files <- list.files(base_dir, full.names = TRUE)
           base_files <- base_files[!file.info(base_files)$isdir]
 
           rho_dirs <- character(n_rho)
           rho_valid <- logical(n_rho)
 
           for (i in seq_len(n_rho)) {
-            rd <- file.path(tempdir(), paste0("rho_", i))
+            rd <- file.path(base_dir, paste0("rho_", i))
             dir.create(rd, showWarnings = FALSE, recursive = TRUE)
             rho_dirs[i] <- rd
 
@@ -709,6 +725,10 @@ remlf90 <- function(fixed,
             rho.idx <- which.max(loglik.rho$loglik)
             ans <- ans.rho[[rho.idx]]
             unlink(rho_dirs, recursive = TRUE)
+            unlink(base_dir, recursive = TRUE)
+            ## Each rho is a full fit with its own directory now, and only the
+            ## winner's is ever read again.
+            unlink(rho_fit_dirs(ans.rho, rho.idx), recursive = TRUE)
             ans$rho <- loglik.rho
             return(ans)
           }
@@ -734,8 +754,12 @@ remlf90 <- function(fixed,
             }
           }
 
-          # Clean up temp directories
+          ## Clean up temp directories, including the seed fit's own -- the
+          ## winning rho is refitted from scratch below, so nothing here is
+          ## referenced again, and a grid is N fits' worth of files to leave
+          ## behind rather than one.
           unlink(rho_dirs, recursive = TRUE)
+          unlink(base_dir, recursive = TRUE)
 
           loglik.rho <- transform(spatial$rho, loglik = loglik_vals)
 
@@ -784,6 +808,10 @@ remlf90 <- function(fixed,
                                   ))
           rho.idx <- which.max(loglik.rho$loglik)
           ans <- ans.rho[[rho.idx]]
+          ## A grid is N fits, and each now keeps its own working directory.
+          ## Only the winner's is ever referenced again, so drop the rest
+          ## rather than leaving N-1 sets of model files for the session.
+          unlink(rho_fit_dirs(ans.rho, rho.idx), recursive = TRUE)
         }
 
         # Include estimation information
@@ -898,8 +926,22 @@ remlf90 <- function(fixed,
         pf90_default_heritability(pf90$parameter$rangroup, trait_names))
   }
 
-  # Temporary dir
-  tmpdir <- tempdir()
+  ## Working directory: one per fit, not one per session.
+  ##
+  ## Every fit writes the same fixed set of names -- parameters, data,
+  ## solutions, reml.out, breedR_model.RData -- so a shared tempdir() means each
+  ## fit overwrites the last one's files. The damage is not untidiness but
+  ## diagnosis: a fit that produces no solutions is then parsed against whatever
+  ## the *previous* one left behind, which is why a single broken model reports
+  ## as three different errors depending on what ran earlier in the session.
+  ## It also lets postgsf90() read a model other than the one it was handed.
+  tmpdir <- tempfile('breedR_', tmpdir = tempdir())
+  dir.create(tmpdir, recursive = TRUE, showWarnings = FALSE)
+  ## write.progsf90() does not create its own directory, so a silent failure
+  ## here would surface much later as 'cannot open the connection' from
+  ## writeLines -- exactly the misleading shape this change exists to remove.
+  if (!dir.exists(tmpdir))
+    stop("Could not create the working directory: ", tmpdir, call. = FALSE)
 
   ## --- Genomic pre-processing with PREGSF90 ---
   pregs_out <- NULL
@@ -956,7 +998,10 @@ remlf90 <- function(fixed,
 
     # Run either breedR.remote or breedR.submit
     if ( tolower(breedR.bin) == "remote" ) {
-      ldir <- breedR.remote(submit.id, breedR.call)
+      ## Retrieve into this fit's own directory. Without `dest` the results
+      ## would land in bare tempdir() and the check below -- that the files
+      ## came back where the rest of the fit's files are -- would fail.
+      ldir <- breedR.remote(submit.id, breedR.call, dest = tmpdir)
 
       if( !identical(normalizePath(ldir), normalizePath(tmpdir)) ) stop('This should not happen')
       reml.out <- readLines(file.path(ldir, 'LOG'))
@@ -1119,7 +1164,21 @@ remlf90 <- function(fixed,
     if( !submit ) {
       ## Save reml.out for recovery
       writeLines(reml.out, file.path(tmpdir, "reml.out"))
-      
+
+      ## The backend exits 0 even on fatal input errors (#14), so a run that
+      ## read a malformed structure file and gave up gets this far looking
+      ## healthy, and the first sign of trouble is read.table() failing on a
+      ## file that was never written. Say what actually happened instead, and
+      ## quote the backend's own diagnostic -- for an empty structure file that
+      ## is 'g_usr_inv: read 0 elements', which names the cause outright.
+      ##
+      ## This is only trustworthy because the directory belongs to this fit: on
+      ## a shared one, a stale solutions from an earlier model would satisfy the
+      ## check and be parsed as if it were ours.
+      if (!file.exists(file.path(tmpdir, 'solutions')))
+        stop("The REML backend produced no solutions.\nOutput:\n",
+             paste(utils::tail(reml.out, 20), collapse = "\n"), call. = FALSE)
+
       # Parse solutions
       ans <- parse_results(file.path(tmpdir, 'solutions'), effects, mf, reml.out, method, mcout)
 
@@ -1127,6 +1186,7 @@ remlf90 <- function(fixed,
       ## output existing tests pin down. The cost is that these do not survive
       ## a breedR.qget() recovery, which rebuilds the object by calling
       ## parse_results() directly -- immaterial while remote fits are refused.
+      ans$reml$dir <- tmpdir
       if (!is.null(progress_file)) ans$reml$progress_file <- progress_file
       if (!is.null(resumed_round)) ans$reml$resumed_from <- resumed_round
     } else {
@@ -1135,7 +1195,8 @@ remlf90 <- function(fixed,
                   effects = effects,
                   mf = mf,
                   method = method,
-                  mcout = mcout)
+                  mcout = mcout,
+                  reml = list(dir = tmpdir))
     }
     
     class(ans) <- c('breedR', 'remlf90')  # Update to merMod in newest version of lme4 (?)
@@ -1150,6 +1211,10 @@ remlf90 <- function(fixed,
     }
   } else {
     file.show('parameters')
+    ## debug returns NULL, so this is the only chance to say where the file
+    ## shown above lives -- each fit now has its own directory, and the name
+    ## is not one the user could guess.
+    message('Model files written to ', tmpdir)
     ans = NULL
   }
 
@@ -1160,6 +1225,19 @@ remlf90 <- function(fixed,
 #### Internal methods  ####
 #%%%%%%%%%%%%%%%%%%%%%%%%%#
 
+# Working directories of every fit in an AR rho grid except the winner.
+#
+# Each candidate is a full fit and keeps its own directory, but only the
+# winner's is read again. Failed candidates are NULL, and a fit that produced
+# no directory (submit) contributes nothing, so filter rather than index.
+rho_fit_dirs <- function(fits, keep) {
+  dirs <- vapply(fits,
+                 function(x) if (is.null(x$reml$dir)) NA_character_
+                             else x$reml$dir,
+                 character(1))
+  dirs <- dirs[-keep]
+  dirs[!is.na(dirs)]
+}
 
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%#

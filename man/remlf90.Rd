@@ -138,6 +138,12 @@ An object of class 'remlf90' that can be further questioned by
   When no variance functions are requested (e.g. \code{method = 'em'}, or a
   model with no genetic effect), \code{funvars} is an empty list.
 
+  \code{res$reml$dir} is the working directory of this particular fit, a
+  fresh subdirectory of \code{tempdir()} holding its parameter file, data,
+  structure files and solutions. Every fit gets its own, so a later fit in
+  the same session cannot overwrite these; pass it to anything that needs to
+  read them, such as \code{\link{postgsf90}}. It is removed with the session.
+
   When \code{progress_file} is given, \code{res$reml$progress_file} records
   the path used; when \code{cont = TRUE}, \code{res$reml$resumed_from}
   records the round the initial variances were taken from.

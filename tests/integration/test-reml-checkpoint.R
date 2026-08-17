@@ -122,8 +122,8 @@ test_that("the log is readable while the fit is still running", {
 
 test_that("a relative progress_file lands in the calling directory", {
 
-  ## remlf90() moves into tempdir() before running the backend, so a path
-  ## resolved too late would be written there and lost with the session.
+  ## remlf90() moves into its working directory before running the backend, so
+  ## a path resolved too late would be written there and lost with the session.
   d <- file.path(wd, "relative")
   dir.create(d, showWarnings = FALSE)
   owd <- setwd(d)
@@ -132,7 +132,10 @@ test_that("a relative progress_file lands in the calling directory", {
   res <- fit_globulus(progress_file = "rel.log")
 
   expect_true(file.exists(file.path(d, "rel.log")))
-  expect_false(file.exists(file.path(tempdir(), "rel.log")))
+  ## against the fit's own directory, not tempdir(): that is where a late
+  ## resolution would now land it, so checking tempdir() would pass whether or
+  ## not the bug came back.
+  expect_false(file.exists(file.path(res$reml$dir, "rel.log")))
   expect_identical(basename(res$reml$progress_file), "rel.log")
 })
 
@@ -177,8 +180,8 @@ test_that("cont resumes from the previous log", {
   expect_true(any(grepl("^resume\\.log\\.[0-9]{8}-[0-9]{6}$",
                         list.files(wd))))
 
-  ## and the recovered residual reaches the parameter file
-  pars <- readLines(file.path(tempdir(), "parameters"), warn = FALSE)
+  ## and the recovered residual reaches the parameter file of the resumed fit
+  pars <- readLines(file.path(warm$reml$dir, "parameters"), warn = FALSE)
   expect_true(any(grepl("RANDOM_RESIDUAL VALUES", pars)))
 })
 
@@ -382,17 +385,20 @@ test_that("a resume with no error stream warns about nothing", {
 test_that("killing the backend frees the session it was poisoning", {
 
   ## Abandoning a running backend is not benign: once its output buffer fills
-  ## with nobody reading, it blocks forever holding this session's tempdir
-  ## files, and every later fit in the session fails with "Permission denied"
-  ## on tempdir()/parameters. That is why remlf90() registers a kill on exit.
+  ## with nobody reading, it blocks forever holding that fit's working files,
+  ## and a later run against them fails with "Permission denied" on
+  ## parameters. That is why remlf90() registers a kill on exit.
   ##
   ## Scope: this drives the mechanism rather than remlf90(), because remlf90()
   ## exposes no handle on the process and there is no portable way to deliver
   ## an interrupt to our own R session from testthat. What it does reproduce
   ## faithfully is the poisoning and its cure, in one session, against the real
   ## backend -- which is the part that used to be broken.
-  fit_globulus(progress_file = file.path(wd, "prime.log"))   # populate tempdir
-  td <- tempdir()
+  ##
+  ## Run in the priming fit's own directory: that is where its parameter file
+  ## is, and the backend below is started on it by name.
+  prime <- fit_globulus(progress_file = file.path(wd, "prime.log"))
+  td <- prime$reml$dir
   owd <- setwd(td); on.exit(setwd(owd), add = TRUE)
   writeLines("parameters", "pf90_stdin")
 

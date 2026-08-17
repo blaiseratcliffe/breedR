@@ -100,8 +100,13 @@ breedR.qget = function(id, remove = TRUE)
                        readLines(file.path(ldir, 'LOG')),
                        id$method,
                        id$mcout)
-  class(ans) <- c('breedR', 'remlf90')  
-  
+  ## parse_results() does not record it, so do it here: without this the
+  ## object is the one case with no working directory of its own, and every
+  ## reader would have to fall back to guessing at tempdir().
+  ans$reml$dir <- ldir
+  class(ans) <- c('breedR', 'remlf90')
+
+
   if( remove ) suppressMessages(breedR.qdel(id))
   
   message('Job retrieved')
@@ -371,7 +376,10 @@ breedR.ssh <- function(commands,
 #' @param jobid character. A string uniquely identifying the current job.
 #' @param breedR.call character. A full string path to the executable program in the server.
 #' @param verbose logical. If \code{TRUE} (default) it shows informative messages.
-breedR.remote = function(jobid, breedR.call, verbose = TRUE)
+#' @param dest character. Local directory to retrieve the results into. The
+#'   caller's own working directory, since each fit has one of its own.
+breedR.remote = function(jobid, breedR.call, verbose = TRUE,
+                         dest = tempdir())
 {
   if( verbose ) {
     message(paste('Run', breedR.call, 'at host',
@@ -405,8 +413,8 @@ breedR.remote = function(jobid, breedR.call, verbose = TRUE)
   
   Sys.sleep(1)  # Not too fast...
   # Retrieve results to local dir
-  ldir <- retrieve_remote(rdir)
-  
+  ldir <- retrieve_remote(rdir, dest = dest)
+
   return(ldir)
 }
 
@@ -443,8 +451,11 @@ breedR.submit <- function(jobid, breedR.call) {
 #' 
 #' Use scp to transfer compressed files. Clean up afterwards.
 #' @param rdir string. Remote directory where the results are stored.
+#' @param dest string. Local directory to retrieve into. Defaults to
+#'   \code{tempdir()}; \code{remlf90()} passes its own per-fit directory, so
+#'   that the retrieved files land where the rest of the fit's files are.
 #' @return dir name where the results are retrieved
-retrieve_remote <- function (rdir) {
+retrieve_remote <- function (rdir, dest = tempdir()) {
   # Compressed filename for storing results remotely
   tarfile = tempfile(pattern = 'results',
                      tmpdir = '..',
@@ -465,8 +476,10 @@ retrieve_remote <- function (rdir) {
   if( !is.character(res) & length(res) != 0) stop('This should not happen')
   
   # Copy the compressed file to local
-  tf <- tempfile(pattern = 'breedR.result_', fileext = '.tar')
-  
+  ## Into `dest`, so the untar below -- which follows the setwd() to this
+  ## file's directory -- lands the results there too.
+  tf <- tempfile(pattern = 'breedR.result_', tmpdir = dest, fileext = '.tar')
+
   # Avoid confusing the colon in Windows paths (i.e. C:) with a host
   # by moving into the tf directory
   cdir <- setwd(dirname(tf))
