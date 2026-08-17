@@ -15,7 +15,8 @@ Authors@R: c(person("Blaise", "Ratcliffe",
     person("Pablo", "Cappa", role="ctb"),
     person("Timothée", "Flutre", role="ctb")
     )
-Author: Blaise Ratcliffe and Facundo Muñoz, with libraries by Ignacy Misztal
+Author: Blaise Ratcliffe, Facundo Muñoz and Leopoldo Sanchez, with libraries
+    by Ignacy Misztal
 Maintainer: Blaise Ratcliffe <blaiseratcliffe@users.noreply.github.com>
 Description: Statistical tools to build predictive models for the breeders
     community, assessing the genetic value of individuals under a number of
