@@ -1,0 +1,184 @@
+---
+title: "Genomic selection with breedR: ssGBLUP, GWAS and genomic prediction"
+author: "breedR"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Genomic selection with breedR: ssGBLUP, GWAS and genomic prediction}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+# The code in this vignette drives the BLUPF90 backend, which is downloaded at
+# install time and is not available when the vignette is built (e.g. on CRAN).
+# Chunks are therefore shown but not evaluated; illustrative output is described
+# in the text. Run the code in an R session with the binaries installed.
+knitr::opts_chunk$set(eval = FALSE, collapse = TRUE, comment = "#>")
+```
+
+## Overview
+
+This vignette walks through the single-step genomic pipeline in breedR, end to
+end:
+
+1. prepare genotypes,
+2. fit a single-step GBLUP (ssGBLUP) model,
+3. run a genome-wide association study (ssGWAS),
+4. predict genomic values for new animals,
+
+and points to the Bayesian (Gibbs) and RENUMF90 workflows. Every step wraps a
+program from the [BLUPF90 family](https://nce.ads.uga.edu/wiki/), so the backend
+must be installed first.
+
+## Installing the backend
+
+The core `blupf90+` binary is downloaded when the package is installed. The
+genomic programs and `renumf90` are installed separately:
+
+```{r install-binaries}
+library(breedR)
+
+install_genomic_programs()   # preGSf90, postGSf90, predf90, gibbsf90+, ...
+install_renumf90()           # renumf90
+```
+
+Throughout, we use the built-in `globulus` dataset (a forest genetic trial) and
+a small synthetic set of markers so the workflow is self-contained.
+
+```{r data}
+data(globulus)
+str(globulus[, 1:7])
+```
+
+## 1. Preparing genotypes
+
+Genotypes are written in the BLUPF90 format with `write_snp_file()`: one row per
+animal, the animal id followed by a fixed-width string of `0/1/2` codes
+(`5` = missing). The animal ids **must** match the ids used in the pedigree /
+data (breedR reconciles them internally through a cross-reference file).
+
+```{r genotypes}
+# A synthetic 200-marker panel for the first 60 animals in the trial.
+set.seed(1)
+gen_ids <- globulus$self[1:60]
+G <- matrix(sample(0:2, length(gen_ids) * 200, replace = TRUE,
+                   prob = c(0.25, 0.5, 0.25)),
+            nrow = length(gen_ids))
+
+write_snp_file(G, ids = gen_ids, file = "genotypes.txt")
+
+# Fractional (imputed) dosages are also supported:
+# write_snp_file(dosages, ids = gen_ids, file = "genotypes.txt", fractional = TRUE)
+```
+
+A map file (`SNP_ID CHR POS`) is optional; supply it to get chromosome and
+position columns in the GWAS output.
+
+## 2. Fitting a single-step GBLUP model
+
+Pass a `genomic` list to `remlf90()`. breedR runs PREGSF90 first (genotype QC and
+G-matrix construction), builds the required cross-reference file from its own
+pedigree renumbering, and then fits the model with `blupf90+` using the combined
+pedigree-genomic relationship matrix.
+
+Set `save_ginverse = TRUE` if you intend to run a GWAS afterwards (see step 3);
+it costs some extra I/O, so leave it off for a plain evaluation.
+
+```{r ssgblup}
+res <- remlf90(
+  fixed   = phe_X ~ gg,
+  genetic = list(model    = 'add_animal',
+                 pedigree = globulus[, 1:3],
+                 id       = 'self'),
+  data    = globulus,
+  genomic = list(snp_file      = "genotypes.txt",
+                 # map_file    = "map.txt",   # optional, for GWAS positions
+                 minfreq       = 0.05,        # MAF filter
+                 save_ginverse = TRUE)        # needed for the GWAS below
+)
+
+summary(res)
+```
+
+The genotype QC report is attached to the fitted object:
+
+```{r ssgblup-qc}
+res$genomic$n_snp_total    # markers read
+res$genomic$n_snp_passed   # markers passing QC
+res$genomic$freq           # allele frequencies after cleaning
+```
+
+For a clean synthetic panel like the one above you should see all 200 markers
+passing QC, and `summary(res)` reporting the variance components and estimated
+heritability just as for a pedigree-only animal model.
+
+## 3. Genome-wide association (ssGWAS)
+
+`postgsf90()` back-solves the genomic breeding values into SNP effects. It reads
+the genomic G-inverse saved by the fit, so the model **must** have been fitted
+with `save_ginverse = TRUE` (otherwise `postgsf90()` stops and tells you to
+refit). Run it in the same R session as the fit.
+
+```{r gwas}
+gwas <- postgsf90(res,
+                  windows_variance = 20,     # variance explained per 20-SNP window
+                  manhattan_plot   = TRUE)
+
+head(gwas$snp_sol)    # per-SNP solutions, weights and variances
+head(gwas$manhattan)  # one row per marker: effect, position (if a map was given)
+head(gwas$windows)    # variance explained by genomic windows
+```
+
+`gwas$snp_sol` has one row per marker; with a `map_file` supplied at fit time,
+`gwas$manhattan` carries the chromosome and position needed to draw a Manhattan
+plot.
+
+## 4. Predicting genomic values for new animals
+
+`predf90()` predicts direct genomic values (DGV) for genotyped animals that were
+not in the evaluation, using the SNP effects `postgsf90()` just wrote. Run it in
+the same session, right after the GWAS step.
+
+```{r prediction}
+# genotypes for the animals to predict, in the same BLUPF90 format
+predictions <- predf90(snp_file   = "new_genotypes.txt",
+                       use_mu_hat = TRUE)   # add the base so DGV are on the GEBV scale
+
+head(predictions)   # data.frame(id, call_rate, dgv)
+```
+
+Reliabilities (`acc = TRUE`) additionally require an `OPTION snp_var` file from
+the GWAS run; see the package README "Known limitations".
+
+## Bayesian inference and other workflows
+
+**Gibbs sampling.** For Bayesian variance-component estimation (and
+threshold/categorical traits) use `gibbsf90()` in place of `remlf90()`:
+
+```{r gibbs}
+res_b <- gibbsf90(phe_X ~ gg,
+                  genetic   = list(model = 'add_animal',
+                                   pedigree = globulus[, 1:3], id = 'self'),
+                  data      = globulus,
+                  n_samples = 50000, burnin = 5000, thin = 10)
+
+colMeans(res_b$samples)              # posterior means of the variance components
+diag <- postgibbsf90(res_b)          # convergence diagnostics (Geweke, ESS, HPD)
+```
+
+**RENUMF90 data preparation.** For alphanumeric ids, unknown-parent groups or
+multi-trait models with per-trait effects, prepare the data with
+`renumf90_from_data()` (which takes R data.frames directly) and fit with
+`remlf90_from_renum()`.
+
+**Prediction validation.** `validate_prediction()` implements the LR validation
+method. Note the current backend limitation described in the package README
+("Known limitations").
+
+## See also
+
+- `?remlf90` — the main fitting interface and the full `genomic` list.
+- `?postgsf90`, `?predf90`, `?gibbsf90` — the genomic wrappers.
+- `inst/doc/pregsf90_postgsf90_options.md` — the full PREGSF90/PostGSF90 option
+  reference and how the `genomic` list maps to it.

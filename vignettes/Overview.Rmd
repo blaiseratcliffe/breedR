@@ -1027,11 +1027,11 @@ comp.pred <-
     data.frame(
       Component = 'direct BV',
       True = dat$BV1,
-      Predicted = pred$direct),
+      Predicted = as.vector(pred$direct)),
     data.frame(
       Component = 'competition BV',
       True = dat$BV2,
-      Predicted = pred$comp),
+      Predicted = as.vector(pred$comp)),
     data.frame(
       Component = 'pec',
       True      = dat$pec,

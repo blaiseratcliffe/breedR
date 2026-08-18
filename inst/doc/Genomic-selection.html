@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="breedR" />
+
+<meta name="date" content="2026-08-17" />
+
+<title>Genomic selection with breedR: ssGBLUP, GWAS and genomic prediction</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Genomic selection with breedR: ssGBLUP,
+GWAS and genomic prediction</h1>
+<h4 class="author">breedR</h4>
+<h4 class="date">2026-08-17</h4>
+
+
+
+<div id="overview" class="section level2">
+<h2>Overview</h2>
+<p>This vignette walks through the single-step genomic pipeline in
+breedR, end to end:</p>
+<ol style="list-style-type: decimal">
+<li>prepare genotypes,</li>
+<li>fit a single-step GBLUP (ssGBLUP) model,</li>
+<li>run a genome-wide association study (ssGWAS),</li>
+<li>predict genomic values for new animals,</li>
+</ol>
+<p>and points to the Bayesian (Gibbs) and RENUMF90 workflows. Every step
+wraps a program from the <a href="https://nce.ads.uga.edu/wiki/">BLUPF90
+family</a>, so the backend must be installed first.</p>
+</div>
+<div id="installing-the-backend" class="section level2">
+<h2>Installing the backend</h2>
+<p>The core <code>blupf90+</code> binary is downloaded when the package
+is installed. The genomic programs and <code>renumf90</code> are
+installed separately:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(breedR)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">install_genomic_programs</span>()   <span class="co"># preGSf90, postGSf90, predf90, gibbsf90+, ...</span></span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="fu">install_renumf90</span>()           <span class="co"># renumf90</span></span></code></pre></div>
+<p>Throughout, we use the built-in <code>globulus</code> dataset (a
+forest genetic trial) and a small synthetic set of markers so the
+workflow is self-contained.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">data</span>(globulus)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">str</span>(globulus[, <span class="dv">1</span><span class="sc">:</span><span class="dv">7</span>])</span></code></pre></div>
+</div>
+<div id="preparing-genotypes" class="section level2">
+<h2>1. Preparing genotypes</h2>
+<p>Genotypes are written in the BLUPF90 format with
+<code>write_snp_file()</code>: one row per animal, the animal id
+followed by a fixed-width string of <code>0/1/2</code> codes
+(<code>5</code> = missing). The animal ids <strong>must</strong> match
+the ids used in the pedigree / data (breedR reconciles them internally
+through a cross-reference file).</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># A synthetic 200-marker panel for the first 60 animals in the trial.</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>gen_ids <span class="ot">&lt;-</span> globulus<span class="sc">$</span>self[<span class="dv">1</span><span class="sc">:</span><span class="dv">60</span>]</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>G <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">sample</span>(<span class="dv">0</span><span class="sc">:</span><span class="dv">2</span>, <span class="fu">length</span>(gen_ids) <span class="sc">*</span> <span class="dv">200</span>, <span class="at">replace =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>                   <span class="at">prob =</span> <span class="fu">c</span>(<span class="fl">0.25</span>, <span class="fl">0.5</span>, <span class="fl">0.25</span>)),</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>            <span class="at">nrow =</span> <span class="fu">length</span>(gen_ids))</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a><span class="fu">write_snp_file</span>(G, <span class="at">ids =</span> gen_ids, <span class="at">file =</span> <span class="st">&quot;genotypes.txt&quot;</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a><span class="co"># Fractional (imputed) dosages are also supported:</span></span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a><span class="co"># write_snp_file(dosages, ids = gen_ids, file = &quot;genotypes.txt&quot;, fractional = TRUE)</span></span></code></pre></div>
+<p>A map file (<code>SNP_ID CHR POS</code>) is optional; supply it to
+get chromosome and position columns in the GWAS output.</p>
+</div>
+<div id="fitting-a-single-step-gblup-model" class="section level2">
+<h2>2. Fitting a single-step GBLUP model</h2>
+<p>Pass a <code>genomic</code> list to <code>remlf90()</code>. breedR
+runs PREGSF90 first (genotype QC and G-matrix construction), builds the
+required cross-reference file from its own pedigree renumbering, and
+then fits the model with <code>blupf90+</code> using the combined
+pedigree-genomic relationship matrix.</p>
+<p>Set <code>save_ginverse = TRUE</code> if you intend to run a GWAS
+afterwards (see step 3); it costs some extra I/O, so leave it off for a
+plain evaluation.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>res <span class="ot">&lt;-</span> <span class="fu">remlf90</span>(</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  <span class="at">fixed   =</span> phe_X <span class="sc">~</span> gg,</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>  <span class="at">genetic =</span> <span class="fu">list</span>(<span class="at">model    =</span> <span class="st">&#39;add_animal&#39;</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>                 <span class="at">pedigree =</span> globulus[, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>],</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>                 <span class="at">id       =</span> <span class="st">&#39;self&#39;</span>),</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  <span class="at">data    =</span> globulus,</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>  <span class="at">genomic =</span> <span class="fu">list</span>(<span class="at">snp_file      =</span> <span class="st">&quot;genotypes.txt&quot;</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>                 <span class="co"># map_file    = &quot;map.txt&quot;,   # optional, for GWAS positions</span></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>                 <span class="at">minfreq       =</span> <span class="fl">0.05</span>,        <span class="co"># MAF filter</span></span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>                 <span class="at">save_ginverse =</span> <span class="cn">TRUE</span>)        <span class="co"># needed for the GWAS below</span></span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>)</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a><span class="fu">summary</span>(res)</span></code></pre></div>
+<p>The genotype QC report is attached to the fitted object:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>res<span class="sc">$</span>genomic<span class="sc">$</span>n_snp_total    <span class="co"># markers read</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>res<span class="sc">$</span>genomic<span class="sc">$</span>n_snp_passed   <span class="co"># markers passing QC</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>res<span class="sc">$</span>genomic<span class="sc">$</span>freq           <span class="co"># allele frequencies after cleaning</span></span></code></pre></div>
+<p>For a clean synthetic panel like the one above you should see all 200
+markers passing QC, and <code>summary(res)</code> reporting the variance
+components and estimated heritability just as for a pedigree-only animal
+model.</p>
+</div>
+<div id="genome-wide-association-ssgwas" class="section level2">
+<h2>3. Genome-wide association (ssGWAS)</h2>
+<p><code>postgsf90()</code> back-solves the genomic breeding values into
+SNP effects. It reads the genomic G-inverse saved by the fit, so the
+model <strong>must</strong> have been fitted with
+<code>save_ginverse = TRUE</code> (otherwise <code>postgsf90()</code>
+stops and tells you to refit). Run it in the same R session as the
+fit.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>gwas <span class="ot">&lt;-</span> <span class="fu">postgsf90</span>(res,</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>                  <span class="at">windows_variance =</span> <span class="dv">20</span>,     <span class="co"># variance explained per 20-SNP window</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>                  <span class="at">manhattan_plot   =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="fu">head</span>(gwas<span class="sc">$</span>snp_sol)    <span class="co"># per-SNP solutions, weights and variances</span></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="fu">head</span>(gwas<span class="sc">$</span>manhattan)  <span class="co"># one row per marker: effect, position (if a map was given)</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a><span class="fu">head</span>(gwas<span class="sc">$</span>windows)    <span class="co"># variance explained by genomic windows</span></span></code></pre></div>
+<p><code>gwas$snp_sol</code> has one row per marker; with a
+<code>map_file</code> supplied at fit time, <code>gwas$manhattan</code>
+carries the chromosome and position needed to draw a Manhattan plot.</p>
+</div>
+<div id="predicting-genomic-values-for-new-animals" class="section level2">
+<h2>4. Predicting genomic values for new animals</h2>
+<p><code>predf90()</code> predicts direct genomic values (DGV) for
+genotyped animals that were not in the evaluation, using the SNP effects
+<code>postgsf90()</code> just wrote. Run it in the same session, right
+after the GWAS step.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># genotypes for the animals to predict, in the same BLUPF90 format</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>predictions <span class="ot">&lt;-</span> <span class="fu">predf90</span>(<span class="at">snp_file   =</span> <span class="st">&quot;new_genotypes.txt&quot;</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>                       <span class="at">use_mu_hat =</span> <span class="cn">TRUE</span>)   <span class="co"># add the base so DGV are on the GEBV scale</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="fu">head</span>(predictions)   <span class="co"># data.frame(id, call_rate, dgv)</span></span></code></pre></div>
+<p>Reliabilities (<code>acc = TRUE</code>) additionally require an
+<code>OPTION snp_var</code> file from the GWAS run; see the package
+README “Known limitations”.</p>
+</div>
+<div id="bayesian-inference-and-other-workflows" class="section level2">
+<h2>Bayesian inference and other workflows</h2>
+<p><strong>Gibbs sampling.</strong> For Bayesian variance-component
+estimation (and threshold/categorical traits) use
+<code>gibbsf90()</code> in place of <code>remlf90()</code>:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>res_b <span class="ot">&lt;-</span> <span class="fu">gibbsf90</span>(phe_X <span class="sc">~</span> gg,</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>                  <span class="at">genetic   =</span> <span class="fu">list</span>(<span class="at">model =</span> <span class="st">&#39;add_animal&#39;</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>                                   <span class="at">pedigree =</span> globulus[, <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>], <span class="at">id =</span> <span class="st">&#39;self&#39;</span>),</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>                  <span class="at">data      =</span> globulus,</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>                  <span class="at">n_samples =</span> <span class="dv">50000</span>, <span class="at">burnin =</span> <span class="dv">5000</span>, <span class="at">thin =</span> <span class="dv">10</span>)</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="fu">colMeans</span>(res_b<span class="sc">$</span>samples)              <span class="co"># posterior means of the variance components</span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>diag <span class="ot">&lt;-</span> <span class="fu">postgibbsf90</span>(res_b)          <span class="co"># convergence diagnostics (Geweke, ESS, HPD)</span></span></code></pre></div>
+<p><strong>RENUMF90 data preparation.</strong> For alphanumeric ids,
+unknown-parent groups or multi-trait models with per-trait effects,
+prepare the data with <code>renumf90_from_data()</code> (which takes R
+data.frames directly) and fit with
+<code>remlf90_from_renum()</code>.</p>
+<p><strong>Prediction validation.</strong>
+<code>validate_prediction()</code> implements the LR validation method.
+Note the current backend limitation described in the package README
+(“Known limitations”).</p>
+</div>
+<div id="see-also" class="section level2">
+<h2>See also</h2>
+<ul>
+<li><code>?remlf90</code> — the main fitting interface and the full
+<code>genomic</code> list.</li>
+<li><code>?postgsf90</code>, <code>?predf90</code>,
+<code>?gibbsf90</code> — the genomic wrappers.</li>
+<li><code>inst/doc/pregsf90_postgsf90_options.md</code> — the full
+PREGSF90/PostGSF90 option reference and how the <code>genomic</code>
+list maps to it.</li>
+</ul>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
