@@ -67,6 +67,10 @@ test_that("a fit that writes no solutions says so", {
   ## connection' at best, and the previous fit's numbers at worst. Drive it by
   ## emptying the structure file of an otherwise valid model and re-running the
   ## backend the way remlf90() does.
+  ##
+  ## Scope: this pins the *premise* the guard rests on -- that a backend which
+  ## read nothing still exits 0, so nothing before the guard can catch it. The
+  ## guard itself is driven through remlf90() in the test below.
   inc.mat <- model.matrix(~ 0 + bl, dat)
   cov.mat <- diag(nlevels(dat$bl))
   g <- suppressMessages(
@@ -89,8 +93,40 @@ test_that("a fit that writes no solutions says so", {
   out <- system2(file.path(".", basename(bin)), input = "parameters",
                  stdout = TRUE, stderr = TRUE)
 
-  ## the backend reports the empty file and still exits cleanly
-  expect_true(any(grepl("empty|0  elements", out)))
+  ## the backend reports the empty file and still exits cleanly.
+  ## Match its actual diagnostic rather than a bare 'empty', which the output
+  ## could satisfy by accident, and tolerate the column widths it pads with.
+  expect_true(any(grepl("g_usr_inv: read\\s+0\\s+elements", out)))
   expect_null(attr(out, "status"))
   expect_false(file.exists(file.path(d, "solutions")))
+})
+
+
+test_that("remlf90() stops when the backend produced no solutions", {
+
+  ## The guard itself, through the real code path (issue #14). A zero
+  ## covariance passes validate_generic_element(), which checks conformability
+  ## and type but not definiteness, and renders to no triplets at all -- so
+  ## write.progsf90() writes a zero-byte structure file and the backend gives
+  ## up on it, having exited 0. Before the guard, the next thing to happen was
+  ## read.table() on a solutions file that had never been written.
+  n <- nlevels(dat$bl)
+  err <- tryCatch(
+    suppressMessages(
+      remlf90(phe_X ~ gg,
+              generic = list(bl = list(model.matrix(~ 0 + bl, dat),
+                                       matrix(0, n, n))),
+              data = dat)),
+    error = function(e) conditionMessage(e))
+
+  expect_type(err, "character")
+  expect_match(err, "produced no solutions")
+
+  ## the backend's own diagnostic is quoted, which is what makes the error
+  ## worth reading: it names the cause outright
+  expect_match(err, "g_usr_inv: read\\s+0\\s+elements")
+
+  ## and the directory is named, since it is kept for exactly this and its
+  ## name is not one the user could guess
+  expect_match(err, "breedR_")
 })

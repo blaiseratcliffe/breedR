@@ -30,7 +30,7 @@ test_that("The generic model runs with AI-REML without errors", {
   ## is nothing left to signal and the assertion passes even when the fit
   ## failed. That is how #22 -- generic effects not working at all -- got past
   ## this file and reported as a dozen unrelated-looking accessor failures.
-  expect_true(!inherits(res, 'try-error'))
+  expect_false(inherits(res, 'try-error'))
 })
 
 test_that("the generic structure matrix reaches the backend", {

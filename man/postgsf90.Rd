@@ -64,7 +64,9 @@ Back-solves the genomic breeding values into SNP effects and runs a
 genome-wide association analysis on a fitted single-step model. Must be
 called in the same R session as the \code{\link{remlf90}} call that produced
 the model, since it reads that fit's working directory
-(\code{model$reml$dir}), which lives under \code{tempdir()}.
+(\code{model$reml$dir}), which lives under \code{tempdir()}. A model loaded
+from a saved file has no such directory and must be refitted first; it is an
+error rather than a search of the session's temporary files.
 }
 \details{
 The model must have been fitted with \code{save_ginverse = TRUE} in its

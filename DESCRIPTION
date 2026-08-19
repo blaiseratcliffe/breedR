@@ -32,7 +32,7 @@ Imports:
     ggplot2,
     graphics,
     grDevices,
-    Matrix (>= 1.2.0),
+    Matrix (>= 1.5-0),
     methods,
     nlme,
     pedigree,

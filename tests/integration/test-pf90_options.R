@@ -31,7 +31,11 @@ test_that('remlf90 parses progsf90.options correctly', {
 
   ## some additional option
   expect_opt('tol 1d-01', 'tolerance .*? 0\\.1')
-  expect_opt('EM-REML 2', 'EM-REML iterations .*? 2')
+  ## BLUPF90+ acknowledges this one as
+  ##   * Run EM-REML for 2 rounds and switch to AI-REML
+  ## The assertion used to look for 'EM-REML iterations 2', which the backend
+  ## has never printed, so it had been failing since it was written.
+  expect_opt('EM-REML 2', 'Run EM-REML for\\s+2 rounds')
 
   ## Conflicting option: sol se
   # included
@@ -52,10 +56,23 @@ test_that('remlf90 parses progsf90.options correctly', {
   expr <- c('store solutions and s\\.e\\.',
             'missing observation .*? 12345',
             'tolerance .*? 0\\.1',
-            'EM-REML iterations .*? 2')
+            'Run EM-REML for\\s+2 rounds')
   res <- expect_opt(opts, expr)
   parameters_file <- readLines(file.path(res$reml$dir, 'parameters'))
-  expect_identical(length(grep('OPTION', parameters_file)), length(opts))
+
+  ## remlf90() adds 'method VCE' of its own, so the file always carries one
+  ## OPTION more than the user asked for and a bare count against
+  ## length(opts) could never hold -- which is why this had been failing.
+  ## Assert what the test is actually for instead: each requested option is
+  ## written, written once (the point of the conflict handling above), and
+  ## nothing else is in there.
+  option_lines <- grep('^OPTION ', parameters_file, value = TRUE)
+
+  for (o in opts)
+    expect_identical(sum(option_lines == paste('OPTION', o)), 1L,
+                     label = paste('option', o, 'written exactly once'))
+
+  expect_setequal(option_lines, paste('OPTION', c(opts, 'method VCE')))
 })
 
 

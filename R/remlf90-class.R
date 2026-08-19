@@ -1181,8 +1181,12 @@ remlf90 <- function(fixed,
       ## This is only trustworthy because the directory belongs to this fit: on
       ## a shared one, a stale solutions from an earlier model would satisfy the
       ## check and be parsed as if it were ours.
+      ##
+      ## Name the directory: it is kept precisely so a failure can be picked
+      ## apart, and its name is not one the user could guess.
       if (!file.exists(file.path(tmpdir, 'solutions')))
-        stop("The REML backend produced no solutions.\nOutput:\n",
+        stop("The REML backend produced no solutions.\n",
+             "Model files are in ", tmpdir, "\nOutput:\n",
              paste(utils::tail(reml.out, 20), collapse = "\n"), call. = FALSE)
 
       # Parse solutions

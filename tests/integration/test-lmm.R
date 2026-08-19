@@ -103,8 +103,8 @@ test_that("Character variables are treated as factors", {
     )
   )
   
-  expect_that(is.factor(res_em.f3_char$mf$f3), is_true())
-  expect_that(is.factor(res_ai.f3_char$mf$f3), is_true())
+  expect_true(is.factor(res_em.f3_char$mf$f3))
+  expect_true(is.factor(res_ai.f3_char$mf$f3))
 })
 
 test_that("remlf90() estimates matches lm()'s using EM", {
@@ -225,8 +225,8 @@ test_that("Character variables in random effects are treated as factors", {
     )
   )
   
-  expect_that(is.factor(res_em.f3_char$mf$f3), is_true())
-  expect_that(is.factor(res_ai.f3_char$mf$f3), is_true())
+  expect_true(is.factor(res_em.f3_char$mf$f3))
+  expect_true(is.factor(res_ai.f3_char$mf$f3))
 })
 
 # Run all test for each of the models and each method

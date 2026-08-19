@@ -65,8 +65,14 @@ res  <- suppressMessages(
 )
 
 
+## Drop the working directory before saving. It is an absolute path under the
+## tempdir() of whoever last ran this, so leaving it in makes every rerun a
+## diff against the committed fixture and gives the next reader a path that
+## went away with a session they never had. Nothing in the unit tests reads it.
 for (idx in seq_along(res)){
   fn <- paste0("res_", names(res)[idx], ".rds")
-  saveRDS(res[[idx]], file = file.path(testdata, fn))
+  fit <- res[[idx]]
+  fit$reml$dir <- NULL
+  saveRDS(fit, file = file.path(testdata, fn))
 }
 

@@ -619,7 +619,9 @@ write_xref_from_pedigree <- function(snp_file, pedigree, tmpdir) {
 #' genome-wide association analysis on a fitted single-step model. Must be
 #' called in the same R session as the \code{\link{remlf90}} call that produced
 #' the model, since it reads that fit's working directory
-#' (\code{model$reml$dir}), which lives under \code{tempdir()}.
+#' (\code{model$reml$dir}), which lives under \code{tempdir()}. A model loaded
+#' from a saved file has no such directory and must be refitted first; it is an
+#' error rather than a search of the session's temporary files.
 #'
 #' The model must have been fitted with \code{save_ginverse = TRUE} in its
 #' \code{genomic} list; postGSf90 reads the saved genomic G-inverse. For
@@ -683,9 +685,18 @@ postgsf90 <- function(model,
          call. = FALSE)
 
   ## Read the working directory of *this* model rather than the session's.
-  ## Objects rebuilt by breedR.qget() predate the recording, hence the
-  ## fallback; a fit from this session always carries its own path.
-  tmpdir <- if (!is.null(model$reml$dir)) model$reml$dir else tempdir()
+  ## Every fit records one, breedR.qget() included, so an object without one
+  ## did not come from this session. Falling back to tempdir() was the old
+  ## behaviour and could only mislead: bare tempdir() holds no solutions of
+  ## anyone's, so the fit would be reported missing from a directory it was
+  ## never in. Name the real cause instead.
+  tmpdir <- model$reml$dir
+  if (is.null(tmpdir))
+    stop("This model has no recorded working directory. It was fitted by an ",
+         "earlier version of breedR, or loaded from a saved file.\n",
+         "  Refit it in this session before calling postgsf90().",
+         call. = FALSE)
+
   if (!file.exists(file.path(tmpdir, "solutions")))
     stop("Solutions file not found in ", tmpdir, ". ",
          "postgsf90() must be run in the same R session as remlf90().",

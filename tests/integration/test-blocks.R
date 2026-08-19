@@ -35,7 +35,7 @@ res <- try(
 # pf90 <- progsf90(res$mf, res$effects, opt = '', res.var.ini = 10)
 
 test_that("The blocks model runs with EM-REML without errors", {
-  expect_that(!inherits(res, "try-error"), is_true())
+  expect_false(inherits(res, "try-error"))
 })
 
 test_that("coef() gets a named vector of coefficients", {

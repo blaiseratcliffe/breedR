@@ -212,3 +212,38 @@ test_that("stage_input() re-stages when the cached copy itself changed", {
 
   expect_identical(readLines(file.path(wd, basename(src))), 'genotypes')
 })
+
+
+## -- postgsf90() input checks --
+
+## These run without binaries: each stops before anything is executed.
+
+test_that("postgsf90() rejects a model it cannot use", {
+
+  expect_error(postgsf90(list()), "must be a fitted remlf90 object")
+
+  no_genomic <- structure(list(), class = c('breedR', 'remlf90'))
+  expect_error(postgsf90(no_genomic), "fitted with genomic")
+
+  no_ginv <- structure(list(genomic = list(save_ginverse = FALSE)),
+                       class = c('breedR', 'remlf90'))
+  expect_error(postgsf90(no_ginv), "not fitted for GWAS")
+})
+
+
+test_that("postgsf90() says so when the model records no working directory", {
+
+  ## Only a model deserialized from another session gets here. It used to fall
+  ## back to bare tempdir(), which holds nobody's solutions, so the report was
+  ## that the fit was missing from a directory it had never been in.
+  stale <- structure(list(genomic = list(save_ginverse = TRUE)),
+                     class = c('breedR', 'remlf90'))
+
+  msg <- tryCatch(postgsf90(stale), error = conditionMessage)
+
+  expect_match(msg, "no recorded working directory")
+  expect_match(msg, "Refit it in this session")
+
+  ## and it does not go looking in the session's temporary files first
+  expect_false(grepl("Solutions file not found", msg, fixed = TRUE))
+})
