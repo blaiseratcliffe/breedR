@@ -261,7 +261,8 @@ breedR_workdir <- function(prefix = "breedR_") {
 #'
 #' @param x a fitted model from \code{\link{remlf90}}, a result from
 #'   \code{\link{gibbsf90}}, \code{\link{postgsf90}} or \code{\link{renumf90}},
-#'   or a character path to the directory itself.
+#'   or a character path to the directory itself. One at a time: clear a whole
+#'   session's worth with \code{vapply(fits, clean_workdir, logical(1))}.
 #' @return \code{TRUE} if a directory was removed, \code{FALSE} if there was
 #'   nothing to remove (no recorded directory, or already gone). Invisibly.
 #' @seealso \code{\link{remlf90}} for \code{res$reml$dir}.
@@ -276,6 +277,16 @@ clean_workdir <- function(x) {
   dir <- if (is.character(x)) x
          else if (!is.null(x$reml$dir)) x$reml$dir
          else x$dir
+
+  ## One directory at a time. Collecting the paths of several fits and passing
+  ## the vector is the obvious thing to try, and without this it dies on the
+  ## `||` below with "'length = 2' in coercion to 'logical(1)'", which names
+  ## neither this function nor the way out of it.
+  if (length(dir) > 1L)
+    stop("'x' must be a single fit, result or directory path, not ",
+         length(dir), " of them.\n",
+         "  Use vapply(fits, clean_workdir, logical(1)) to clear several ",
+         "at once.", call. = FALSE)
 
   if (is.null(dir) || !nzchar(dir)) return(invisible(FALSE))
   if (!dir.exists(dir)) return(invisible(FALSE))

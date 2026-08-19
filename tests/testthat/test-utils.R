@@ -87,6 +87,28 @@ test_that("clean_workdir() is a no-op when there is nothing to remove", {
 })
 
 
+test_that("clean_workdir() says so when handed more than one directory", {
+
+  ## Collecting the fits' paths and passing the vector is the obvious way to
+  ## clear a session, and it used to reach the nzchar() test with a length-2
+  ## operand and die on "'length = 2' in coercion to 'logical(1)'".
+  d1 <- breedR_workdir()
+  d2 <- breedR_workdir()
+  on.exit(unlink(c(d1, d2), recursive = TRUE), add = TRUE)
+
+  expect_error(clean_workdir(c(d1, d2)), "must be a single fit")
+  expect_error(clean_workdir(c(d1, d2)), "vapply", fixed = TRUE)
+
+  ## The check has to land before anything is unlinked, or the error costs the
+  ## caller the first directory on the way out.
+  expect_true(dir.exists(d1))
+  expect_true(dir.exists(d2))
+
+  ## A length-1 vector is still a single path, not a batch.
+  expect_true(clean_workdir(d1))
+})
+
+
 test_that("clean_workdir() refuses to leave tempdir()", {
 
   ## The guard that matters. renumf90() and gibbsf90_from_renum() take a

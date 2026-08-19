@@ -155,20 +155,37 @@ breedR_input_cache <- function(src) {
   ## hard linked into working directories: a backend that rewrote its input in
   ## place would reach back through the link, and comparing only against the
   ## source would never notice. Two stats, no reads.
+  ##
+  ## The copy is checked on its own mtime and not only on its size, because the
+  ## rewrite that matters most is one of equal byte count: two genotype files
+  ## for the same markers have the same length, and a backend rewriting fixed
+  ## width records in place does not change it either. Size alone calls those
+  ## fresh and serves the clobbered copy to every later fit in the session.
+  ##
+  ## Where mtime is coarse (FAT's two seconds) a rewrite landing in the same
+  ## tick as the original copy still slips through. This is the backstop; what
+  ## keeps the copy intact in the first place is that everything writing into a
+  ## working directory goes through stage_input(), which unlinks before it
+  ## writes.
   cached <- if (is.null(ent)) NULL else file.info(file.path(ent$dir,
                                                             basename(src)))
   fresh <- !is.null(ent) &&
     identical(ent$size, fi$size) &&
     identical(ent$mtime, fi$mtime) &&
     !is.na(cached$size) &&
-    identical(cached$size, fi$size)
+    identical(cached$size, fi$size) &&
+    identical(cached$mtime, ent$copy_mtime)
 
   if (!fresh) {
     d <- tempfile('input_', tmpdir = file.path(tempdir(), 'breedR_inputs'))
     dir.create(d, recursive = TRUE)
-    if (!file.copy(src, file.path(d, basename(src)), overwrite = TRUE))
+    dest <- file.path(d, basename(src))
+    if (!file.copy(src, dest, overwrite = TRUE))
       stop("Could not stage the genomic input file: ", src, call. = FALSE)
-    ent <- list(dir = d, size = fi$size, mtime = fi$mtime)
+    ## Stat the copy *after* writing it: file.copy() defaults to
+    ## copy.date = FALSE, so it carries the copy time, not the source's.
+    ent <- list(dir = d, size = fi$size, mtime = fi$mtime,
+                copy_mtime = file.info(dest)$mtime)
     cache[[key]] <- ent
   }
 
@@ -190,8 +207,16 @@ breedR_input_cache <- function(src) {
 # links exist at all; file.copy() is the fallback for filesystems without them
 # (FAT, some network mounts), which is no worse than the old behaviour.
 #
-# The link is to the cache entry, never to the user's original, so a backend
-# that rewrote its input in place could only damage a throwaway copy.
+# The link is to the cache entry, never to the user's original, so nothing here
+# can damage the file the user pointed at. It can damage the cache entry, and
+# that entry is not private to one fit: every working directory staged from the
+# same source holds a link to it, so a write through any one of those links
+# reaches all of them at once.
+#
+# Hence the unlink() below, and hence this is the only way anything should put
+# a file into a working directory. Copying over the destination by hand -- what
+# predf90() used to do -- writes through the link and silently replaces the
+# staged input of every other fit in the session.
 stage_input <- function(src, dir) {
 
   dest <- file.path(dir, basename(src))
@@ -685,21 +710,30 @@ postgsf90 <- function(model,
          call. = FALSE)
 
   ## Read the working directory of *this* model rather than the session's.
-  ## Every fit records one, breedR.qget() included, so an object without one
-  ## did not come from this session. Falling back to tempdir() was the old
-  ## behaviour and could only mislead: bare tempdir() holds no solutions of
-  ## anyone's, so the fit would be reported missing from a directory it was
-  ## never in. Name the real cause instead.
+  ## Falling back to tempdir() was the old behaviour and could only mislead:
+  ## bare tempdir() holds no solutions of anyone's, so the fit would be
+  ## reported missing from a directory it was never in.
+  ##
+  ## The two ways this can go wrong are worth keeping apart, because they are
+  ## not the same mistake. A local fit always records the directory, so a
+  ## missing one means the object never had it: an older version of the
+  ## package, or a job recovered through breedR.qget(), which rebuilds the
+  ## object by calling parse_results() directly and so never passes through
+  ## the assignment in remlf90(). Saving and reloading an object, by contrast,
+  ## *keeps* the field -- what it loses is the directory it names, so a reload
+  ## falls to the check below and is told which path went missing.
   tmpdir <- model$reml$dir
   if (is.null(tmpdir))
     stop("This model has no recorded working directory. It was fitted by an ",
-         "earlier version of breedR, or loaded from a saved file.\n",
+         "earlier version of breedR, or recovered from a submitted job.\n",
          "  Refit it in this session before calling postgsf90().",
          call. = FALSE)
 
   if (!file.exists(file.path(tmpdir, "solutions")))
     stop("Solutions file not found in ", tmpdir, ". ",
-         "postgsf90() must be run in the same R session as remlf90().",
+         "That directory belonged to the session the model was fitted in, ",
+         "and went away with it.\n",
+         "  postgsf90() must be run in the same R session as remlf90().",
          call. = FALSE)
 
   # Build PostGSF90 OPTION lines
@@ -967,10 +1001,12 @@ parse_postgsf90 <- function(dir) {
 #'   supplied.
 #' @param outfile character. Name of the output file (default
 #'   "SNP_predictions").
-#' @param dir character. Working directory containing PostGSF90 output files
-#'   (snp_pred). Pass the \code{dir} element of the \code{\link{postgsf90}}
-#'   result: each fit now works in its own subdirectory of \code{tempdir()},
-#'   so the default is only right when no model was fitted in this session.
+#' @param dir character. The directory holding the \code{snp_pred} file that
+#'   PostGSF90 wrote. Pass the \code{dir} element of the
+#'   \code{\link{postgsf90}} result. Required: each fit works in its own
+#'   subdirectory of \code{tempdir()}, so there is no directory that can be
+#'   guessed here -- the value has to come from the run that produced the SNP
+#'   effects.
 #' @return A data.frame with columns: id, call_rate, dgv, and optionally
 #'   reliability.
 #' @export
@@ -981,7 +1017,7 @@ predf90 <- function(snp_file,
                     use_diagG_acc = FALSE,
                     pedfile = NULL,
                     outfile = "SNP_predictions",
-                    dir = tempdir()) {
+                    dir) {
 
   if (!file.exists(snp_file))
     stop("SNP file not found: ", snp_file, call. = FALSE)
@@ -1000,12 +1036,13 @@ predf90 <- function(snp_file,
     stop("predf90 binary not found. Run install_genomic_programs().",
          call. = FALSE)
 
-  # Copy SNP file to working directory if not already there
+  # Make the SNP file reachable under its own name from the working directory.
+  # `dir` is a fit's directory, whose staged inputs are hard links into the
+  # session cache, so this has to go through stage_input(): copying over the
+  # destination writes through the link. Predicting for a validation set whose
+  # file happens to share a basename with the training set is enough to hit it.
   snp_basename <- basename(snp_file)
-  snp_dest <- file.path(dir, snp_basename)
-  if (normalizePath(snp_file, mustWork = FALSE) !=
-      normalizePath(snp_dest, mustWork = FALSE))
-    file.copy(snp_file, snp_dest, overwrite = TRUE)
+  stage_input(snp_file, dir)
 
   # Copy binary to working directory (DLL isolation)
   predf90_bin <- file.path(dir, predf90_name)
@@ -1026,10 +1063,7 @@ predf90 <- function(snp_file,
   if (!is.null(pedfile)) {
     if (!file.exists(pedfile))
       stop("Pedigree file not found: ", pedfile, call. = FALSE)
-    ped_dest <- file.path(dir, basename(pedfile))
-    if (normalizePath(pedfile, mustWork = FALSE) !=
-        normalizePath(ped_dest, mustWork = FALSE))
-      file.copy(pedfile, ped_dest, overwrite = TRUE)
+    stage_input(pedfile, dir)
     args <- c(args, "--pedfile", basename(pedfile))
   } else {
     args <- c(args, "--no_rpg")

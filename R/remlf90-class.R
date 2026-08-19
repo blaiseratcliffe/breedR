@@ -573,6 +573,17 @@ remlf90 <- function(fixed,
                "grid search, which fits one model per rho.\n",
                " Fix rho to a single pair and re-run.", call. = FALSE)
 
+        ## A grid ranks its rhos by likelihood, and a submitted fit returns a
+        ## job id rather than a likelihood, so there is nothing here to rank.
+        ## The parallel path also builds the binary's path out of breedR.bin,
+        ## which is the literal string "submit" in this case. Neither failure
+        ## names its cause, so refuse the combination while it can still be
+        ## explained.
+        if (tolower(breedR.bin) %in% c("remote", "submit"))
+          stop("An AR rho grid search requires a local fit; it is not ",
+               "available with breedR.bin = '", breedR.bin, "'.\n",
+               " Fix rho to a single pair and re-run.", call. = FALSE)
+
         n_rho <- nrow(spatial$rho)
 
         # Determine number of cores for parallel execution
@@ -632,9 +643,13 @@ remlf90 <- function(fixed,
             error = function(e) NULL)
 
           ## Guard on the path, not on the object. first_result is NULL under
-          ## debug, and under breedR.bin = 'submit' it is a result with no
-          ## fitted directory to seed from -- and list.files(NULL) is an error,
-          ## not an empty answer, so an unguarded read fails opaquely here.
+          ## debug, which parses nothing, and NULL again when the first rho
+          ## failed outright and the tryCatch above swallowed it. Either way
+          ## list.files(NULL) is an error rather than an empty answer, so an
+          ## unguarded read fails opaquely here.
+          ##
+          ## Submit is not among the cases: it records a directory like any
+          ## other fit, and is refused before the grid starts.
           base_dir <- first_result$reml$dir
           if (is.null(base_dir))
             stop("The first rho of the grid produced no fit directory; ",
@@ -1238,8 +1253,9 @@ remlf90 <- function(fixed,
 # Working directories of every fit in an AR rho grid except the winner.
 #
 # Each candidate is a full fit and keeps its own directory, but only the
-# winner's is read again. Failed candidates are NULL, and a fit that produced
-# no directory (submit) contributes nothing, so filter rather than index.
+# winner's is read again. Candidates that failed are NULL and ones that parsed
+# no results (debug) record no directory, so both contribute nothing here:
+# filter rather than index, or the positions stop lining up with `keep`.
 rho_fit_dirs <- function(fits, keep) {
   dirs <- vapply(fits,
                  function(x) if (is.null(x$reml$dir)) NA_character_

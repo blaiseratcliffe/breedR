@@ -9,7 +9,8 @@ clean_workdir(x)
 \arguments{
 \item{x}{a fitted model from \code{\link{remlf90}}, a result from
 \code{\link{gibbsf90}}, \code{\link{postgsf90}} or \code{\link{renumf90}},
-or a character path to the directory itself.}
+or a character path to the directory itself. One at a time: clear a whole
+session's worth with \code{vapply(fits, clean_workdir, logical(1))}.}
 }
 \value{
 \code{TRUE} if a directory was removed, \code{FALSE} if there was
