@@ -136,6 +136,13 @@ head(gwas$windows)    # variance explained by genomic windows
 `gwas$manhattan` carries the chromosome and position needed to draw a Manhattan
 plot.
 
+Since each fit keeps its own directory, a session that fits many models keeps
+one set of model files per fit. Genotype and map files are not duplicated along
+with them — they are staged once per session and linked into each fit — but the
+model files themselves can be large, so `clean_workdir(res)` is there to reclaim
+a fit you are finished with. Do it after the GWAS and prediction steps below:
+they read the directory it removes.
+
 ## 4. Predicting genomic values for new animals
 
 `predf90()` predicts direct genomic values (DGV) for genotyped animals that were

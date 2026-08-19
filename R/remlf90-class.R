@@ -319,7 +319,14 @@
 #'   fresh subdirectory of \code{tempdir()} holding its parameter file, data,
 #'   structure files and solutions. Every fit gets its own, so a later fit in
 #'   the same session cannot overwrite these; pass it to anything that needs to
-#'   read them, such as \code{\link{postgsf90}}. It is removed with the session.
+#'   read them, such as \code{\link{postgsf90}}.
+#'
+#'   All of them are removed when the session ends, but a session that fits many
+#'   models keeps one directory per fit until then. Use
+#'   \code{\link{clean_workdir}} to reclaim one you are finished with. Genomic
+#'   input files are not the reason to: they are staged once per session and
+#'   linked into each fit, so fitting repeatedly against a large genotype file
+#'   does not copy it repeatedly.
 #'
 #'   When \code{progress_file} is given, \code{res$reml$progress_file} records
 #'   the path used; when \code{cont = TRUE}, \code{res$reml$resumed_from}
@@ -935,13 +942,12 @@ remlf90 <- function(fixed,
   ## the *previous* one left behind, which is why a single broken model reports
   ## as three different errors depending on what ran earlier in the session.
   ## It also lets postgsf90() read a model other than the one it was handed.
-  tmpdir <- tempfile('breedR_', tmpdir = tempdir())
-  dir.create(tmpdir, recursive = TRUE, showWarnings = FALSE)
-  ## write.progsf90() does not create its own directory, so a silent failure
-  ## here would surface much later as 'cannot open the connection' from
-  ## writeLines -- exactly the misleading shape this change exists to remove.
-  if (!dir.exists(tmpdir))
-    stop("Could not create the working directory: ", tmpdir, call. = FALSE)
+  ##
+  ## breedR_workdir() stops if it cannot create the directory: write.progsf90()
+  ## does not create its own, so a silent failure here would surface much later
+  ## as 'cannot open the connection' from writeLines -- exactly the misleading
+  ## shape this change exists to remove.
+  tmpdir <- breedR_workdir()
 
   ## --- Genomic pre-processing with PREGSF90 ---
   pregs_out <- NULL

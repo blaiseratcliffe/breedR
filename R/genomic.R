@@ -122,6 +122,99 @@ build_genomic_options <- function(genomic) {
 }
 
 
+# Session cache holding one copy of each genomic input file.
+#
+# Returns the directory holding the cached copy of `src`, staging it there the
+# first time the file is seen and re-staging it if it has changed on disk since.
+#
+# Keyed on the resolved source path, which is exact. Deriving the key from the
+# file's own properties instead -- size and mtime, say -- is tempting because it
+# needs no bookkeeping, but two files a second apart with the same name and byte
+# count then share a cache entry and the wrong genotypes are served. Not a
+# hypothetical: the first test written against that version hit it.
+# tools::md5sum() keys exactly too, at the price of reading a multi-GB genotype
+# file on every fit, which is the cost this cache exists to avoid.
+#
+# A changed source gets a *new* cache directory rather than an overwritten one:
+# working directories staged earlier hold hard links to the old copy, and
+# rewriting it in place would reach through them and alter an earlier fit's
+# input. The superseded copy is left for the session to clean up.
+breedR_input_cache <- function(src) {
+
+  env <- breedR.get.breedREnv()
+  if (!exists('input_cache', envir = env))
+    assign('input_cache', new.env(parent = emptyenv()), envir = env)
+  cache <- get('input_cache', envir = env)
+
+  key  <- normalizePath(src, winslash = '/', mustWork = TRUE)
+  fi   <- file.info(src)
+  ent  <- cache[[key]]
+
+  ## Fresh means the source has not moved on *and* the cached copy is still
+  ## the one that was put there. The second half matters because the copy is
+  ## hard linked into working directories: a backend that rewrote its input in
+  ## place would reach back through the link, and comparing only against the
+  ## source would never notice. Two stats, no reads.
+  cached <- if (is.null(ent)) NULL else file.info(file.path(ent$dir,
+                                                            basename(src)))
+  fresh <- !is.null(ent) &&
+    identical(ent$size, fi$size) &&
+    identical(ent$mtime, fi$mtime) &&
+    !is.na(cached$size) &&
+    identical(cached$size, fi$size)
+
+  if (!fresh) {
+    d <- tempfile('input_', tmpdir = file.path(tempdir(), 'breedR_inputs'))
+    dir.create(d, recursive = TRUE)
+    if (!file.copy(src, file.path(d, basename(src)), overwrite = TRUE))
+      stop("Could not stage the genomic input file: ", src, call. = FALSE)
+    ent <- list(dir = d, size = fi$size, mtime = fi$mtime)
+    cache[[key]] <- ent
+  }
+
+  ent$dir
+}
+
+
+# Make `src` reachable as basename(src) from inside `dir`.
+#
+# The backend is given bare file names (OPTION SNP_file <name>) and runs with
+# `dir` as its working directory, so the file has to be there under its own
+# name. It used to be copied, which was free when every fit shared one
+# directory and is not now that each fit has its own: a session of N fits kept
+# N copies of the genotype file, unreclaimed until it ended.
+#
+# So: copy into a session cache the first time the file is seen, then hard link
+# from the cache into each working directory. Cache and working directories are
+# both under tempdir(), hence always on one volume, so the link succeeds where
+# links exist at all; file.copy() is the fallback for filesystems without them
+# (FAT, some network mounts), which is no worse than the old behaviour.
+#
+# The link is to the cache entry, never to the user's original, so a backend
+# that rewrote its input in place could only damage a throwaway copy.
+stage_input <- function(src, dir) {
+
+  dest <- file.path(dir, basename(src))
+
+  ## Already where it needs to be -- the user pointed us at a file inside the
+  ## working directory.
+  if (normalizePath(src, mustWork = FALSE) ==
+      normalizePath(dest, mustWork = FALSE))
+    return(invisible(dest))
+
+  cached <- file.path(breedR_input_cache(src), basename(src))
+
+  ## file.link() both warns and returns FALSE when it cannot link, so the
+  ## warning has to go: falling back to a copy is the designed behaviour here,
+  ## not something to report.
+  unlink(dest)
+  if (!isTRUE(suppressWarnings(file.link(cached, dest))))
+    file.copy(cached, dest, overwrite = TRUE)
+
+  invisible(dest)
+}
+
+
 #' Run the full PREGSF90 genomic preprocessing pipeline
 #'
 #' Handles file copying, parameter file writing, PREGSF90 execution, and
@@ -143,17 +236,10 @@ run_pregsf90_pipeline <- function(genomic, genomic_opts, pf90,
   pf90_pregs$parameter$options <- genomic_opts
   write.progsf90(pf90_pregs, dir = tmpdir)
 
-  # Copy input files to working directory (skip if already there)
-  copy_if_needed <- function(src) {
-    dest <- file.path(tmpdir, basename(src))
-    if (normalizePath(src, mustWork = FALSE) !=
-        normalizePath(dest, mustWork = FALSE))
-      file.copy(src, dest, overwrite = TRUE)
-  }
-
-  copy_if_needed(genomic$snp_file)
+  # Make the input files reachable from the working directory
+  stage_input(genomic$snp_file, tmpdir)
   if (!is.null(genomic$map_file))
-    copy_if_needed(genomic$map_file)
+    stage_input(genomic$map_file, tmpdir)
 
   # preGSf90 needs a cross-reference file mapping each SNP-file (original)
   # animal ID to the renumbered pedigree code that breedR writes in the
@@ -161,7 +247,7 @@ run_pregsf90_pipeline <- function(genomic, genomic_opts, pf90,
   # derive it from the pedigree's renumbering.
   xref_file <- paste0(genomic$snp_file, "_XrefID")
   if (file.exists(xref_file)) {
-    copy_if_needed(xref_file)
+    stage_input(xref_file, tmpdir)
   } else if (!is.null(pedigree)) {
     write_xref_from_pedigree(genomic$snp_file, pedigree, tmpdir)
   } else {

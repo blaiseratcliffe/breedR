@@ -4,14 +4,18 @@
 \alias{retrieve_remote}
 \title{Retrieve results stored in some remote directory}
 \usage{
-retrieve_remote(rdir, dest = tempdir())
+retrieve_remote(rdir, dest)
 }
 \arguments{
 \item{rdir}{string. Remote directory where the results are stored.}
 
-\item{dest}{string. Local directory to retrieve into. Defaults to
-\code{tempdir()}; \code{remlf90()} passes its own per-fit directory, so
-that the retrieved files land where the rest of the fit's files are.}
+\item{dest}{string. Local directory to retrieve into, and the value
+returned. Deliberately has no default: retrieving into bare
+\code{tempdir()} put every job of a session in one place, so that a second
+retrieval overwrote the first one's \code{LOG} and \code{solutions}.
+\code{remlf90()} passes its own per-fit directory and
+\code{\link{breedR.qget}} a fresh one, and requiring the argument is what
+keeps a third caller from quietly reintroducing the shared directory.}
 }
 \value{
 dir name where the results are retrieved

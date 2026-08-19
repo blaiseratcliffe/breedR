@@ -38,6 +38,40 @@ test_that("genomic QC results are attached and consistent", {
   expect_true(all(c("snp", "frequency") %in% names(qc$freq)))
 })
 
+test_that("a second fit reuses the staged genotype file", {
+
+  ## Each fit works in its own directory, so the genotype file the backend
+  ## needs to find there was copied once per fit and never reclaimed -- a
+  ## cross-validation loop over a large SNP file would fill the temp volume.
+  ## It is staged once per session now, and hard linked into each fit.
+  res.gen2 <- suppressMessages(
+    remlf90(fixed = phe_X ~ 1,
+            genetic = list(model = 'add_animal',
+                           pedigree = globulus[, 1:3], id = 'self'),
+            genomic = list(snp_file = snp_file, verify_parentage = 0L),
+            data = globulus))
+
+  expect_false(identical(res.gen$reml$dir, res.gen2$reml$dir))
+
+  ## both fits found the genotypes ...
+  for (r in list(res.gen, res.gen2))
+    expect_true(file.exists(file.path(r$reml$dir, basename(snp_file))))
+
+  ## ... and there is still exactly one staged copy behind them
+  cache <- breedR_input_cache(snp_file)
+  expect_length(list.files(cache), 1L)
+
+  ## on a filesystem with hard links the two fits share one inode, so the
+  ## second fit costs no extra bytes; where they are unavailable stage_input()
+  ## falls back to copying and this is merely equality of content
+  expect_identical(
+    readLines(file.path(res.gen2$reml$dir, basename(snp_file))),
+    readLines(file.path(cache, basename(snp_file))))
+
+  clean_workdir(res.gen2)
+  expect_false(dir.exists(res.gen2$reml$dir))
+})
+
 test_that("a genotyped animal absent from the pedigree is an error", {
   bad_file <- file.path(tempdir(), "test_ssgblup_bad.txt")
   write_snp_file(Gmat[1:3, , drop = FALSE],

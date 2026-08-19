@@ -162,10 +162,7 @@ gibbsf90 <- function(fixed,
   ## writes the same fixed names as every other run in the session, so sharing
   ## tempdir() means a second run silently consumes the first one's samples.
   ## The path is recorded on the result below, and postgibbsf90() reads it.
-  tmpdir <- tempfile('breedR_gibbs_', tmpdir = tempdir())
-  dir.create(tmpdir, recursive = TRUE, showWarnings = FALSE)
-  if (!dir.exists(tmpdir))
-    stop("Could not create the working directory: ", tmpdir, call. = FALSE)
+  tmpdir <- breedR_workdir('breedR_gibbs_')
   write.progsf90(pf90, dir = tmpdir)
 
   # Genomic preprocessing (if needed)
