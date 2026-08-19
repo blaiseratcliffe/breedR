@@ -78,3 +78,47 @@ test_that("Parse the fit line when fields carry trailing text", {
   expect_identical(first_number("no number here"), NA_real_)
   expect_identical(first_number(character(0)), numeric(0))
 })
+
+
+test_that("first_number() treats a missing line as no number", {
+
+  ## Leading number, hence the name: the caller splits the log line first and
+  ## feeds the remainders, because "-2logL = 39.76" leads with the -2.
+  expect_equal(first_number("  39.76  logL convergence 0.1E-06"), 39.76)
+  expect_equal(first_number("-2logL =  39.76 : AIC = 43.76"), -2)
+  expect_equal(first_number(c("x 1", "no digits here")), c(1, NA))
+
+  ## NA in, NA out. regexpr() answers NA for an NA input, and using that as a
+  ## subscript used to fail with 'replacement has length zero' -- which is how
+  ## a log line that simply was not there got reported.
+  expect_identical(first_number(NA_character_), NA_real_)
+  expect_equal(first_number(c("v 2", NA)), c(2, NA))
+  expect_identical(first_number(character(0)), numeric(0))
+})
+
+
+test_that("the log-likelihood is found when the backend bends the AI matrix", {
+
+  ## BLUPF90+ puts a 'Corrections made ... bending proportions' line between
+  ## the -2logL line and the round it belongs to whenever it has to bend the
+  ## AI matrix -- routine for a negative rho. parse_results() used to take the
+  ## -2logL line by a fixed offset from the last round, so a bent fit read the
+  ## bending line, got NA, and died several frames later. It is searched for
+  ## now, so both shapes give the same answer.
+  plain <- c("-2logL =     39.7649 : AIC =     43.7649  logL convergence 0.1E-06",
+             "  In round          183  convergence=  2.9E-005",
+             "  delta convergence=  9.9E-007")
+  bent  <- append(plain,
+                  "Corrections made:    1 , final bending proportions of AI and EM",
+                  after = 1)
+
+  logl_of <- function(out) {
+    last.round.idx <- tail(grep('In round', out), 1)
+    idx <- tail(grep('-2logL', out[seq_len(last.round.idx)]), 1)
+    first_number(strsplit(strsplit(out[idx], split = '-2logL =')[[1]][2],
+                          split = ': AIC =')[[1]])
+  }
+
+  expect_equal(logl_of(plain)[1], 39.7649)
+  expect_equal(logl_of(bent)[1],  39.7649)
+})

@@ -158,8 +158,11 @@ gibbsf90 <- function(fixed,
                     opt = c(gibbs_opts, genomic_opts, progsf90.options),
                     res.var.ini = var.ini$residuals)
 
-  # Write files
-  tmpdir <- tempdir()
+  ## One directory per run, for the same reason remlf90() takes one: gibbsf90()
+  ## writes the same fixed names as every other run in the session, so sharing
+  ## tempdir() means a second run silently consumes the first one's samples.
+  ## The path is recorded on the result below, and postgibbsf90() reads it.
+  tmpdir <- breedR_workdir('breedR_gibbs_')
   write.progsf90(pf90, dir = tmpdir)
 
   # Genomic preprocessing (if needed)
@@ -407,8 +410,9 @@ build_gibbs_options <- function(cat = NULL,
 #' posterior means, standard deviations, HPD intervals, effective sample
 #' sizes, Geweke convergence diagnostics, and autocorrelations.
 #'
-#' Must be called in the same R session as \code{\link{gibbsf90}} since
-#' it reads files from \code{tempdir()}.
+#' Must be called in the same R session as \code{\link{gibbsf90}}, whose
+#' working directory it reads. Each \code{gibbsf90()} run has its own; pass
+#' the result object (or its \code{dir}) rather than relying on the session.
 #'
 #' @param gibbs_result output from \code{\link{gibbsf90}}, or a character
 #'   path to the directory containing \code{gibbs_samples} and

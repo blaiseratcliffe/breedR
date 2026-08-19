@@ -37,6 +37,7 @@ posterior means, standard deviations, HPD intervals, effective sample
 sizes, Geweke convergence diagnostics, and autocorrelations.
 }
 \details{
-Must be called in the same R session as \code{\link{gibbsf90}} since
-it reads files from \code{tempdir()}.
+Must be called in the same R session as \code{\link{gibbsf90}}, whose
+working directory it reads. Each \code{gibbsf90()} run has its own; pass
+the result object (or its \code{dir}) rather than relying on the session.
 }

@@ -124,9 +124,9 @@ res.unset <- try(
 
 test_that("if rho unset, remlf90 tries a grid of combinations", {
   # remlf90() returns an evaluation grid
-  expect_that(exists('rho', as.environment(res.unset)), is_true())
+  expect_true(exists('rho', as.environment(res.unset)))
   # the evaluation grid returns the loglikelihood for each default combination
-  expect_that(all(complete.cases(res.unset$rho$loglik)), is_true())
+  expect_true(all(complete.cases(res.unset$rho$loglik)))
 })
 
 
@@ -153,7 +153,7 @@ test_that("the user can specify a full or partial grid of combinations", {
     grid <- gridlist[[i]]
     
     # remlf90() returns an evaluation grid
-    expect_that(exists('rho', as.environment(res)), is_true())
+    expect_true(exists('rho', as.environment(res)))
     
     # The evaluation grid conforms to the user specification
     get_levels <- function(levels) {
@@ -167,8 +167,7 @@ test_that("the user can specify a full or partial grid of combinations", {
                      res$rho[, 1:2])
 
     # the evaluation grid returns the loglikelihood for each combination specified
-    expect_that(all(complete.cases(res$rho$loglik)),
-                is_true())
+    expect_true(all(complete.cases(res$rho$loglik)))
   }
 })
 
@@ -217,7 +216,7 @@ res <- try(
 
 
 test_that("The AR model runs with EM-REML without errors", {
-  expect_that(!inherits(res, "try-error"), is_true())
+  expect_false(inherits(res, "try-error"))
 })
 
 test_that("coef() gets a named vector of coefficients", {

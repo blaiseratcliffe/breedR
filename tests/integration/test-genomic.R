@@ -38,6 +38,40 @@ test_that("genomic QC results are attached and consistent", {
   expect_true(all(c("snp", "frequency") %in% names(qc$freq)))
 })
 
+test_that("a second fit reuses the staged genotype file", {
+
+  ## Each fit works in its own directory, so the genotype file the backend
+  ## needs to find there was copied once per fit and never reclaimed -- a
+  ## cross-validation loop over a large SNP file would fill the temp volume.
+  ## It is staged once per session now, and hard linked into each fit.
+  res.gen2 <- suppressMessages(
+    remlf90(fixed = phe_X ~ 1,
+            genetic = list(model = 'add_animal',
+                           pedigree = globulus[, 1:3], id = 'self'),
+            genomic = list(snp_file = snp_file, verify_parentage = 0L),
+            data = globulus))
+
+  expect_false(identical(res.gen$reml$dir, res.gen2$reml$dir))
+
+  ## both fits found the genotypes ...
+  for (r in list(res.gen, res.gen2))
+    expect_true(file.exists(file.path(r$reml$dir, basename(snp_file))))
+
+  ## ... and there is still exactly one staged copy behind them
+  cache <- breedR_input_cache(snp_file)
+  expect_length(list.files(cache), 1L)
+
+  ## on a filesystem with hard links the two fits share one inode, so the
+  ## second fit costs no extra bytes; where they are unavailable stage_input()
+  ## falls back to copying and this is merely equality of content
+  expect_identical(
+    readLines(file.path(res.gen2$reml$dir, basename(snp_file))),
+    readLines(file.path(cache, basename(snp_file))))
+
+  clean_workdir(res.gen2)
+  expect_false(dir.exists(res.gen2$reml$dir))
+})
+
 test_that("a genotyped animal absent from the pedigree is an error", {
   bad_file <- file.path(tempdir(), "test_ssgblup_bad.txt")
   write_snp_file(Gmat[1:3, , drop = FALSE],
@@ -118,13 +152,73 @@ test_that("predf90 predicts DGV from postgsf90 SNP effects", {
             genomic = list(snp_file = gp_snp, verify_parentage = 0L,
                            save_ginverse = TRUE),
             data = globulus))
-  invisible(postgsf90(res.gp, manhattan_plot = TRUE))
+  gwas <- postgsf90(res.gp, manhattan_plot = TRUE)
 
-  pred <- predf90(snp_file = gp_snp)
+  ## postgsf90() reports where it wrote the SNP effects; predf90() has to be
+  ## pointed at that, since each fit works in its own directory.
+  expect_identical(gwas$dir, res.gp$reml$dir)
+
+  pred <- predf90(snp_file = gp_snp, dir = gwas$dir)
   expect_s3_class(pred, "data.frame")
   expect_equal(nrow(pred), nrow(Gmat))          # one DGV per genotyped animal
   expect_true(all(c("id", "dgv") %in% names(pred)))
   expect_true(all(is.finite(pred$dgv)))
+})
+
+test_that("predf90 on a validation set leaves the training genotypes alone", {
+
+  ## The realistic call: predict for animals the model was not fitted on, from
+  ## a genotype file the user happens to have named the same thing. The staged
+  ## file in a fit's directory is a hard link into the session input cache, so
+  ## copying the validation file over it wrote through the link and replaced
+  ## the training genotypes in the cache -- and so in every other fit directory
+  ## of the session -- with no error anywhere.
+  train_dir <- breedR_workdir('train_')
+  valid_dir <- breedR_workdir('valid_')
+  sibling   <- breedR_workdir('sibling_')
+  on.exit(unlink(c(train_dir, valid_dir, sibling), recursive = TRUE),
+          add = TRUE)
+
+  ## Same name, same dimensions, hence the same byte count: the two files are
+  ## distinguishable only by their contents.
+  train_geno <- file.path(train_dir, "genotypes.txt")
+  valid_geno <- file.path(valid_dir, "genotypes.txt")
+  write_snp_file(Gmat, ids = gen_ids, file = train_geno)
+  Vmat <- matrix(sample(0:2, length(gen_ids) * nsnp, replace = TRUE,
+                        prob = c(0.25, 0.5, 0.25)),
+                 nrow = length(gen_ids))
+  write_snp_file(Vmat, ids = gen_ids, file = valid_geno)
+  file.remove(list.files(c(train_dir, valid_dir), pattern = "_XrefID$",
+                         full.names = TRUE))
+  expect_identical(file.info(train_geno)$size, file.info(valid_geno)$size)
+
+  train_lines <- readLines(train_geno)
+
+  res.vp <- suppressMessages(
+    remlf90(fixed = phe_X ~ gg,
+            genetic = list(model = 'add_animal',
+                           pedigree = globulus[, 1:3], id = 'self'),
+            genomic = list(snp_file = train_geno, verify_parentage = 0L,
+                           save_ginverse = TRUE),
+            data = globulus))
+  gwas <- postgsf90(res.vp)
+
+  ## A second directory staged from the same source, standing in for another
+  ## fit of the session. Resolve the cache directory now: asking for it after
+  ## the fact would re-stage a damaged copy and hide the very thing under test.
+  stage_input(train_geno, sibling)
+  cached <- file.path(breedR_input_cache(train_geno), basename(train_geno))
+
+  pred <- predf90(snp_file = valid_geno, dir = gwas$dir)
+  expect_s3_class(pred, "data.frame")
+
+  ## The fit's own directory now holds the validation genotypes, as asked ...
+  expect_identical(readLines(file.path(gwas$dir, "genotypes.txt")),
+                   readLines(valid_geno))
+
+  ## ... and nothing reachable through the link went with it.
+  expect_identical(readLines(cached), train_lines)
+  expect_identical(readLines(file.path(sibling, "genotypes.txt")), train_lines)
 })
 
 test_that("predf90 errors without a prior postgsf90 run", {

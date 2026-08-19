@@ -4,12 +4,16 @@
 \alias{breedR.remote}
 \title{Perform a job remotely}
 \usage{
-breedR.remote(jobid, breedR.call, verbose = TRUE)
+breedR.remote(jobid, breedR.call, dest, verbose = TRUE)
 }
 \arguments{
 \item{jobid}{character. A string uniquely identifying the current job.}
 
 \item{breedR.call}{character. A full string path to the executable program in the server.}
+
+\item{dest}{character. Local directory to retrieve the results into. Required,
+and passed straight to \code{\link{retrieve_remote}}: the caller's own
+working directory, since each fit has one of its own.}
 
 \item{verbose}{logical. If \code{TRUE} (default) it shows informative messages.}
 }

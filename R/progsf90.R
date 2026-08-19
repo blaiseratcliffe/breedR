@@ -321,6 +321,11 @@ write.progsf90 <- function (pf90, dir) {
 # where coercing the whole AIC field would give NA with a warning.
 first_number <- function(x) {
   m <- regexpr('[-+]?[0-9]*\\.?[0-9]+([EeDd][-+]?[0-9]+)?', x)
+  ## An NA input gives an NA match position, which as a subscript below
+  ## selects nothing to assign to and fails with 'replacement has length
+  ## zero' -- an unreadable way to report a line that simply was not there.
+  ## Treat it as what it is: no number.
+  m[is.na(m)] <- -1L
   ans <- rep(NA_real_, length(x))
   ans[m != -1L] <- as.numeric(regmatches(x, m))
   ans
@@ -579,9 +584,21 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
   }
 
   # Fit info
-  last.fit <- first_number(strsplit(strsplit(reml.out[last.round.idx-1],
-                                             split='-2logL =')[[1]][2],
-                                    split=': AIC =')[[1]])
+  #
+  # The -2logL line usually sits immediately above the last 'In round', but not
+  # always: BLUPF90+ writes a 'Corrections made: ... final bending proportions
+  # of AI and EM' line in between whenever it has to bend the AI matrix, which
+  # it does routinely for a negative rho. Taking the line by a fixed offset
+  # therefore picked up the bending line, gave NA, and killed the whole fit in
+  # first_number() with 'replacement has length zero' -- a fit that had in fact
+  # converged perfectly well. Search back for the line instead.
+  logl.idx <- tail(grep('-2logL', reml.out[seq_len(last.round.idx)]), 1)
+  last.fit <- if (length(logl.idx))
+    first_number(strsplit(strsplit(reml.out[logl.idx],
+                                   split='-2logL =')[[1]][2],
+                          split=': AIC =')[[1]])
+  else
+    c(NA_real_, NA_real_)
   fit <- list(
     '-2logL' = last.fit[1],
     AIC = last.fit[2]
