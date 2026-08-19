@@ -60,6 +60,7 @@ knitr::opts_chunk$set(eval = FALSE, collapse = TRUE, comment = "#>")
 ## ----prediction---------------------------------------------------------------
 # # genotypes for the animals to predict, in the same BLUPF90 format
 # predictions <- predf90(snp_file   = "new_genotypes.txt",
+#                        dir        = gwas$dir, # where postgsf90() wrote snp_pred
 #                        use_mu_hat = TRUE)   # add the base so DGV are on the GEBV scale
 # 
 # head(predictions)   # data.frame(id, call_rate, dgv)

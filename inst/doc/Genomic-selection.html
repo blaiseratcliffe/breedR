@@ -12,7 +12,7 @@
 
 <meta name="author" content="breedR" />
 
-<meta name="date" content="2026-08-17" />
+<meta name="date" content="2026-08-19" />
 
 <title>Genomic selection with breedR: ssGBLUP, GWAS and genomic prediction</title>
 
@@ -342,7 +342,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h1 class="title toc-ignore">Genomic selection with breedR: ssGBLUP,
 GWAS and genomic prediction</h1>
 <h4 class="author">breedR</h4>
-<h4 class="date">2026-08-17</h4>
+<h4 class="date">2026-08-19</h4>
 
 
 
@@ -435,8 +435,10 @@ model.</p>
 SNP effects. It reads the genomic G-inverse saved by the fit, so the
 model <strong>must</strong> have been fitted with
 <code>save_ginverse = TRUE</code> (otherwise <code>postgsf90()</code>
-stops and tells you to refit). Run it in the same R session as the
-fit.</p>
+stops and tells you to refit). Run it in the same R session as the fit:
+it reads that fit’s working directory, <code>res$reml$dir</code>, which
+lives under <code>tempdir()</code> and goes away with the session. Each
+fit has its own, so fitting another model in between is harmless.</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>gwas <span class="ot">&lt;-</span> <span class="fu">postgsf90</span>(res,</span>
 <span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>                  <span class="at">windows_variance =</span> <span class="dv">20</span>,     <span class="co"># variance explained per 20-SNP window</span></span>
 <span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>                  <span class="at">manhattan_plot   =</span> <span class="cn">TRUE</span>)</span>
@@ -447,18 +449,27 @@ fit.</p>
 <p><code>gwas$snp_sol</code> has one row per marker; with a
 <code>map_file</code> supplied at fit time, <code>gwas$manhattan</code>
 carries the chromosome and position needed to draw a Manhattan plot.</p>
+<p>Since each fit keeps its own directory, a session that fits many
+models keeps one set of model files per fit. Genotype and map files are
+not duplicated along with them — they are staged once per session and
+linked into each fit — but the model files themselves can be large, so
+<code>clean_workdir(res)</code> is there to reclaim a fit you are
+finished with. Do it after the GWAS and prediction steps below: they
+read the directory it removes.</p>
 </div>
 <div id="predicting-genomic-values-for-new-animals" class="section level2">
 <h2>4. Predicting genomic values for new animals</h2>
 <p><code>predf90()</code> predicts direct genomic values (DGV) for
 genotyped animals that were not in the evaluation, using the SNP effects
-<code>postgsf90()</code> just wrote. Run it in the same session, right
-after the GWAS step.</p>
+<code>postgsf90()</code> just wrote. Run it in the same session, and
+pass it the directory <code>postgsf90()</code> returns — that is where
+the SNP effects are.</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># genotypes for the animals to predict, in the same BLUPF90 format</span></span>
 <span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>predictions <span class="ot">&lt;-</span> <span class="fu">predf90</span>(<span class="at">snp_file   =</span> <span class="st">&quot;new_genotypes.txt&quot;</span>,</span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>                       <span class="at">use_mu_hat =</span> <span class="cn">TRUE</span>)   <span class="co"># add the base so DGV are on the GEBV scale</span></span>
-<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a></span>
-<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="fu">head</span>(predictions)   <span class="co"># data.frame(id, call_rate, dgv)</span></span></code></pre></div>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>                       <span class="at">dir        =</span> gwas<span class="sc">$</span>dir, <span class="co"># where postgsf90() wrote snp_pred</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>                       <span class="at">use_mu_hat =</span> <span class="cn">TRUE</span>)   <span class="co"># add the base so DGV are on the GEBV scale</span></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="fu">head</span>(predictions)   <span class="co"># data.frame(id, call_rate, dgv)</span></span></code></pre></div>
 <p>Reliabilities (<code>acc = TRUE</code>) additionally require an
 <code>OPTION snp_var</code> file from the GWAS run; see the package
 README “Known limitations”.</p>
