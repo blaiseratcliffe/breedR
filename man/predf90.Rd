@@ -12,7 +12,7 @@ predf90(
   use_diagG_acc = FALSE,
   pedfile = NULL,
   outfile = "SNP_predictions",
-  dir = tempdir()
+  dir
 )
 }
 \arguments{
@@ -41,8 +41,12 @@ supplied.}
 \item{outfile}{character. Name of the output file (default
 "SNP_predictions").}
 
-\item{dir}{character. Working directory containing PostGSF90 output files
-(snp_pred). Default \code{tempdir()}.}
+\item{dir}{character. The directory holding the \code{snp_pred} file that
+PostGSF90 wrote. Pass the \code{dir} element of the
+\code{\link{postgsf90}} result. Required: each fit works in its own
+subdirectory of \code{tempdir()}, so there is no directory that can be
+guessed here -- the value has to come from the run that produced the SNP
+effects.}
 }
 \value{
 A data.frame with columns: id, call_rate, dgv, and optionally

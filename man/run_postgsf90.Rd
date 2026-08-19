@@ -4,13 +4,17 @@
 \alias{run_postgsf90}
 \title{Run PostGSF90 binary}
 \usage{
-run_postgsf90(dir, bin_path)
+run_postgsf90(dir, bin_path, par_name = "parameters_postgs")
 }
 \arguments{
 \item{dir}{working directory containing parameter file, solutions,
 genotype file, and map file.}
 
 \item{bin_path}{directory containing the postGSf90 binary.}
+
+\item{par_name}{name of the parameter file to feed the program, relative to
+\code{dir}. Defaults to the GWAS parameter file postgsf90() writes, which
+is kept separate from the fit's own \code{parameters}.}
 }
 \value{
 Character vector of program stdout.

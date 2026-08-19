@@ -36,7 +36,25 @@ test_that('generic() takes either covariance or precision matrices', {
   
   gm22 <- generic(incidence  = test.inc8x4, precision = test.cov4x4)
   expect_match(gm22$structure.type, 'precision')
-  
+
+})
+
+
+test_that('generic() stores an identity covariance as a unit-diagonal Matrix', {
+
+  ## Pins the shape that caused #22, so the class the fix has to cope with is
+  ## on the record rather than an incidental detail of Matrix's constructor.
+  ## `diag(n)` is the obvious covariance to hand to generic(), and as.Matrix()
+  ## turns it into a ddiMatrix whose diagonal is implicit -- length(@x) is 0,
+  ## and extracting the stored entries used to yield nothing at all.
+  gm <- generic(incidence = test.inc8x4, covariance = diag(4))
+
+  expect_s4_class(gm$structure.matrix, 'ddiMatrix')
+  expect_identical(gm$structure.matrix@diag, 'U')
+  expect_length(gm$structure.matrix@x, 0L)
+
+  ## and the rendering survives it
+  expect_equal(nrow(as.triplet(vcov(gm))), 4L)
 })
 
 ## TODO:

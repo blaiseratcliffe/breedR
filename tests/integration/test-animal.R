@@ -30,7 +30,7 @@ run_expectations <- function(m, data = dat, method) {
   
   # It runs without errors 
   test_that("The animal model runs without errors", {
-    expect_that(!inherits(res, "try-error"), is_true())
+    expect_false(inherits(res, "try-error"))
   })
   
   # TODO:
@@ -69,7 +69,7 @@ res <- run_model(fixed_models[[1]], method = 'ai')
 
 
 test_that("The add_animal model runs with EM-REML without errors", {
-  expect_that(!inherits(res, "try-error"), is_true())
+  expect_false(inherits(res, "try-error"))
 })
 
 test_that("coef() gets a named vector of coefficients", {

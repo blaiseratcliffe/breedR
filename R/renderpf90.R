@@ -422,7 +422,25 @@ renderpf90.ar <- function(x, ...) {
 #' @param x matrix.
 #' @importFrom methods as
 as.triplet <- function(x) {
-  xsp <- Matrix::tril(as(x, 'TsparseMatrix'))
+  ## Coerce through generalMatrix before extracting. A unit-diagonal sparse
+  ## matrix -- ddiMatrix, or a triangular one with diag = "U" -- records its
+  ## diagonal implicitly and stores nothing at all in @x, and tril() preserves
+  ## that, so the triplet came out empty and the structure file was written
+  ## with nothing in it. The backend then reports 'read 0 elements' and gives
+  ## up, having exited 0. An identity covariance is the most natural thing to
+  ## hand to generic(), and random()'s as.Matrix() turns diag(n) into exactly
+  ## that class, which is why this was total rather than occasional.
+  ##
+  ## The 'dMatrix' link admits pattern and index matrices, which have no @x
+  ## slot and used to fail here with "no slot of name x". It is a no-op for
+  ## every numeric class.
+  ##
+  ## Note the entries come out column-major rather than row-major for the
+  ## classes that store a single triangle (the splines structure matrix, say).
+  ## Same set, different order; the backend reads triplets in any order.
+  xsp <- Matrix::tril(
+    as(as(as(as(x, 'CsparseMatrix'), 'generalMatrix'), 'dMatrix'),
+       'TsparseMatrix'))
   # Note: The Matrix package counts rows and columns starting from zero
   # Thus, I add 1 to the corresponding columns
   cbind(xsp@i + 1, xsp@j + 1, xsp@x)

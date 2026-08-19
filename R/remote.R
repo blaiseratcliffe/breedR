@@ -91,7 +91,12 @@ breedR.qget = function(id, remove = TRUE)
   rdir = file.path('tmp', '.breedR.remote',
                    paste('breedR-job-', status$id, sep = ''))
   
-  ldir <- retrieve_remote(rdir)
+  ## Into a directory of this retrieval's own. Retrieving into bare tempdir()
+  ## would put every recovered job in the same place: the second qget() of a
+  ## session untars its LOG and solutions over the first one's, and both
+  ## objects would then advertise the one path -- the aliasing that per-fit
+  ## directories exist to remove, reintroduced at the last step.
+  ldir <- retrieve_remote(rdir, dest = breedR_workdir('breedR_qget_'))
 
   # Integrate the model structure with the results
   ans <- parse_results(file.path(ldir, 'solutions'),
@@ -100,8 +105,13 @@ breedR.qget = function(id, remove = TRUE)
                        readLines(file.path(ldir, 'LOG')),
                        id$method,
                        id$mcout)
-  class(ans) <- c('breedR', 'remlf90')  
-  
+  ## parse_results() does not record it, so do it here: without this the
+  ## object is the one case with no working directory of its own, and readers
+  ## such as postgsf90() would have nothing to go on.
+  ans$reml$dir <- ldir
+  class(ans) <- c('breedR', 'remlf90')
+
+
   if( remove ) suppressMessages(breedR.qdel(id))
   
   message('Job retrieved')
@@ -370,8 +380,11 @@ breedR.ssh <- function(commands,
 #' Assumes that all the relevant files are in the current directory.
 #' @param jobid character. A string uniquely identifying the current job.
 #' @param breedR.call character. A full string path to the executable program in the server.
+#' @param dest character. Local directory to retrieve the results into. Required,
+#'   and passed straight to \code{\link{retrieve_remote}}: the caller's own
+#'   working directory, since each fit has one of its own.
 #' @param verbose logical. If \code{TRUE} (default) it shows informative messages.
-breedR.remote = function(jobid, breedR.call, verbose = TRUE)
+breedR.remote = function(jobid, breedR.call, dest, verbose = TRUE)
 {
   if( verbose ) {
     message(paste('Run', breedR.call, 'at host',
@@ -405,8 +418,8 @@ breedR.remote = function(jobid, breedR.call, verbose = TRUE)
   
   Sys.sleep(1)  # Not too fast...
   # Retrieve results to local dir
-  ldir <- retrieve_remote(rdir)
-  
+  ldir <- retrieve_remote(rdir, dest = dest)
+
   return(ldir)
 }
 
@@ -443,8 +456,15 @@ breedR.submit <- function(jobid, breedR.call) {
 #' 
 #' Use scp to transfer compressed files. Clean up afterwards.
 #' @param rdir string. Remote directory where the results are stored.
+#' @param dest string. Local directory to retrieve into, and the value
+#'   returned. Deliberately has no default: retrieving into bare
+#'   \code{tempdir()} put every job of a session in one place, so that a second
+#'   retrieval overwrote the first one's \code{LOG} and \code{solutions}.
+#'   \code{remlf90()} passes its own per-fit directory and
+#'   \code{\link{breedR.qget}} a fresh one, and requiring the argument is what
+#'   keeps a third caller from quietly reintroducing the shared directory.
 #' @return dir name where the results are retrieved
-retrieve_remote <- function (rdir) {
+retrieve_remote <- function (rdir, dest) {
   # Compressed filename for storing results remotely
   tarfile = tempfile(pattern = 'results',
                      tmpdir = '..',
@@ -465,8 +485,10 @@ retrieve_remote <- function (rdir) {
   if( !is.character(res) & length(res) != 0) stop('This should not happen')
   
   # Copy the compressed file to local
-  tf <- tempfile(pattern = 'breedR.result_', fileext = '.tar')
-  
+  ## Into `dest`, so the untar below -- which follows the setwd() to this
+  ## file's directory -- lands the results there too.
+  tf <- tempfile(pattern = 'breedR.result_', tmpdir = dest, fileext = '.tar')
+
   # Avoid confusing the colon in Windows paths (i.e. C:) with a host
   # by moving into the tf directory
   cdir <- setwd(dirname(tf))

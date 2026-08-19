@@ -221,3 +221,90 @@ lmat2df <- function(x, nm) {
     check.names = FALSE
   )
 }
+
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
+#### Working directories     ####
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%#
+
+# A fresh working directory under tempdir().
+#
+# Every run that drives a PROGSF90 binary needs one of its own: the programs
+# write a fixed set of names (parameters, data, solutions), so two runs sharing
+# a directory means the second silently consumes the first one's files. Used by
+# remlf90(), gibbsf90() and breedR.qget() alike.
+#
+# Warnings from dir.create() are deliberately not suppressed: the reason it
+# failed -- permissions, a full disk -- is exactly what the caller's error
+# message cannot say on its own.
+breedR_workdir <- function(prefix = "breedR_") {
+  d <- tempfile(prefix, tmpdir = tempdir())
+  dir.create(d, recursive = TRUE)
+  if (!dir.exists(d))
+    stop("Could not create the working directory: ", d, call. = FALSE)
+  d
+}
+
+
+#' Remove the working directory of a fit
+#'
+#' Each fit or sampling run works in its own directory under \code{tempdir()},
+#' holding its parameter file, data, structure files and solutions. They are
+#' kept so that follow-up steps such as \code{\link{postgsf90}} can read them,
+#' and are removed when the session ends. A session that fits many models keeps
+#' one directory per fit, which is worth reclaiming explicitly when the models
+#' are large or numerous.
+#'
+#' Only directories under \code{tempdir()} are removed. \code{\link{renumf90}}
+#' and friends accept a user-chosen \code{dir}, and deleting one of those on the
+#' strength of a stored path is not a mistake worth risking, so it is refused.
+#'
+#' @param x a fitted model from \code{\link{remlf90}}, a result from
+#'   \code{\link{gibbsf90}}, \code{\link{postgsf90}} or \code{\link{renumf90}},
+#'   or a character path to the directory itself. One at a time: clear a whole
+#'   session's worth with \code{vapply(fits, clean_workdir, logical(1))}.
+#' @return \code{TRUE} if a directory was removed, \code{FALSE} if there was
+#'   nothing to remove (no recorded directory, or already gone). Invisibly.
+#' @seealso \code{\link{remlf90}} for \code{res$reml$dir}.
+#' @examples
+#' \dontrun{
+#'   res <- remlf90(phe_X ~ gg, data = globulus)
+#'   clean_workdir(res)
+#' }
+#' @export
+clean_workdir <- function(x) {
+
+  dir <- if (is.character(x)) x
+         else if (!is.null(x$reml$dir)) x$reml$dir
+         else x$dir
+
+  ## One directory at a time. Collecting the paths of several fits and passing
+  ## the vector is the obvious thing to try, and without this it dies on the
+  ## `||` below with "'length = 2' in coercion to 'logical(1)'", which names
+  ## neither this function nor the way out of it.
+  if (length(dir) > 1L)
+    stop("'x' must be a single fit, result or directory path, not ",
+         length(dir), " of them.\n",
+         "  Use vapply(fits, clean_workdir, logical(1)) to clear several ",
+         "at once.", call. = FALSE)
+
+  if (is.null(dir) || !nzchar(dir)) return(invisible(FALSE))
+  if (!dir.exists(dir)) return(invisible(FALSE))
+
+  ## Compare resolved paths: the stored one and tempdir() can disagree on
+  ## separators and short names on Windows while naming the same place.
+  full <- normalizePath(dir, winslash = "/", mustWork = TRUE)
+  root <- normalizePath(tempdir(), winslash = "/", mustWork = TRUE)
+
+  ## Strictly *under* tempdir(). Equal to it is the session's own scratch
+  ## space, whose removal breaks everything downstream of here, so a stored
+  ## path that resolves to bare tempdir() is refused rather than obeyed.
+  if (identical(full, root) || !startsWith(full, paste0(root, "/")))
+    stop("Refusing to remove ", full, ", which is not a directory under ",
+         "tempdir().\n",
+         "  Remove it yourself if that is really what you want.",
+         call. = FALSE)
+
+  unlink(full, recursive = TRUE)
+  invisible(!dir.exists(full))
+}

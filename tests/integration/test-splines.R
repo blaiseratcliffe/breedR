@@ -27,7 +27,7 @@ res <- try(
   
 
 test_that("The splines model runs with EM-REML without errors", {
-  expect_that(!inherits(res, "try-error"), is_true())
+  expect_false(inherits(res, "try-error"))
 })
 
 test_that("coef() gets a named vector of coefficients", {

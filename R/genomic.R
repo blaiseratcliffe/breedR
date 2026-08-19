@@ -122,6 +122,124 @@ build_genomic_options <- function(genomic) {
 }
 
 
+# Session cache holding one copy of each genomic input file.
+#
+# Returns the directory holding the cached copy of `src`, staging it there the
+# first time the file is seen and re-staging it if it has changed on disk since.
+#
+# Keyed on the resolved source path, which is exact. Deriving the key from the
+# file's own properties instead -- size and mtime, say -- is tempting because it
+# needs no bookkeeping, but two files a second apart with the same name and byte
+# count then share a cache entry and the wrong genotypes are served. Not a
+# hypothetical: the first test written against that version hit it.
+# tools::md5sum() keys exactly too, at the price of reading a multi-GB genotype
+# file on every fit, which is the cost this cache exists to avoid.
+#
+# A changed source gets a *new* cache directory rather than an overwritten one:
+# working directories staged earlier hold hard links to the old copy, and
+# rewriting it in place would reach through them and alter an earlier fit's
+# input. The superseded copy is left for the session to clean up.
+breedR_input_cache <- function(src) {
+
+  env <- breedR.get.breedREnv()
+  if (!exists('input_cache', envir = env))
+    assign('input_cache', new.env(parent = emptyenv()), envir = env)
+  cache <- get('input_cache', envir = env)
+
+  key  <- normalizePath(src, winslash = '/', mustWork = TRUE)
+  fi   <- file.info(src)
+  ent  <- cache[[key]]
+
+  ## Fresh means the source has not moved on *and* the cached copy is still
+  ## the one that was put there. The second half matters because the copy is
+  ## hard linked into working directories: a backend that rewrote its input in
+  ## place would reach back through the link, and comparing only against the
+  ## source would never notice. Two stats, no reads.
+  ##
+  ## The copy is checked on its own mtime and not only on its size, because the
+  ## rewrite that matters most is one of equal byte count: two genotype files
+  ## for the same markers have the same length, and a backend rewriting fixed
+  ## width records in place does not change it either. Size alone calls those
+  ## fresh and serves the clobbered copy to every later fit in the session.
+  ##
+  ## Where mtime is coarse (FAT's two seconds) a rewrite landing in the same
+  ## tick as the original copy still slips through. This is the backstop; what
+  ## keeps the copy intact in the first place is that everything writing into a
+  ## working directory goes through stage_input(), which unlinks before it
+  ## writes.
+  cached <- if (is.null(ent)) NULL else file.info(file.path(ent$dir,
+                                                            basename(src)))
+  fresh <- !is.null(ent) &&
+    identical(ent$size, fi$size) &&
+    identical(ent$mtime, fi$mtime) &&
+    !is.na(cached$size) &&
+    identical(cached$size, fi$size) &&
+    identical(cached$mtime, ent$copy_mtime)
+
+  if (!fresh) {
+    d <- tempfile('input_', tmpdir = file.path(tempdir(), 'breedR_inputs'))
+    dir.create(d, recursive = TRUE)
+    dest <- file.path(d, basename(src))
+    if (!file.copy(src, dest, overwrite = TRUE))
+      stop("Could not stage the genomic input file: ", src, call. = FALSE)
+    ## Stat the copy *after* writing it: file.copy() defaults to
+    ## copy.date = FALSE, so it carries the copy time, not the source's.
+    ent <- list(dir = d, size = fi$size, mtime = fi$mtime,
+                copy_mtime = file.info(dest)$mtime)
+    cache[[key]] <- ent
+  }
+
+  ent$dir
+}
+
+
+# Make `src` reachable as basename(src) from inside `dir`.
+#
+# The backend is given bare file names (OPTION SNP_file <name>) and runs with
+# `dir` as its working directory, so the file has to be there under its own
+# name. It used to be copied, which was free when every fit shared one
+# directory and is not now that each fit has its own: a session of N fits kept
+# N copies of the genotype file, unreclaimed until it ended.
+#
+# So: copy into a session cache the first time the file is seen, then hard link
+# from the cache into each working directory. Cache and working directories are
+# both under tempdir(), hence always on one volume, so the link succeeds where
+# links exist at all; file.copy() is the fallback for filesystems without them
+# (FAT, some network mounts), which is no worse than the old behaviour.
+#
+# The link is to the cache entry, never to the user's original, so nothing here
+# can damage the file the user pointed at. It can damage the cache entry, and
+# that entry is not private to one fit: every working directory staged from the
+# same source holds a link to it, so a write through any one of those links
+# reaches all of them at once.
+#
+# Hence the unlink() below, and hence this is the only way anything should put
+# a file into a working directory. Copying over the destination by hand -- what
+# predf90() used to do -- writes through the link and silently replaces the
+# staged input of every other fit in the session.
+stage_input <- function(src, dir) {
+
+  dest <- file.path(dir, basename(src))
+
+  ## Already where it needs to be -- the user pointed us at a file inside the
+  ## working directory.
+  if (normalizePath(src, mustWork = FALSE) ==
+      normalizePath(dest, mustWork = FALSE))
+    return(invisible(dest))
+
+  cached <- file.path(breedR_input_cache(src), basename(src))
+
+  ## file.link() both warns and returns FALSE when it cannot link, so the
+  ## warning has to go: falling back to a copy is the designed behaviour here,
+  ## not something to report.
+  unlink(dest)
+  if (!isTRUE(suppressWarnings(file.link(cached, dest))))
+    file.copy(cached, dest, overwrite = TRUE)
+
+  invisible(dest)
+}
+
+
 #' Run the full PREGSF90 genomic preprocessing pipeline
 #'
 #' Handles file copying, parameter file writing, PREGSF90 execution, and
@@ -143,17 +261,10 @@ run_pregsf90_pipeline <- function(genomic, genomic_opts, pf90,
   pf90_pregs$parameter$options <- genomic_opts
   write.progsf90(pf90_pregs, dir = tmpdir)
 
-  # Copy input files to working directory (skip if already there)
-  copy_if_needed <- function(src) {
-    dest <- file.path(tmpdir, basename(src))
-    if (normalizePath(src, mustWork = FALSE) !=
-        normalizePath(dest, mustWork = FALSE))
-      file.copy(src, dest, overwrite = TRUE)
-  }
-
-  copy_if_needed(genomic$snp_file)
+  # Make the input files reachable from the working directory
+  stage_input(genomic$snp_file, tmpdir)
   if (!is.null(genomic$map_file))
-    copy_if_needed(genomic$map_file)
+    stage_input(genomic$map_file, tmpdir)
 
   # preGSf90 needs a cross-reference file mapping each SNP-file (original)
   # animal ID to the renumbered pedigree code that breedR writes in the
@@ -161,7 +272,7 @@ run_pregsf90_pipeline <- function(genomic, genomic_opts, pf90,
   # derive it from the pedigree's renumbering.
   xref_file <- paste0(genomic$snp_file, "_XrefID")
   if (file.exists(xref_file)) {
-    copy_if_needed(xref_file)
+    stage_input(xref_file, tmpdir)
   } else if (!is.null(pedigree)) {
     write_xref_from_pedigree(genomic$snp_file, pedigree, tmpdir)
   } else {
@@ -532,7 +643,10 @@ write_xref_from_pedigree <- function(snp_file, pedigree, tmpdir) {
 #' Back-solves the genomic breeding values into SNP effects and runs a
 #' genome-wide association analysis on a fitted single-step model. Must be
 #' called in the same R session as the \code{\link{remlf90}} call that produced
-#' the model, since it reads files from \code{tempdir()}.
+#' the model, since it reads that fit's working directory
+#' (\code{model$reml$dir}), which lives under \code{tempdir()}. A model loaded
+#' from a saved file has no such directory and must be refitted first; it is an
+#' error rather than a search of the session's temporary files.
 #'
 #' The model must have been fitted with \code{save_ginverse = TRUE} in its
 #' \code{genomic} list; postGSf90 reads the saved genomic G-inverse. For
@@ -567,6 +681,8 @@ write_xref_from_pedigree <- function(snp_file, pedigree, tmpdir) {
 #'     \item{windows}{data.frame of variance explained by windows}
 #'     \item{snp_variance}{data.frame of per-SNP variance by chromosome}
 #'     \item{output}{character vector of PostGSF90 stdout}
+#'     \item{dir}{the working directory the SNP effects were written to. Pass
+#'       it to \code{\link{predf90}} as its \code{dir}.}
 #'   }
 #' @export
 postgsf90 <- function(model,
@@ -593,11 +709,31 @@ postgsf90 <- function(model,
          "genomic = list(..., save_ginverse = TRUE) before calling postgsf90().",
          call. = FALSE)
 
-  # Files should be in tempdir() from the remlf90() call
-  tmpdir <- tempdir()
+  ## Read the working directory of *this* model rather than the session's.
+  ## Falling back to tempdir() was the old behaviour and could only mislead:
+  ## bare tempdir() holds no solutions of anyone's, so the fit would be
+  ## reported missing from a directory it was never in.
+  ##
+  ## The two ways this can go wrong are worth keeping apart, because they are
+  ## not the same mistake. A local fit always records the directory, so a
+  ## missing one means the object never had it: an older version of the
+  ## package, or a job recovered through breedR.qget(), which rebuilds the
+  ## object by calling parse_results() directly and so never passes through
+  ## the assignment in remlf90(). Saving and reloading an object, by contrast,
+  ## *keeps* the field -- what it loses is the directory it names, so a reload
+  ## falls to the check below and is told which path went missing.
+  tmpdir <- model$reml$dir
+  if (is.null(tmpdir))
+    stop("This model has no recorded working directory. It was fitted by an ",
+         "earlier version of breedR, or recovered from a submitted job.\n",
+         "  Refit it in this session before calling postgsf90().",
+         call. = FALSE)
+
   if (!file.exists(file.path(tmpdir, "solutions")))
-    stop("Solutions file not found in tempdir(). ",
-         "postgsf90() must be run in the same R session as remlf90().",
+    stop("Solutions file not found in ", tmpdir, ". ",
+         "That directory belonged to the session the model was fitted in, ",
+         "and went away with it.\n",
+         "  postgsf90() must be run in the same R session as remlf90().",
          call. = FALSE)
 
   # Build PostGSF90 OPTION lines
@@ -620,7 +756,13 @@ postgsf90 <- function(model,
   # map_file -> chrinfo (postGSf90 uses chrinfo for chromosome/position info)
   kept_lines <- sub("^OPTION map_file ", "OPTION chrinfo ", kept_lines)
   new_par <- c(kept_lines, "OPTION readGInverse", paste("OPTION", postgs_opts))
-  writeLines(new_par, file.path(tmpdir, "parameters"))
+  ## Write it beside the fit's parameter file rather than over it. That file is
+  ## part of what the model object now advertises through res$reml$dir, and
+  ## rewriting it in place both destroyed it and made a second postgsf90() on
+  ## the same model wrong -- drop_opts above does not match readGInverse or the
+  ## GWAS options, so they accumulated on every call.
+  postgs_par <- "parameters_postgs"
+  writeLines(new_par, file.path(tmpdir, postgs_par))
 
   # postGSf90 reads external inbreeding coefficients (renf90.inb) when a
   # pedigree is present. breedR's ssGBLUP fit does not track inbreeding (A22 is
@@ -642,7 +784,7 @@ postgsf90 <- function(model,
     stop("Genomic program binaries (postGSf90) not installed. ",
          "See ?install_genomic_programs", call. = FALSE)
 
-  postgs_out <- run_postgsf90(tmpdir, bin_path)
+  postgs_out <- run_postgsf90(tmpdir, bin_path, par_name = postgs_par)
   writeLines(postgs_out, file.path(tmpdir, "postgsf90.out"))
 
   # postGSf90 can exit 0 (or write a stub snp_sol) while its log reports an
@@ -660,6 +802,9 @@ postgsf90 <- function(model,
   # Parse output files
   result <- parse_postgsf90(tmpdir)
   result$output <- postgs_out
+  ## Where the SNP effects landed, so predf90() can be pointed at them without
+  ## guessing at the session's tempdir().
+  result$dir <- tmpdir
 
   return(result)
 }
@@ -703,8 +848,11 @@ build_postgsf90_options <- function(windows_variance, windows_variance_mbp,
 #' @param dir working directory containing parameter file, solutions,
 #'   genotype file, and map file.
 #' @param bin_path directory containing the postGSf90 binary.
+#' @param par_name name of the parameter file to feed the program, relative to
+#'   \code{dir}. Defaults to the GWAS parameter file postgsf90() writes, which
+#'   is kept separate from the fit's own \code{parameters}.
 #' @return Character vector of program stdout.
-run_postgsf90 <- function(dir, bin_path) {
+run_postgsf90 <- function(dir, bin_path, par_name = 'parameters_postgs') {
 
   postgs_name <- genomic_program_files(breedR.os.type())[2]
   postgs_src <- file.path(bin_path, postgs_name)
@@ -723,7 +871,7 @@ run_postgsf90 <- function(dir, bin_path) {
     unlink(postgs_bin)
   })
 
-  out <- system2(file.path(".", postgs_name), input = 'parameters',
+  out <- system2(file.path(".", postgs_name), input = par_name,
                  stdout = TRUE, stderr = TRUE)
 
   if (!is.null(attr(out, 'status'))) {
@@ -853,8 +1001,12 @@ parse_postgsf90 <- function(dir) {
 #'   supplied.
 #' @param outfile character. Name of the output file (default
 #'   "SNP_predictions").
-#' @param dir character. Working directory containing PostGSF90 output files
-#'   (snp_pred). Default \code{tempdir()}.
+#' @param dir character. The directory holding the \code{snp_pred} file that
+#'   PostGSF90 wrote. Pass the \code{dir} element of the
+#'   \code{\link{postgsf90}} result. Required: each fit works in its own
+#'   subdirectory of \code{tempdir()}, so there is no directory that can be
+#'   guessed here -- the value has to come from the run that produced the SNP
+#'   effects.
 #' @return A data.frame with columns: id, call_rate, dgv, and optionally
 #'   reliability.
 #' @export
@@ -865,7 +1017,7 @@ predf90 <- function(snp_file,
                     use_diagG_acc = FALSE,
                     pedfile = NULL,
                     outfile = "SNP_predictions",
-                    dir = tempdir()) {
+                    dir) {
 
   if (!file.exists(snp_file))
     stop("SNP file not found: ", snp_file, call. = FALSE)
@@ -884,12 +1036,13 @@ predf90 <- function(snp_file,
     stop("predf90 binary not found. Run install_genomic_programs().",
          call. = FALSE)
 
-  # Copy SNP file to working directory if not already there
+  # Make the SNP file reachable under its own name from the working directory.
+  # `dir` is a fit's directory, whose staged inputs are hard links into the
+  # session cache, so this has to go through stage_input(): copying over the
+  # destination writes through the link. Predicting for a validation set whose
+  # file happens to share a basename with the training set is enough to hit it.
   snp_basename <- basename(snp_file)
-  snp_dest <- file.path(dir, snp_basename)
-  if (normalizePath(snp_file, mustWork = FALSE) !=
-      normalizePath(snp_dest, mustWork = FALSE))
-    file.copy(snp_file, snp_dest, overwrite = TRUE)
+  stage_input(snp_file, dir)
 
   # Copy binary to working directory (DLL isolation)
   predf90_bin <- file.path(dir, predf90_name)
@@ -910,10 +1063,7 @@ predf90 <- function(snp_file,
   if (!is.null(pedfile)) {
     if (!file.exists(pedfile))
       stop("Pedigree file not found: ", pedfile, call. = FALSE)
-    ped_dest <- file.path(dir, basename(pedfile))
-    if (normalizePath(pedfile, mustWork = FALSE) !=
-        normalizePath(ped_dest, mustWork = FALSE))
-      file.copy(pedfile, ped_dest, overwrite = TRUE)
+    stage_input(pedfile, dir)
     args <- c(args, "--pedfile", basename(pedfile))
   } else {
     args <- c(args, "--no_rpg")

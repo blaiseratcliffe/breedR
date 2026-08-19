@@ -34,3 +34,37 @@ check_build.ar.model <- function(x) {
 }
 
 for (x in reslst) check_build.ar.model(x)
+
+
+#### Context: AR rho grid search ####
+context("AR rho grid search")
+
+## The grid fits one model per rho and picks the most likely. Argument
+## combinations that leave it with nothing to rank are refused here, before any
+## fitting starts -- these need no binaries for that reason.
+
+test_that("an AR rho grid is refused for a non-local fit", {
+
+  grid_fit <- function(bin)
+    remlf90(fixed = phe_X ~ gg, data = globulus,
+            spatial = list(model = 'AR',
+                           coord = globulus[, c('x', 'y')],
+                           rho = rbind(c(.8, .8), c(.9, .9))),
+            breedR.bin = bin)
+
+  ## A submitted fit returns a job id rather than a likelihood, so the grid has
+  ## no way to rank its rhos. It used to get as far as building a binary path
+  ## out of breedR.bin -- literally "submit/blupf90+" -- and report that every
+  ## rho had failed.
+  msg <- tryCatch(grid_fit('submit'), error = conditionMessage)
+  expect_match(msg, "requires a local fit")
+  expect_match(msg, "submit", fixed = TRUE)
+  expect_false(grepl("All rho combinations failed", msg, fixed = TRUE))
+
+  ## 'remote' is the same story with the results fetched back afterwards.
+  expect_error(grid_fit('remote'), "requires a local fit")
+
+  ## The name is matched case-insensitively, as it is everywhere else it is
+  ## tested (see check_progress_args()).
+  expect_error(grid_fit('Submit'), "requires a local fit")
+})
