@@ -200,7 +200,7 @@ cond_lik <- function(x) {
   logLik(res)
 }
 
-lambda <- seq(.3, 1, length.out = 5)
+lambda <- seq(.3, 1.5, length.out = 5)
 
 lik <- sapply(lambda, cond_lik)  # (sequential)
 # lik <- foreach(x = seq.int(lambda), .combine = c) %dopar% cond_lik(lambda[x])
