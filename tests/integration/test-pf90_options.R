@@ -220,3 +220,74 @@ test_that('EM-remlf90() returns empty heritability and no inverse AI matrix', {
   
   expect_output(print(summary(res)), 'Variance components:')
 })
+
+
+test_that('a genetic model fits with heterogeneous residual variances (issue #1)', {
+
+  ## Data file columns: phe_X, Intercept, xc, genetic, so the covariate of
+  ## the residual variance is column 3. x is rescaled to [0, 0.93] so that a
+  ## slope of order 1 is a sensible start. A zero initial slope crashes
+  ## BLUPF90+ 2.73, hence 0.1.
+  dat <- globulus
+  dat$xc <- dat$x / 100
+  gen <- list(model = 'add_animal', pedigree = dat[, 1:3], id = 'self')
+
+  expect_error(
+    res <- suppressMessages(
+      remlf90(phe_X ~ xc, genetic = gen, data = dat,
+              progsf90.options = hetres_options(covariate_cols = 3,
+                                                initial = c(log(5), 0.1)))
+    ),
+    NA
+  )
+
+  ## the default heritability, which BLUPF90+ refuses under hetres, is not
+  ## requested
+  parameters_file <- readLines(file.path(res$reml$dir, 'parameters'))
+  expect_false(any(grepl('se_covar_function', parameters_file)))
+  expect_true(any(grepl('^OPTION hetres_pos 3', parameters_file)))
+  expect_length(res$funvars, 0L)
+
+  ## the coefficients replace the Residual row
+  expect_identical(rownames(res$var), 'genetic')
+  expect_identical(rownames(res$hetres), c('a0', 'a1'))
+  expect_true(all(is.finite(res$hetres[, 'Estimate'])))
+  expect_true(all(res$hetres[, 'S.E.'] > 0))
+  expect_identical(rownames(res$reml$invAI), c('genetic', 'a0', 'a1'))
+  expect_equal(unname(res$hetres[, 'S.E.']),
+               unname(sqrt(diag(res$reml$invAI))[2:3]))
+
+  expect_output(print(summary(res)), 'Residual variance model')
+
+  ## control: without hetres the same model keeps its heritability and has
+  ## no hetres element
+  ctl <- suppressMessages(remlf90(phe_X ~ xc, genetic = gen, data = dat))
+  expect_identical(colnames(ctl$funvars), 'Heritability')
+  expect_null(ctl$hetres)
+  expect_identical(rownames(ctl$var), c('genetic', 'Residual'))
+})
+
+
+test_that('heterogeneous residual variance coefficients are recovered', {
+
+  ## log(var(e)) = 0.5 + 0.8 x, with a random group effect. At this seed the
+  ## estimates sit at about 1.2 and 0.4 S.E. from the truth.
+  set.seed(1)
+  n <- 2000
+  ng <- 50
+  dat <- data.frame(g = factor(sample(ng, n, replace = TRUE)),
+                    x = runif(n, 0, 2))
+  u <- rnorm(ng, sd = sqrt(2))
+  dat$y <- 10 + dat$x + u[dat$g] + rnorm(n, sd = sqrt(exp(0.5 + 0.8 * dat$x)))
+
+  ## data file columns: y, Intercept, x, g
+  res <- suppressMessages(
+    remlf90(y ~ x, random = ~ g, data = dat,
+            progsf90.options = hetres_options(covariate_cols = 3,
+                                              initial = c(log(4), 0.1)))
+  )
+
+  z <- (res$hetres[, 'Estimate'] - c(a0 = 0.5, a1 = 0.8)) / res$hetres[, 'S.E.']
+  expect_true(all(abs(z) < 3), label = paste('z =', toString(round(z, 2))))
+  expect_identical(rownames(res$var), 'g')
+})

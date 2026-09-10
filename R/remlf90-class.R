@@ -228,6 +228,11 @@
 #'   of spatial coordinates x (col 4) and y (col 5):
 #'   \code{progsf90.options = hetres_options(covariate_cols = c(4, 5),
 #'   initial = c(log(10), 0.01, 0.01))}.
+#'   The estimated coefficients are returned in the \code{hetres} element of
+#'   the fit, which then has no \code{Residual} row in \code{var} (see Value).
+#'   The default heritability is not requested for such a fit, because
+#'   BLUPF90+ does not support it with heterogeneous residuals. BLUPF90+ fits
+#'   these models by AI-REML only (\code{method = 'ai'}, the default).
 #'   See \code{\link{hetres_options}} for details.}
 #'
 #'   \subsection{Remote computing}{ If \code{breedR.bin = 'remote'}, the REML 
@@ -314,6 +319,15 @@
 #'   space, and therefore that the variance components are poorly determined.
 #'   When no variance functions are requested (e.g. \code{method = 'em'}, or a
 #'   model with no genetic effect), \code{funvars} is an empty list.
+#'
+#'   A fit with heterogeneous residual variances (see
+#'   \code{\link{hetres_options}}) has no \code{Residual} row in \code{var}.
+#'   Instead, \code{hetres} holds the coefficients of log(var(e)) = a0 + a1*X1
+#'   + ... as a matrix with columns \code{Estimate} and \code{S.E.}, the latter
+#'   taken from the inverse AI matrix. Its rows are \code{a0}, \code{a1}, ...,
+#'   suffixed with the trait name in multi-trait models (\code{a0.y1},
+#'   \code{a0.y2}, \code{a1.y1}, ...). Other fits have no \code{hetres}
+#'   element.
 #'
 #'   \code{res$reml$dir} is the working directory of this particular fit, a
 #'   fresh subdirectory of \code{tempdir()} holding its parameter file, data,
@@ -940,7 +954,13 @@ remlf90 <- function(fixed,
                    opt = union(c('sol se', method_opts), progsf90.options),
                    res.var.ini = var.ini$residuals)
 
-  if (!is.null(genetic) && method == 'ai') {
+  ## Not under heterogeneous residual variances, where there is no single
+  ## residual variance to divide by: BLUPF90+ aborts with 'se_covar_function
+  ## not available for HETRES' and writes no solutions. A se_covar_function
+  ## given by the user still reaches the backend, whose refusal then shows in
+  ## the error.
+  if (!is.null(genetic) && method == 'ai' &&
+      !any(grepl('^\\s*hetres_pos\\b', progsf90.options))) {
     ## Compute default heritability if possible
     trait_names <- colnames(model.response(mf))  # NULL for 1 trait
     pf90$parameter$options <-
@@ -1872,6 +1892,12 @@ print.summary.remlf90 <- function(x, digits = max(3, getOption("digits") - 3),
   cat("\nVariance components:\n")
   print(x$var, quote = FALSE, digits = digits, ...)
   
+  ## heterogeneous residual variances replace the Residual row above
+  if (!is.null(x$hetres)) {
+    cat("\nResidual variance model: log(var(e)) = a0 + a1*X1 + ...\n")
+    print(x$hetres, digits = digits, ...)
+  }
+
   if (length(x$funvars)) {
     cat("\nFunctions of variance components:\n")
     print(funvars_table(x$funvars), quote = FALSE, digits = digits, ...)

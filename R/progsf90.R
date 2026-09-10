@@ -454,6 +454,15 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
   # Random and Fixed effects indices with respect to the 'effects' list
   effect.type <- vapply(effects, effect_type, '')
   
+  ## Heterogeneous residual variances (OPTION hetres_pos/hetres_pol).
+  ## The backend then estimates the coefficients of log(var(e)) in place of
+  ## the residual (co)variances and prints no 'Residual variance' block, so
+  ## there is no residual component to parse, count or label. Detected from
+  ## the output rather than from the options, so that fits collected by
+  ## breedR.qget() are covered as well.
+  is_hetres <- any(grepl(hetres_coef_re, reml.out))
+  vc_names <- c(names(effects)[effect.type == 'random'],
+                if (!is_hetres) 'Residual')
 
   # Random effects coefficients
   ranef <- result[result_effect.map %in% which(effect.type == 'random')]
@@ -471,7 +480,7 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
 
   ## Dimension of random effects
   rangroup.sizes <- c(effect.size[effect.type == 'random'],
-                      resid = 1)*ntraits
+                      if (!is_hetres) c(resid = 1))*ntraits
 
   ## index of variance component results
   varcomp.idx <- grep('Genetic variance|Residual variance', reml.out) + 1
@@ -479,18 +488,19 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
   # Variance components
   if (identical(last.round[1], max.it)) {
     warning('The algorithm did not converge')
-    varcomp <- cbind('Estimated variances' = rep(NA, sum(effect.type == 'random') + 1L))
-    rownames(varcomp) <- c(names(effects)[effect.type == 'random'], 'Residual')
+    varcomp <- cbind('Estimated variances' = rep(NA, length(vc_names)))
+    rownames(varcomp) <- vc_names
   } else {
     # Variance components
     sd.label <- 'SE'
     
     # There should be one variance for each random effect plus one resid. var.
-    stopifnot(identical(length(varcomp.idx), sum(effect.type == 'random') + 1L))
+    # (no resid. var. under hetres)
+    stopifnot(identical(length(varcomp.idx), length(vc_names)))
 
     if (all(rangroup.sizes == 1)){
       varcomp <- cbind('Estimated variances' = as.numeric(reml.out[varcomp.idx]))
-      rownames(varcomp) <- c(names(effects)[effect.type == 'random'], 'Residual')
+      rownames(varcomp) <- vc_names
     } else {
       ## Variance component blocks
       varcomp.str <- 
@@ -516,14 +526,19 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
       
       subnames <- lapply(names(rangroup.sizes), get_subnames)
       varcomp <- mapply(parse.txtmat, varcomp.str, subnames, SIMPLIFY = FALSE)
-      names(varcomp) <- c(names(effects)[effect.type == 'random'], 'Residual')
+      names(varcomp) <- vc_names
     }
     
     # EM-REML does not print Standard Errors for variance components
     if (method == 'ai') {
-      varsd.idx <- grep(paste(sd.label, 'for G|for R'), reml.out) + 1
+      ## Under hetres the backend's 'SE for R' does not belong to any residual
+      ## variance, and does not even match the coefficients (for one trait it
+      ## gives a0's alone). The coefficients take theirs from the inverse AI
+      ## matrix below.
+      varsd.idx <- grep(paste(sd.label, if (is_hetres) 'for G' else 'for G|for R'),
+                        reml.out) + 1
       # There should be one variance for each random effect plus one resid. var.
-      stopifnot(identical(length(varcomp.idx), sum(effect.type == 'random') + 1L))
+      stopifnot(identical(length(varcomp.idx), length(vc_names)))
       
       if (all(rangroup.sizes == 1)){
         varcomp <- cbind(varcomp, 'S.E.' = as.numeric(reml.out[varsd.idx]))
@@ -543,13 +558,17 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
         )
         
         varsd <- mapply(parse.txtmat, varsd.str, subnames, SIMPLIFY = FALSE)
-        names(varsd) <- c(names(effects)[effect.type == 'random'], 'Residual')
+        names(varsd) <- vc_names
         varcomp <- cbind("Estimated variances" = varcomp,
                          "S.E." = varsd)
       }
     }
   }
   
+  ## Coefficients of the heterogeneous residual variance model. Their S.E.
+  ## are filled in from the inverse AI matrix further down.
+  if (is_hetres) hetres <- parse_hetres(reml.out, ntraits, trait_names)
+
   # REML algorithm
   reml <- list(
     version = gsub('\\s+', ' ', reml.ver),
@@ -576,12 +595,23 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
     idx <- vapply(estvar, identical, TRUE, 0)
     comp_names <- comp_names[!idx]
     
+    ## under hetres the coefficients follow the G components, in the order
+    ## they are printed (coefficient-major, trait-inner)
+    if (is_hetres) comp_names <- c(comp_names, rownames(hetres))
+
     ## assign component names to the invAI matrix
     ## but don't break everything if dimensions don't match
     if (nrow(reml$invAI) == length(comp_names)) {
       dimnames(reml$invAI) <- list(comp_names, comp_names)
+      ## same rule as the backend's own 'SE for G'
+      if (is_hetres)
+        hetres[, 'S.E.'] <- sqrt(diag(reml$invAI))[rownames(hetres)]
     }
   }
+
+  ## as for the variance components, a fit that did not converge gives no
+  ## estimates, and hence no S.E. either
+  if (is_hetres && identical(last.round[1], max.it)) hetres[] <- NA
 
   # Fit info
   #
@@ -618,7 +648,58 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
     fit = fit,
     reml = reml
   )
+  ## only for hetres fits, so that every other object keeps its structure
+  if (is_hetres) ans$hetres <- hetres
   return(ans)
+}
+
+
+## A coefficient line of a heterogeneous residual variance model, as BLUPF90+
+## prints it in every 'new R' block under OPTION hetres_pos/hetres_pol:
+##   1 -th trait:           2 -th coefficient =  0.779007867141735
+## Homoscedastic output never contains one.
+hetres_coef_re <- '^\\s*([0-9]+) -th trait:\\s+([0-9]+) -th coefficient =\\s*(\\S+)'
+
+## Coefficients of log(var(e)) = a0 + a1*X1 + ... from a hetres log.
+##
+## Reads the coefficient lines that follow the last 'new R' heading, which are
+## the final estimates. They come coefficient-major, trait-inner (a0 of every
+## trait, then a1 of every trait, ...), which is also their order in the
+## inverse AI matrix. The printed indices are checked against that order, so
+## that a change in the backend's format fails here rather than assigning
+## values to the wrong coefficient or trait.
+##
+## Returns a matrix with columns 'Estimate' and 'S.E.' (all NA; the caller
+## fills them in from the inverse AI matrix) and rows a0, a1, ... suffixed with
+## the trait names when there is more than one trait.
+parse_hetres <- function(x, ntraits, trait_names) {
+
+  layout_error <- function()
+    stop('Unexpected layout of the hetres coefficients in the REML output: ',
+         'expected ', ntraits, ' trait(s) per coefficient, coefficient-major.',
+         call. = FALSE)
+
+  new_r <- utils::tail(grep('^\\s*new R\\s*$', x), 1)
+  if (!length(new_r)) layout_error()
+
+  ## the coefficient lines run on from the heading
+  is_coef <- grepl(hetres_coef_re, x[-seq_len(new_r)])
+  n <- if (all(is_coef)) length(is_coef) else which(!is_coef)[1] - 1L
+  lines <- x[new_r + seq_len(n)]
+  m <- regmatches(lines, regexec(hetres_coef_re, lines))
+  trait <- as.integer(vapply(m, `[`, '', 2))
+  coef  <- as.integer(vapply(m, `[`, '', 3))
+
+  K <- n %/% ntraits
+  if (K < 1L || n != K * ntraits ||
+      !identical(trait, rep(seq_len(ntraits), K)) ||
+      !identical(coef, rep(seq_len(K), each = ntraits)))
+    layout_error()
+
+  ans <- cbind(Estimate = as.numeric(vapply(m, `[`, '', 4)),
+               S.E. = NA_real_)
+  rownames(ans) <- names_effect(paste0('a', seq_len(K) - 1L), trait_names)
+  ans
 }
 
 

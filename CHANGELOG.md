@@ -105,6 +105,35 @@ warning. It now reads the leading number of each field. `summary()` is
 unaffected — it computes AIC from `logLik()` and only fell back to `res$fit$AIC`
 on error.
 
+### Heterogeneous residual variances can be fitted with `remlf90()`
+
+No fit with `hetres_options(covariate_cols = ..., initial = ...)` could return
+a result ([#1]). There were two causes:
+
+- For a model with a `genetic` effect, `remlf90()` added its default
+  heritability (`OPTION se_covar_function`), which BLUPF90+ refuses under
+  heterogeneous residuals (`se_covar_function not available for HETRES`). The
+  backend wrote no solutions, so the fit failed with "The REML backend
+  produced no solutions". The default heritability is now skipped when
+  `hetres_pos` is among the options.
+- The backend prints the coefficients of log(var(e)) = a0 + a1*X1 + ... where
+  it would print the residual variance, and `parse_results()` stopped on the
+  missing residual block.
+
+The coefficients are now returned in `res$hetres`, with columns `Estimate` and
+`S.E.`, and printed by `summary()`. Their standard errors come from the inverse
+AI matrix, because the backend's own `SE for R` does not match them: for one
+trait it gives only a0's, and for two traits it prints a 2x2 matrix read from
+the wrong entries. **Under heterogeneous residuals `res$var` has no `Residual`
+row.** Fits without heterogeneous residuals are unchanged and have no `hetres`
+element.
+
+The documentation of `hetres_options()` used to recommend starting the slopes
+at 0. A coefficient that starts at exactly 0 is never updated, and BLUPF90+
+2.73 then crashes, so it now recommends small non-zero values such as 0.01.
+
+[#1]: https://github.com/blaiseratcliffe/breedR/issues/1
+
 ## [0.13.0] - 2026-07-23
 
 ### Genomic pipelines now run end to end

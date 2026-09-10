@@ -1,0 +1,169 @@
+ name of parameter file?
+parameters
+     BLUPF90+ ver. 2.73
+
+ Parameter file:             parameters
+ Data file:                  data
+ Number of Traits             2
+ Number of Effects            2
+ Position of Observations      1  2
+ Position of Weights           0  0
+ Value of Missing Trait/Observation           0
+
+EFFECTS
+ #  type                position (2)        levels   [positions for nested]
+    1  covariable             3    3         1
+    2  covariable             4    4         1
+
+ Residual (co)variance Matrix
+  3.0000      0.0000    
+  0.0000      3.0000    
+
+ REMARKS
+  (1) Weight position 0 means no weights utilized
+  (2) Effect positions of 0 for some effects and traits means that such
+      effects are missing for specified traits
+ 
+
+ * The limited number of OpenMP threads = 4
+
+ * BLUPF90+ sparse operations version
+ 
+ * START JOB (BLUPF90): 09-10-2026  08h 09m 03s 075
+ 
+ *** Statistical method from OPTION VCE                 
+ * store solutions and s.e. *** se                  
+ * missing observation (default=0):        -999
+ 
+ IJA4 version
+           1 -th trait:           1 -th position =           4
+           2 -th trait:           1 -th position =           4
+ *** intercept + polynomials specified
+           1 -th initial coefficient for trait           1  =
+   1.00000000000000     
+           1 -th initial coefficient for trait           2  =
+   1.00000000000000     
+           2 -th initial coefficient for trait           1  =
+  0.100000000000000     
+           2 -th initial coefficient for trait           2  =
+  0.100000000000000     
+ Data record length =            4
+ # free parameters=           4
+ # parameters=           4
+ # random effects=           0
+ # elements for random effects=           0
+ # maximum (ntrait*random)**2=           2
+ # (co)variance matrices=           0
+
+Read 3000 records in 2.12 s,  6 nonzeroes
+
+
+finished peds (VCE) in 2.12 s,  6 nonzeroes
+
+ left hand side
+    999.4859      0.0000    974.0843      0.0000
+      0.0000    999.4859      0.0000    974.0843
+    974.0843      0.0000   1282.4939      0.0000
+      0.0000    974.0843      0.0000   1282.4939
+ right hand side:
+10985.22 2039.2311018.48 1605.77
+ rank=           4
+solution:   10.0769    3.1566    0.9378   -1.1455
+               **************
+               **** FSPAK ***
+               **************
+               MPE / IM / MAE
+                   Jun 1994
+
+              SPARSE STATISTICS
+      DIMENSION OF MATRIX     =                        4
+      RANK                    =                        4
+      STORAGE AVAILABLE       =                      100
+      MAXIMUM NEEDED          =                       65
+      NZE IN UPPER TRIANGULAR =                       10
+      NZE IN FACTOR           =                        2
+      NO. OF CALLS NUM FACT   =                        1
+      NO. OF CALLS SOLVE      =                        1
+      NO. OF CALLS SPARS SOLV =                        0
+      NO. OF CALLS DET / LDET =                        1
+      NO. OF CALLS SPARS INV  =                        1
+      TOTAL CPU TIME IN FSPAK =                 0.000000
+      TIME FOR FINDING ORDER  =                 0.000000
+      TIME FOR SYMBOLIC FAC   =                 0.000000
+      TIME FOR NUMERICAL FAC  =                 0.000000
+      TIME FOR SOLVE          =                 0.000000
+      TIME FOR SPARSE SOLVE   =                 0.000000
+      TIME FOR SPARSE INVERSE =                 0.000000
+-2logL =     19263.5876558256     : AIC =     19271.5876558256    logL convergence   0.994808852672577    
+  In round            1  convergence=  1.697098334773491E-002
+  delta convergence=  0.919386638623775     
+ new R
+           1 -th trait:           1 -th coefficient =  0.511635828886667     
+           2 -th trait:           1 -th coefficient =   1.96838177526370     
+           1 -th trait:           2 -th coefficient =  0.707256713777618     
+           2 -th trait:           2 -th coefficient =  -1.51354389434045     
+ * START ITERATION: 09-10-2026  08h 09m 03s 362
+-2logL =     18314.5524611964     : AIC =     18322.5524611964    logL convergence   0.518186390399933E-01
+  In round            2  convergence=  3.549863441355795E-002
+  delta convergence=  0.126088677021542     
+ new R
+           1 -th trait:           1 -th coefficient =  0.454802023591306     
+           2 -th trait:           1 -th coefficient =   2.04910681408354     
+           1 -th trait:           2 -th coefficient =  0.855229312016036     
+           2 -th trait:           2 -th coefficient =  -1.29472062860790     
+-2logL =     17979.2307151374     : AIC =     17987.2307151374    logL convergence   0.186505056917667E-01
+  In round            3  convergence=  4.186933188701469E-002
+  delta convergence=  3.503332722337986E-002
+ new R
+           1 -th trait:           1 -th coefficient =  0.448136092402199     
+           2 -th trait:           1 -th coefficient =   2.02490897262208     
+           1 -th trait:           2 -th coefficient =  0.870814836063421     
+           2 -th trait:           2 -th coefficient =  -1.20103661641233     
+-2logL =     17964.7744025811     : AIC =     17972.7744025811    logL convergence   0.804703275207430E-03
+  In round            4  convergence=  4.212771820927508E-002
+  delta convergence=  2.670329395895765E-003
+ new R
+           1 -th trait:           1 -th coefficient =  0.448080537881958     
+           2 -th trait:           1 -th coefficient =   2.02180004297849     
+           1 -th trait:           2 -th coefficient =  0.870952882258651     
+           2 -th trait:           2 -th coefficient =  -1.19365782918781     
+-2logL =     17964.7173231108     : AIC =     17972.7173231108    logL convergence   0.317730973620201E-05
+  In round            5  convergence=  4.212758763350589E-002
+  delta convergence=  1.736062236503998E-005
+ new R
+           1 -th trait:           1 -th coefficient =  0.448080563366279     
+           2 -th trait:           1 -th coefficient =   2.02177461577441     
+           1 -th trait:           2 -th coefficient =  0.870952863689709     
+           2 -th trait:           2 -th coefficient =  -1.19361385795570     
+-2logL =     17964.7173215699     : AIC =     17972.7173215699    logL convergence   0.857734092085671E-10
+  In round            6  convergence=  4.212757997091696E-002
+  delta convergence=  3.604796705950164E-008
+ new R
+           1 -th trait:           1 -th coefficient =  0.448080563362213     
+           2 -th trait:           1 -th coefficient =   2.02177454365617     
+           1 -th trait:           2 -th coefficient =  0.870952863693744     
+           2 -th trait:           2 -th coefficient =  -1.19361378589017     
+ * END ITERATION: 09-10-2026  08h 09m 03s 408
+ solutions and s.e. stored in file: solutions
+
+Final Estimates
+ new R
+           1 -th trait:           1 -th coefficient =  0.448080563362213     
+           2 -th trait:           1 -th coefficient =   2.02177454365617     
+           1 -th trait:           2 -th coefficient =  0.870952863693744     
+           2 -th trait:           2 -th coefficient =  -1.19361378589017     
+ inverse of AI matrix (Sampling Variance)
+  0.26417E-02   0.0000     -0.19588E-02   0.0000    
+   0.0000      0.26226E-02   0.0000     -0.19402E-02
+ -0.19588E-02   0.0000      0.19432E-02   0.0000    
+   0.0000     -0.19402E-02   0.0000      0.19251E-02
+ Correlations from inverse of AI matrix
+   1.0000       0.0000     -0.86456       0.0000    
+   0.0000       1.0000       0.0000     -0.86350    
+ -0.86456       0.0000       1.0000       0.0000    
+   0.0000     -0.86350       0.0000       1.0000    
+ SE for R
+  0.51397E-01  0.44082E-01
+  0.44082E-01  0.43876E-01
+ *** Statistical Method: VCE                 
+ * FINISHED (BLUPF90): 09-10-2026  08h 09m 03s 410
