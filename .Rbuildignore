@@ -7,3 +7,11 @@
 ^\.travis\.yml$
 ^appveyor\.yml$
 ^\.github$
+^\.claude$
+^\.jules$
+^\.cursor.*$
+^\.windsurf$
+^\.aider\..*$
+^CLAUDE\.md$
+^.*\.local\.md$
+^blupf90_all\.pdf$
