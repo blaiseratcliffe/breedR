@@ -84,4 +84,9 @@ test_that("an AR rho grid is refused for a non-local fit", {
   expect_error(grid_fit(no_bin,
                         progress_file = file.path(tempdir(), "grid.log")),
                "rho grid")
+
+  ## A local grid still needs the backend, and must be told so before the
+  ## per-rho fits start: each runs inside a tryCatch, which would bury the
+  ## cause under "All rho combinations failed".
+  expect_error(grid_fit(no_bin), "Binary dependencies missing")
 })

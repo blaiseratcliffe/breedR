@@ -574,7 +574,7 @@ remlf90 <- function(fixed,
 
     ## A grid is N fits, not one: a single log would be overwritten once
     ## per rho, and a single checkpoint would seed every rho alike. Keyed
-    ## on the grid rather than on `parallel`, which is inert outside here.
+    ## on the grid rather than on `parallel`, which is inert outside a grid.
     if (!is.null(progress_file) || isTRUE(cont))
       stop("'progress_file' and 'cont' are not supported for an AR rho ",
            "grid search, which fits one model per rho.\n",
