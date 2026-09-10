@@ -604,8 +604,10 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
     if (nrow(reml$invAI) == length(comp_names)) {
       dimnames(reml$invAI) <- list(comp_names, comp_names)
       ## same rule as the backend's own 'SE for G'
+      ## Coefficients occupy the trailing entries. Select by position because
+      ## a random effect can have the same name as a coefficient (a0, a1, ...).
       if (is_hetres)
-        hetres[, 'S.E.'] <- sqrt(diag(reml$invAI))[rownames(hetres)]
+        hetres[, 'S.E.'] <- utils::tail(sqrt(diag(reml$invAI)), nrow(hetres))
     }
   }
 

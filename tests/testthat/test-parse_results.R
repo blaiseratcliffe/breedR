@@ -128,11 +128,13 @@ test_that("the log-likelihood is found when the backend bends the AI matrix", {
 ## parse_results() takes the effect structure, the factor levels and the trait
 ## names from mf and effects, never the data values, so a small deterministic
 ## data frame of the same shape stands in for the simulated data of the run.
-parse_hetres_fixture <- function(key, fixed, random = NULL, var.ini = list()) {
+parse_hetres_fixture <- function(key, fixed, random = NULL, var.ini = list(),
+                                 group_name = 'g') {
   data <- data.frame(x  = seq(0, 2, length.out = 100),
                      g  = factor(rep(1:50, 2)),
                      y  = rep(c(9, 11), 50),
                      y3 = rep(c(2, 4), 50))
+  names(data)[names(data) == 'g'] <- group_name
   mc <- call('remlf90', fixed = fixed, random = random, data = quote(data))
   mf <- build.mf(mc)
   effects <- build.effects(mf, NULL, NULL, NULL, var.ini)
@@ -177,6 +179,20 @@ test_that("parse_results() reads a heterogeneous residual variance fit (issue #1
   ## the location effects are still read from the solutions file
   expect_equal(res$fixed$x[[1]]$value, 1.07301691)
   expect_identical(rownames(res$ranef$g[[1]]), as.character(1:50))
+})
+
+
+test_that("hetres standard errors are unaffected by random-effect names", {
+
+  control <- parse_hetres_fixture(1, y ~ x, ~ g, list(g = 3.4))
+  for (nm in c('a0', 'a1')) {
+    ## Renaming the group changes no estimates, but duplicates a coefficient
+    ## name in invAI. A name lookup would select the group's S.E. instead.
+    res <- parse_hetres_fixture(1, y ~ x, reformulate(nm),
+                                setNames(list(3.4), nm), group_name = nm)
+    expect_identical(rownames(res$var), nm)
+    expect_equal(res$hetres, control$hetres)
+  }
 })
 
 
