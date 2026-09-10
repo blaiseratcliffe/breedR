@@ -9,8 +9,9 @@
 ^\.github$
 ^\.claude$
 ^\.jules$
-^\.cursor$
+^\.cursor.*$
 ^\.windsurf$
 ^\.aider\..*$
 ^CLAUDE\.md$
+^.*\.local\.md$
 ^blupf90_all\.pdf$
