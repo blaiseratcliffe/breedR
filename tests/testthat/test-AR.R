@@ -45,12 +45,24 @@ context("AR rho grid search")
 
 test_that("an AR rho grid is refused for a non-local fit", {
 
-  grid_fit <- function(bin)
+  ## Hide the backend, as CI installs without it, so that the claim above is
+  ## tested wherever this runs and not only on machines that lack it.
+  no_bin <- tempfile("no_progsf90_")
+  dir.create(no_bin)
+  old_bin <- breedR.getOption("breedR.bin")
+  breedR.setOption("breedR.bin", no_bin)
+  on.exit({
+    breedR.setOption("breedR.bin", old_bin)
+    unlink(no_bin, recursive = TRUE)
+  }, add = TRUE)
+  expect_false(check_progsf90(quiet = TRUE))
+
+  grid_fit <- function(bin, ...)
     remlf90(fixed = phe_X ~ gg, data = globulus,
             spatial = list(model = 'AR',
                            coord = globulus[, c('x', 'y')],
                            rho = rbind(c(.8, .8), c(.9, .9))),
-            breedR.bin = bin)
+            breedR.bin = bin, ...)
 
   ## A submitted fit returns a job id rather than a likelihood, so the grid has
   ## no way to rank its rhos. It used to get as far as building a binary path
@@ -67,4 +79,9 @@ test_that("an AR rho grid is refused for a non-local fit", {
   ## The name is matched case-insensitively, as it is everywhere else it is
   ## tested (see check_progress_args()).
   expect_error(grid_fit('Submit'), "requires a local fit")
+
+  ## The log and resume refusal beside it is an argument check too.
+  expect_error(grid_fit(no_bin,
+                        progress_file = file.path(tempdir(), "grid.log")),
+               "rho grid")
 })

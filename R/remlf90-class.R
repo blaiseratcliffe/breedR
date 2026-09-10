@@ -536,10 +536,6 @@ remlf90 <- function(fixed,
   ## the backend installed.
   progress_file <- check_progress_args(progress_file, cont, breedR.bin, debug)
 
-  if (!check_progsf90(quiet = debug | !interactive())) {
-    stop('Binary dependencies missing. See ?install_progsf90')
-  }
-
   ### Parse arguments
   method <- tolower(method)
   method <- match.arg(method)
@@ -568,35 +564,47 @@ remlf90 <- function(fixed,
     spatial <- do.call('check_spatial', 
                        c(spatial, list(data = data,
                                        response = responsem)))
-    
-    # If AR model without rho specified
-    # we need to fit it with several fixed rho's
-    # and return the most likely
+  }
+
+  ## An AR model with rho unspecified, or given as a grid, is fitted once per
+  ## rho and the most likely fit returned (below). These refusals need the
+  ## grid check_spatial() resolved, but not the binaries.
+  if (!is.null(spatial) && spatial$model == 'AR' &&
+      !is.null(nrow(spatial$rho))) {
+
+    ## A grid is N fits, not one: a single log would be overwritten once
+    ## per rho, and a single checkpoint would seed every rho alike. Keyed
+    ## on the grid rather than on `parallel`, which is inert outside here.
+    if (!is.null(progress_file) || isTRUE(cont))
+      stop("'progress_file' and 'cont' are not supported for an AR rho ",
+           "grid search, which fits one model per rho.\n",
+           " Fix rho to a single pair and re-run.", call. = FALSE)
+
+    ## A grid ranks its rhos by likelihood, and a submitted fit returns a
+    ## job id rather than a likelihood, so there is nothing here to rank.
+    ## The parallel path also builds the binary's path out of breedR.bin,
+    ## which is the literal string "submit" in this case. Neither failure
+    ## names its cause, so refuse the combination while it can still be
+    ## explained.
+    if (tolower(breedR.bin) %in% c("remote", "submit"))
+      stop("An AR rho grid search requires a local fit; it is not ",
+           "available with breedR.bin = '", breedR.bin, "'.\n",
+           " Fix rho to a single pair and re-run.", call. = FALSE)
+  }
+
+  ## After every argument check above, so that they are reachable without the
+  ## backend installed.
+  if (!check_progsf90(quiet = debug | !interactive())) {
+    stop('Binary dependencies missing. See ?install_progsf90')
+  }
+
+  if (!is.null(spatial)) {
     if( spatial$model == 'AR' ) {
 
       if (!is.null(nrow(spatial$rho))) {
         ## grid case
         ## Each rho combination is independent — fit with tryCatch so one
         ## failure doesn't kill the entire search.
-
-        ## A grid is N fits, not one: a single log would be overwritten once
-        ## per rho, and a single checkpoint would seed every rho alike. Keyed
-        ## on the grid rather than on `parallel`, which is inert outside here.
-        if (!is.null(progress_file) || isTRUE(cont))
-          stop("'progress_file' and 'cont' are not supported for an AR rho ",
-               "grid search, which fits one model per rho.\n",
-               " Fix rho to a single pair and re-run.", call. = FALSE)
-
-        ## A grid ranks its rhos by likelihood, and a submitted fit returns a
-        ## job id rather than a likelihood, so there is nothing here to rank.
-        ## The parallel path also builds the binary's path out of breedR.bin,
-        ## which is the literal string "submit" in this case. Neither failure
-        ## names its cause, so refuse the combination while it can still be
-        ## explained.
-        if (tolower(breedR.bin) %in% c("remote", "submit"))
-          stop("An AR rho grid search requires a local fit; it is not ",
-               "available with breedR.bin = '", breedR.bin, "'.\n",
-               " Fix rho to a single pair and re-run.", call. = FALSE)
 
         n_rho <- nrow(spatial$rho)
 
