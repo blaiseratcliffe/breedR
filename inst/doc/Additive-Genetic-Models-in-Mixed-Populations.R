@@ -1,4 +1,4 @@
-## ----diallel-setup, warning = FALSE--------------------------------------
+## ----diallel-setup, warning = FALSE-------------------------------------------
 ## Setup
 library(breedR)
 library(ggplot2)
@@ -37,8 +37,8 @@ dat <- data.frame(
   id  = sum(n.founders) + seq.int(n.obs),
   dad = obs.parents.idx[, 1],
   mum = obs.parents.idx[, 2],
-  fam = apply(obs.parents.idx, 1, cross2fam),
-  sp  = apply(obs.parents.idx, 1, cross2pop),
+  fam = as.factor(apply(obs.parents.idx, 1, cross2fam)),
+  sp  = as.factor(apply(obs.parents.idx, 1, cross2pop)),
   bv  = apply(obs.parents.idx, 1, 
               function(x) mean(founders$BV[x]) + msp(x)),
   resid = rnorm(n.obs, sd = sqrt(sigma2['resid'])))
@@ -50,7 +50,7 @@ dat <- transform(dat,
 print(table(dat[, c('mum', 'dad')]), zero.print = "")
 str(dat)
 
-## ----overall-genetic-structure-------------------------------------------
+## ----overall-genetic-structure------------------------------------------------
 
 ## Build a pedigree for the whole mixed population
 ## and get the kinship matrix A
@@ -69,7 +69,7 @@ idx_pop <- function(x) {
     match(dat$id[dat$sp == x], as.data.frame(ped)$self)
 }
 
-## ----fit1----------------------------------------------------------------
+## ----fit1---------------------------------------------------------------------
 ## Avoid estimating BLUPS for which we don't have information
 ## Otherwise, the run takes much longer (5 hs vs 6 min in this example)
 
@@ -96,10 +96,10 @@ res1 <- remlf90(y ~ sp,
                 data = dat
 )
 
-## ----fit1-summary--------------------------------------------------------
+## ----fit1-summary-------------------------------------------------------------
 summary(res1)
 
-## ----fit1-predicted-breeding-values--------------------------------------
+## ----fit1-predicted-breeding-values-------------------------------------------
 PBV <- as.matrix(cbind(Z_EE, Z_JJ, Z_EJ)) %*%
   do.call('rbind', lapply(ranef(res1), function(x) cbind(PBV = x, se = attr(x, 'se'))))
 
@@ -107,7 +107,7 @@ ggplot(cbind(dat, PBV), aes(bv, PBV)) +
   geom_point() +
   geom_abline(intercept = 0, slope = 1, col = 'darkgray')
 
-## ----fit2----------------------------------------------------------------
+## ----fit2---------------------------------------------------------------------
 ## We only want to apply 'dad', 'mum' and 'sca' effects to hybrids,
 ## and make it zero for non-hybrids. We do so by pre-multiplying by a 
 ## diagonal indicator matrix
@@ -136,10 +136,10 @@ res2 <- remlf90(y ~ sp,
                 data = transform(dat)
 )
 
-## ----fit2-summary--------------------------------------------------------
+## ----fit2-summary-------------------------------------------------------------
 summary(res2)
 
-## ----fit2-predicted-breeding-values--------------------------------------
+## ----fit2-predicted-breeding-values-------------------------------------------
 PBV <- as.matrix(cbind(Z_EE, Z_JJ, Z_dad, Z_mum, Z_sca)) %*%
   do.call('rbind', lapply(ranef(res2), function(x) cbind(PBV = x, se = attr(x, 'se'))))
 
@@ -147,7 +147,7 @@ ggplot(cbind(dat, PBV), aes(bv, PBV)) +
   geom_point() +
   geom_abline(intercept = 0, slope = 1, col = 'darkgray')
 
-## ----likelihood-profiling------------------------------------------------
+## ----likelihood-profiling-----------------------------------------------------
 ## Setup parallel computing
 # library(doParallel)
 # cl <- makeCluster(2)
@@ -208,7 +208,7 @@ lik <- sapply(lambda, cond_lik)  # (sequential)
 ggplot(data.frame(lambda, lik), aes(lambda, lik)) + 
   geom_line()
 
-## ----fit3----------------------------------------------------------------
+## ----fit3---------------------------------------------------------------------
 
 ## Take lambda maximizing the likelihood
 lambda0 <- lambda[which.max(lik)]
@@ -228,10 +228,10 @@ res3 <- remlf90(y ~ sp,
                 data = dat[dat$sp != 'EJ', ])
 
 
-## ----fit3-summary--------------------------------------------------------
+## ----fit3-summary-------------------------------------------------------------
 summary(res3)
 
-## ----fit3-predicted-breeding-values--------------------------------------
+## ----fit3-predicted-breeding-values-------------------------------------------
 PBV <- as.matrix(Z[dat$sp != 'EJ', idx]) %*%
   do.call('rbind', lapply(ranef(res3), function(x) cbind(PBV = x, se = attr(x, 'se'))))
 
