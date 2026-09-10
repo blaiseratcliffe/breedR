@@ -63,5 +63,37 @@
 		"n_rounds": 542,
 		"converged": "TRUE",
 		"notes": "EM dialect: rounds print ' new r' and a bare ' G' rather than ' new R'/' new G'. The file is complete, but its final round omits the G block, so a checkpoint legitimately falls back to round 541"
+	},
+	{
+		"file_name": "airemlf90_log_hetres_1.txt",
+		"solutions_file": "airemlf90_sol_hetres_1.txt",
+		"program": "BLUPF90+ 2.73",
+		"data_type": "log",
+		"n_traits": 1,
+		"n_effects": 3,
+		"n_parameters": 3,
+		"n_records": 2000,
+		"n_random_effects": 1,
+		"matrix_size": 52,
+		"matrix_rank": 52,
+		"n_rounds": 6,
+		"converged": "TRUE",
+		"notes": "Heterogeneous residual variances (issue #1). y ~ x, random = ~ g with 50 levels, OPTION hetres_pos 3 and hetres_pol 1.386 0.1 (data columns: y, Intercept, x, g). Simulated with set.seed(1): x ~ U(0, 2), g sampled from 50 groups, u ~ N(0, 2), y = 10 + x + u[g] + e with var(e) = exp(0.5 + 0.8 x). Files written by progsf90()/write.progsf90() with initial variances 3.4 and blupf90+ run on them directly, because remlf90() could not parse the result. The final 'new R' block holds the coefficients a0, a1 and there is no 'Residual variance' block; the inverse AI matrix is ordered g, a0, a1"
+	},
+	{
+		"file_name": "airemlf90_log_hetres_2.txt",
+		"solutions_file": "airemlf90_sol_hetres_2.txt",
+		"program": "BLUPF90+ 2.73",
+		"data_type": "log",
+		"n_traits": 2,
+		"n_effects": 2,
+		"n_parameters": 4,
+		"n_records": 3000,
+		"n_random_effects": 0,
+		"matrix_size": 4,
+		"matrix_rank": 4,
+		"n_rounds": 6,
+		"converged": "TRUE",
+		"notes": "Heterogeneous residual variances (issue #1), two traits. cbind(y, y3) ~ x, no random effect, OPTION hetres_pos 4 4 and hetres_pol 1 1 0.1 0.1 (data columns: y, y3, Intercept, x). Simulated with set.seed(5), n = 3000: x ~ U(0, 2), y = 10 + x + e1 with var(e1) = exp(0.5 + 0.8 x), y3 = 3 - x + e3 with var(e3) = exp(2 - 1.2 x). Files written by progsf90()/write.progsf90() with initial residual diag(3, 2) and blupf90+ run on them directly. Coefficients are printed coefficient-major, trait-inner (a0.y, a0.y3, a1.y, a1.y3), the order of the inverse AI matrix. The backend's 'SE for R' is a 2x2 matrix that does not match the coefficients"
 	}
 ]

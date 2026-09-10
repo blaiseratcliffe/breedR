@@ -19,8 +19,10 @@
 #' @param initial numeric vector. Initial values for the polynomial
 #'   coefficients. For class-based: not needed (read from a file).
 #'   For covariate-based: the intercept a0 followed by regression
-#'   coefficients a1, a2, etc. A reasonable starting point is
-#'   \code{c(log(residual_var), rep(0, n_covariates))}.
+#'   coefficients a1, a2, etc. Start the slopes at small non-zero values,
+#'   e.g. \code{c(log(residual_var), rep(0.01, n_covariates))}. A coefficient
+#'   that starts at exactly 0 is never updated, and BLUPF90+ (version 2.73)
+#'   then crashes.
 #' @param var_file character or NULL. Path to a file containing initial
 #'   residual (co)variances for each class (used with \code{group_col}).
 #'   If NULL, BLUPF90+ estimates them from the data.
@@ -33,7 +35,12 @@
 #' (via BLUPF90+), use the covariate-based approach (\code{covariate_cols}).
 #' The class-based approach (\code{group_col}) is designed for GIBBS3F90 and
 #' requires an initial variance file. The \code{se_covar_function} for
-#' heritability is not available with heterogeneous residuals.
+#' heritability is not available with heterogeneous residuals, so
+#' \code{\link{remlf90}} does not add its default heritability to such a fit.
+#' The covariate-based model needs AI-REML: BLUPF90+ refuses it under EM-REML.
+#' \code{remlf90} returns the estimated coefficients, with standard errors
+#' from the inverse AI matrix, in the \code{hetres} element of the fit, and
+#' the \code{var} element then has no \code{Residual} row.
 #'
 #' Two types of heterogeneous residual models are supported:
 #'

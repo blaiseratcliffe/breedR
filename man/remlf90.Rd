@@ -138,6 +138,15 @@ An object of class 'remlf90' that can be further questioned by
   When no variance functions are requested (e.g. \code{method = 'em'}, or a
   model with no genetic effect), \code{funvars} is an empty list.
 
+  A fit with heterogeneous residual variances (see
+  \code{\link{hetres_options}}) has no \code{Residual} row in \code{var}.
+  Instead, \code{hetres} holds the coefficients of log(var(e)) = a0 + a1*X1
+  + ... as a matrix with columns \code{Estimate} and \code{S.E.}, the latter
+  taken from the inverse AI matrix. Its rows are \code{a0}, \code{a1}, ...,
+  suffixed with the trait name in multi-trait models (\code{a0.y1},
+  \code{a0.y2}, \code{a1.y1}, ...). Other fits have no \code{hetres}
+  element.
+
   \code{res$reml$dir} is the working directory of this particular fit, a
   fresh subdirectory of \code{tempdir()} holding its parameter file, data,
   structure files and solutions. Every fit gets its own, so a later fit in
@@ -313,6 +322,11 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   of spatial coordinates x (col 4) and y (col 5):
   \code{progsf90.options = hetres_options(covariate_cols = c(4, 5),
   initial = c(log(10), 0.01, 0.01))}.
+  The estimated coefficients are returned in the \code{hetres} element of
+  the fit, which then has no \code{Residual} row in \code{var} (see Value).
+  The default heritability is not requested for such a fit, because
+  BLUPF90+ does not support it with heterogeneous residuals. BLUPF90+ fits
+  these models by AI-REML only (\code{method = 'ai'}, the default).
   See \code{\link{hetres_options}} for details.}
 
   \subsection{Remote computing}{ If \code{breedR.bin = 'remote'}, the REML 

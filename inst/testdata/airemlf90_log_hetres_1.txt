@@ -1,0 +1,165 @@
+ name of parameter file?
+parameters
+     BLUPF90+ ver. 2.73
+
+ Parameter file:             parameters
+ Data file:                  data
+ Number of Traits             1
+ Number of Effects            3
+ Position of Observations      1
+ Position of Weights           0
+ Value of Missing Trait/Observation           0
+
+EFFECTS
+ #  type                position (2)        levels   [positions for nested]
+    1  covariable             2         1
+    2  covariable             3         1
+    3  cross-classified       4        50
+
+ Residual (co)variance Matrix
+  3.4000    
+
+ Random Effect(s)    3
+ Type of Random Effect:      diagonal
+ trait   effect    (CO)VARIANCES
+  1       3     3.400    
+
+ REMARKS
+  (1) Weight position 0 means no weights utilized
+  (2) Effect positions of 0 for some effects and traits means that such
+      effects are missing for specified traits
+ 
+
+ * The limited number of OpenMP threads = 4
+
+ * BLUPF90+ sparse operations version
+ 
+ * START JOB (BLUPF90): 09-10-2026  08h 04m 00s 173
+ 
+ *** Statistical method from OPTION VCE                 
+ * store solutions and s.e. *** se                  
+ 
+ IJA4 version
+           1 -th trait:           1 -th position =           3
+ *** intercept + polynomials specified
+           1 -th initial coefficient for trait           1  =
+   1.38600000000000     
+           2 -th initial coefficient for trait           1  =
+  0.100000000000000     
+ Data record length =            4
+ # free parameters=           3
+ # parameters=           3
+ # random effects=           1
+ # elements for random effects=           1
+ # maximum (ntrait*random)**2=           1
+ # (co)variance matrices=           1
+
+Read 2000 records in 1.86 s,  153 nonzeroes
+
+
+finished peds (VCE) in 1.86 s,  153 nonzeroes
+
+ rank=          52
+               **************
+               **** FSPAK ***
+               **************
+               MPE / IM / MAE
+                   Jun 1994
+
+              SPARSE STATISTICS
+      DIMENSION OF MATRIX     =                       52
+      RANK                    =                       52
+      STORAGE AVAILABLE       =                     1135
+      MAXIMUM NEEDED          =                     1135
+      NZE IN UPPER TRIANGULAR =                      205
+      NZE IN FACTOR           =                      101
+      NO. OF CALLS NUM FACT   =                        1
+      NO. OF CALLS SOLVE      =                        1
+      NO. OF CALLS SPARS SOLV =                        0
+      NO. OF CALLS DET / LDET =                        1
+      NO. OF CALLS SPARS INV  =                        1
+      TOTAL CPU TIME IN FSPAK =                 0.000000
+      TIME FOR FINDING ORDER  =                 0.000000
+      TIME FOR SYMBOLIC FAC   =                 0.000000
+      TIME FOR NUMERICAL FAC  =                 0.000000
+      TIME FOR SOLVE          =                 0.000000
+      TIME FOR SPARSE SOLVE   =                 0.000000
+      TIME FOR SPARSE INVERSE =                 0.000000
+quadr_ija: OpenMP threads=  1  4        50 OMP= F
+-2logL =     8690.96119210161     : AIC =     8696.96119210161    logL convergence   0.988493800163269    
+  In round            1  convergence=   2.34851188697402     
+  delta convergence=   1.27393419235258     
+ new R
+           1 -th trait:           1 -th coefficient =  0.390802044533344     
+           1 -th trait:           2 -th coefficient =  0.869159185192708     
+ new G
+   1.3426    
+ * START ITERATION: 09-10-2026  08h 04m 00s 635
+quadr_ija: OpenMP threads=  1  4        50 OMP= F
+-2logL =     8547.76170693801     : AIC =     8553.76170693801    logL convergence   0.167528633028269E-01
+  In round            2  convergence=  6.830723287139844E-002
+  delta convergence=  0.242805960054184     
+ new R
+           1 -th trait:           1 -th coefficient =  0.562332933921111     
+           1 -th trait:           2 -th coefficient =  0.787312462474192     
+ new G
+   1.8176    
+quadr_ija: OpenMP threads=  1  4        50 OMP= F
+-2logL =     8531.10673864951     : AIC =     8537.10673864951    logL convergence   0.195226352661848E-02
+  In round            3  convergence=  1.179618361942899E-002
+  delta convergence=  8.109626384979640E-002
+ new R
+           1 -th trait:           1 -th coefficient =  0.576032888883161     
+           1 -th trait:           2 -th coefficient =  0.779186126343269     
+ new G
+   2.0391    
+quadr_ija: OpenMP threads=  1  4        50 OMP= F
+-2logL =     8530.66541934479     : AIC =     8536.66541934479    logL convergence   0.517332809977233E-04
+  In round            4  convergence=  1.961618925800372E-004
+  delta convergence=  9.769373945712560E-003
+ new R
+           1 -th trait:           1 -th coefficient =  0.576217365440749     
+           1 -th trait:           2 -th coefficient =  0.779026737889051     
+ new G
+   2.0680    
+quadr_ija: OpenMP threads=  1  4        50 OMP= F
+-2logL =     8530.66078438600     : AIC =     8536.66078438600    logL convergence   0.543329406355042E-06
+  In round            5  convergence=  3.223683934432195E-008
+  delta convergence=  1.363630246853124E-004
+ new R
+           1 -th trait:           1 -th coefficient =  0.576236341923053     
+           1 -th trait:           2 -th coefficient =  0.779007997401684     
+ new G
+   2.0684    
+quadr_ija: OpenMP threads=  1  4        50 OMP= F
+-2logL =     8530.66078354080     : AIC =     8536.66078354080    logL convergence   0.990779888687676E-10
+  In round            6  convergence=  3.957455113760652E-014
+  delta convergence=  2.224273957802131E-007
+ new R
+           1 -th trait:           1 -th coefficient =  0.576236467472488     
+           1 -th trait:           2 -th coefficient =  0.779007867141735     
+ new G
+   2.0684    
+ * END ITERATION: 09-10-2026  08h 04m 00s 698
+ solutions and s.e. stored in file: solutions
+
+Final Estimates
+ Genetic variance(s) for effect  3       
+   2.0684    
+ new R
+           1 -th trait:           1 -th coefficient =  0.576236467472488     
+           1 -th trait:           2 -th coefficient =  0.779007867141735     
+ inverse of AI matrix (Sampling Variance)
+  0.18966     -0.27594E-04 -0.60787E-04
+ -0.27594E-04  0.39831E-02 -0.29742E-02
+ -0.60787E-04 -0.29742E-02  0.29915E-02
+ Correlations from inverse of AI matrix
+   1.0000     -0.10040E-02 -0.25520E-02
+ -0.10040E-02   1.0000     -0.86161    
+ -0.25520E-02 -0.86161       1.0000    
+ SE for G
+  0.43550    
+ SE for R
+  0.63112E-01
+ *** Statistical Method: VCE                 
+ * FINISHED (BLUPF90): 09-10-2026  08h 04m 00s 701
