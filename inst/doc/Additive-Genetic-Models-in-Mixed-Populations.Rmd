@@ -313,7 +313,7 @@ cond_lik <- function(x) {
   logLik(res)
 }
 
-lambda <- seq(.3, 1, length.out = 5)
+lambda <- seq(.3, 1.5, length.out = 5)
 
 lik <- sapply(lambda, cond_lik)  # (sequential)
 # lik <- foreach(x = seq.int(lambda), .combine = c) %dopar% cond_lik(lambda[x])
@@ -322,12 +322,18 @@ ggplot(data.frame(lambda, lik), aes(lambda, lik)) +
   geom_line()
 ```
 
-This one works well.
-But for some reason, when I include the hybrids, for lambdas below about 0.58 and all the variance is accounted for residual variance.
+The log-likelihood peaks inside the grid, and the fit below uses the best grid point.
+The estimate is only as fine as the grid, and if the best point lands on either end, the grid needs widening.
+With nine founders per population $\lambda$ is estimated imprecisely.
+The same simulation run under R's pre-3.6 sampler (`RNGkind(sample.kind = "Rounding")`) puts the best grid point at 0.6 rather than `r lambda[which.max(lik)]`.
+The simulated value is $\lambda = 2/3$.
 
-There must be something wrong somewhere. May be the simulation of the Breeding Values is not correct?
+The profile uses only the pure offspring.
+For them, the scaled matrix at the simulated $\lambda$ matches the covariance of the simulated breeding values exactly.
+The scaling does not extend to the hybrids: for $\lambda$ below about 0.63 the offspring block of the scaled matrix is not positive definite, so it is not a valid covariance matrix.
 
-Analogously, if I include only the hybrid subpopulation, it also works quite well, identifying the base variance.
+Fitting the hybrids alone estimates their additive-genetic variance, $(\sigma^2_E + \sigma^2_J)/2$, but cannot separate the two components.
+Every hybrid-hybrid factor is $(1 + \lambda)/2$, so the hybrids inform only $\sigma^2_E (1 + \lambda)/2$.
 
 
 ```{r fit3}
@@ -356,7 +362,7 @@ res3 <- remlf90(y ~ sp,
 summary(res3)
 ```
 
-Lambda was maximized at `r lambda0`, giving an estimated additive-genetic variance for the `J` population of `r round(res3$var['E', 1]*lambda0,2)`.
+The best grid point is $\lambda$ = `r lambda0`, giving an estimated additive-genetic variance for the `J` population of `r round(res3$var['E', 1]*lambda0,2)`, against a simulated value of `r sigma2['J']`.
 
 ```{r fit3-predicted-breeding-values}
 PBV <- as.matrix(Z[dat$sp != 'EJ', idx]) %*%
