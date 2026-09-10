@@ -322,14 +322,18 @@ ggplot(data.frame(lambda, lik), aes(lambda, lik)) +
   geom_line()
 ```
 
-The profile is flat near its peak.
-With nine founders per population $\lambda$ is weakly identified, and the best grid point shifts from one simulated data set to the next; the simulated value is $\lambda = 2/3$.
-The estimate is only as fine as the grid, which extends past 1 so that a peak above 1 would show up inside it rather than at the edge.
-But for some reason, when I include the hybrids, for lambdas below about 0.58 and all the variance is accounted for residual variance.
+The log-likelihood peaks inside the grid, and the fit below uses the best grid point.
+The estimate is only as fine as the grid, and if the best point lands on either end, the grid needs widening.
+With nine founders per population $\lambda$ is estimated imprecisely.
+The same simulation run under R's pre-3.6 sampler (`RNGkind(sample.kind = "Rounding")`) puts the best grid point at 0.6 rather than `r lambda[which.max(lik)]`.
+The simulated value is $\lambda = 2/3$.
 
-There must be something wrong somewhere. May be the simulation of the Breeding Values is not correct?
+The profile uses only the pure offspring.
+For them, the scaled matrix at the simulated $\lambda$ matches the covariance of the simulated breeding values exactly.
+The scaling does not extend to the hybrids: for $\lambda$ below about 0.63 the offspring block of the scaled matrix is not positive definite, so it is not a valid covariance matrix.
 
-Analogously, if I include only the hybrid subpopulation, it works quite well, identifying the base variance.
+Fitting the hybrids alone estimates their additive-genetic variance, $(\sigma^2_E + \sigma^2_J)/2$, but cannot separate the two components.
+Every hybrid-hybrid factor is $(1 + \lambda)/2$, so the hybrids inform only $\sigma^2_E (1 + \lambda)/2$.
 
 
 ```{r fit3}
