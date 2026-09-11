@@ -72,6 +72,37 @@ test_that("a second fit reuses the staged genotype file", {
   expect_false(dir.exists(res.gen2$reml$dir))
 })
 
+test_that("relabelling the animals so the pedigree is recoded changes nothing (#49)", {
+
+  ## Reversing the codes puts offspring before their parents, so breedR
+  ## recodes the pedigree. The same animals, phenotypes and genotypes under
+  ## other names must give the same fit; with the genotypes attached to the
+  ## wrong animals they did not.
+  N   <- max(globulus[, c('self', 'dad', 'mum')])
+  flip <- function(x) ifelse(x == 0, 0L, as.integer(N + 1L - x))
+  glob_rev <- globulus
+  glob_rev[, c('self', 'dad', 'mum')] <-
+    lapply(globulus[, c('self', 'dad', 'mum')], flip)
+
+  rev_dir  <- breedR_workdir('recoded_')
+  on.exit(unlink(rev_dir, recursive = TRUE), add = TRUE)
+  rev_file <- file.path(rev_dir, "test_ssgblup_recoded.txt")
+  write_snp_file(Gmat, ids = flip(gen_ids), file = rev_file)
+
+  res.rev <- suppressWarnings(suppressMessages(
+    remlf90(fixed = phe_X ~ gg,
+            genetic = list(model = 'add_animal',
+                           pedigree = glob_rev[, 1:3], id = 'self'),
+            genomic = list(snp_file = rev_file, verify_parentage = 0L),
+            data = glob_rev)))
+  expect_false(is.null(attr(get_pedigree(res.rev), 'map')))
+
+  expect_equal(as.numeric(logLik(res.rev)), as.numeric(logLik(res.gen)),
+               tolerance = 1e-6)
+  expect_equal(res.rev$var, res.gen$var, tolerance = 1e-6)
+  expect_equal(fitted(res.rev), fitted(res.gen), tolerance = 1e-6)
+})
+
 test_that("a genotyped animal absent from the pedigree is an error", {
   bad_file <- file.path(tempdir(), "test_ssgblup_bad.txt")
   write_snp_file(Gmat[1:3, , drop = FALSE],
