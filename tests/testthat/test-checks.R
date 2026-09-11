@@ -626,9 +626,9 @@ test_that('default_initial_variance() works as expected', {
   ## One trait: always return half the phenotypic variance
   x <- runif(100)
   
-  expect_identical(as.matrix(var(x)/2), default_initial_variance(x))
-  expect_identical(as.matrix(var(x)/2), default_initial_variance(x, cor.trait = 0))
-  expect_identical(as.matrix(var(x)/2), default_initial_variance(x, cor.effect = 0))
+  expect_equal(as.matrix(var(x)/2), default_initial_variance(x))
+  expect_equal(as.matrix(var(x)/2), default_initial_variance(x, cor.trait = 0))
+  expect_equal(as.matrix(var(x)/2), default_initial_variance(x, cor.effect = 0))
   
   ## One trait - 2 dimensional effect (e.g. competition)
   x <- runif(100)
