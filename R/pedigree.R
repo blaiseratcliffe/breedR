@@ -100,7 +100,11 @@ build_pedigree <- function(x, self = x[[1]], sire = x[[2]], dam = x[[3]], data) 
   # pedx should pass all checks
   stopifnot(all(check_pedigree(pedx)))
 
-  out <- pedigreemm::pedigree(sire = pedx$sire, dam = pedx$dam, label = pedx$self)
+  # Integer codes: pedigreemm stores labels with as.character(), which would
+  # write a double 100000 as "1e+05" and no id would match it.
+  out <- pedigreemm::pedigree(sire  = as.integer(pedx$sire),
+                              dam   = as.integer(pedx$dam),
+                              label = as.integer(pedx$self))
   if( !all(checks)) attr(out, 'map') <- map
   return(out)
 }
