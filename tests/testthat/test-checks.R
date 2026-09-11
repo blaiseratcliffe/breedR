@@ -99,6 +99,23 @@ test_that("check_genetic() returns an error if pedigree is not of class pedigree
                'argument pedigree')
 })
 
+test_that("check_genetic() accepts double ids that print in scientific notation (#43)", {
+  ## A pedigree already coded 1..n is not recoded, so the ids are matched
+  ## against its labels directly. 100000 as a double used to be labelled
+  ## "1e+05" and rejected as missing from the pedigree.
+  ped_dbl <- data.frame(self = as.numeric(seq_len(1e5)), dad = 0, mum = 0)
+  dat_dbl <- data.frame(id = c(1, 99999, 1e5), y = c(0.3, -1.2, 0.8))
+
+  spec <- check_genetic(model = 'add_animal',
+                        pedigree = ped_dbl,
+                        id = 'id',
+                        data = dat_dbl,
+                        response = dat_dbl$y)
+
+  expect_identical(spec$id, c(1L, 99999L, 100000L))
+  expect_identical(spec$pedigree@label[spec$id], c('1', '99999', '100000'))
+})
+
 ## Model competition ##
 coordinates <- matrix(c(1,2,-1,0,0,1,-1,1),4,2)
 var.ini.mat <- matrix(c(1, -.5, -.5, 1), 2, 2)

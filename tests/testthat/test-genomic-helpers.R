@@ -276,6 +276,26 @@ test_that("stage_input() does not write through the link into sibling directorie
 })
 
 
+## -- write_xref_from_pedigree() --
+
+test_that("write_xref_from_pedigree() finds genotyped ids of 1e5 and above (#43)", {
+
+  ## The SNP file holds ids as text, so they are matched against the pedigree
+  ## labels as text. A double code 100000 used to be labelled "1e+05".
+  ped <- build_pedigree(1:3, data = data.frame(self = as.numeric(seq_len(1e5)),
+                                               dad = 0, mum = 0))
+  wd  <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  snp <- file.path(wd, 'geno.txt')
+  writeLines(c('100000 0120', '5 1111'), snp)
+
+  write_xref_from_pedigree(snp, ped, wd)
+
+  expect_identical(readLines(file.path(wd, 'geno.txt_XrefID')),
+                   c('100000 100000', '5 5'))
+})
+
+
 ## -- postgsf90() input checks --
 
 ## These run without binaries: each stops before anything is executed.
