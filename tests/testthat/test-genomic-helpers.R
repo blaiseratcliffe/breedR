@@ -336,6 +336,25 @@ test_that("write_xref_from_pedigree() rejects a recoded code given as an id (#49
                "not found in the pedigree: 2$")
 })
 
+test_that("write_xref_from_pedigree() finds ids of 1e5 and above in a recoded pedigree (#43, #49)", {
+
+  ## Double codes with gaps are recoded. The ids translated back through the
+  ## map must print as "100000", not "1e+05", or no genotyped animal matches.
+  ped <- suppressWarnings(
+    build_pedigree(1:3, data = data.frame(self = c(1e5, 2.5e5, 300001),
+                                          dad = 0, mum = 0)))
+  expect_false(is.null(attr(ped, 'map')))
+  wd  <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  snp <- file.path(wd, 'geno.txt')
+  writeLines(c('300001 0120', '100000 1111'), snp)
+
+  write_xref_from_pedigree(snp, ped, wd)
+
+  expect_identical(readLines(file.path(wd, 'geno.txt_XrefID')),
+                   c('3 300001', '1 100000'))
+})
+
 
 ## -- postgsf90() input checks --
 

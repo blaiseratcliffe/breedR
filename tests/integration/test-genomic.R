@@ -95,12 +95,23 @@ test_that("relabelling the animals so the pedigree is recoded changes nothing (#
                            pedigree = glob_rev[, 1:3], id = 'self'),
             genomic = list(snp_file = rev_file, verify_parentage = 0L),
             data = glob_rev)))
-  expect_false(is.null(attr(get_pedigree(res.rev), 'map')))
+  map <- attr(get_pedigree(res.rev), 'map')
+  expect_false(is.null(map))
 
+  ## Relabelling leaves logLik unchanged to about 1e-11. With the genotypes
+  ## on the wrong animals it moved by a relative 1.8e-6.
   expect_equal(as.numeric(logLik(res.rev)), as.numeric(logLik(res.gen)),
-               tolerance = 1e-6)
+               tolerance = 1e-9)
   expect_equal(res.rev$var, res.gen$var, tolerance = 1e-6)
   expect_equal(fitted(res.rev), fitted(res.gen), tolerance = 1e-6)
+
+  ## Each animal's breeding value, matched by its globulus id. The recoded fit
+  ## names them by its own codes, which the map and flip() take back.
+  bv_rev <- ranef(res.rev)$genetic
+  bv_gen <- ranef(res.gen)$genetic
+  orig   <- flip(match(as.integer(names(bv_rev)), map))
+  expect_equal(as.numeric(bv_rev)[match(as.integer(names(bv_gen)), orig)],
+               as.numeric(bv_gen), tolerance = 1e-6)
 })
 
 test_that("a genotyped animal absent from the pedigree is an error", {
