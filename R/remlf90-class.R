@@ -1165,10 +1165,11 @@ remlf90 <- function(fixed,
         } else if (!px$is_alive()) break
       }
 
-      ## read_output_lines() returns complete lines only, so a final line with
-      ## no newline stays buffered and would be dropped. Draining after the
-      ## loop costs nothing and avoids depending on the backend always ending
-      ## its output with a newline.
+      ## read_output_lines() returns a final line with no newline only once it
+      ## has seen EOF, and that can come after the loop has left on
+      ## !is_alive() -- usually on Windows, occasionally on Unix. Draining
+      ## after the loop costs nothing and avoids depending on either that
+      ## timing or the backend always ending its output with a newline.
       ## Split on \r?\n, not \n: read_output_lines() translates CRLF but
       ## read_output() does not, so splitting on \n alone would leave a
       ## trailing \r on every drained line and make this path disagree with

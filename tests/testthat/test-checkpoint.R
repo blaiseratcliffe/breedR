@@ -415,8 +415,10 @@ test_that("remlf90() guards the backend it starts", {
 
 test_that("the tail drain recovers a newline-less line", {
 
-  ## read_output_lines() returns complete lines only, so a final line with no
-  ## newline stays buffered and the loop would walk away from it.
+  ## read_output_lines() returns a final line with no newline only once it has
+  ## seen EOF. On Windows that usually comes after the loop has already left on
+  ## !is_alive(); on Unix it usually comes in time. Whichever path picks the
+  ## line up, it must end up in the output exactly once, in order.
   skip_if_not_installed("processx")
 
   rs <- file.path(R.home("bin"), "Rscript")
@@ -432,13 +434,9 @@ test_that("the tail drain recovers a newline-less line", {
     if (length(l)) out <- c(out, l) else if (!px$is_alive()) break
   }
 
-  ## the loop alone loses it
-  expect_false("no-trailing-newline" %in% out)
-
   tail_out <- px$read_output()
-  out <- c(out, strsplit(tail_out, "\r?\n")[[1]])
-  expect_true("no-trailing-newline" %in% out)
-  expect_false(any(grepl("\r", out)))
+  if (nzchar(tail_out)) out <- c(out, strsplit(tail_out, "\r?\n")[[1]])
+  expect_identical(out, c("alpha", "beta", "no-trailing-newline"))
 })
 
 
