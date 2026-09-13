@@ -19,4 +19,6 @@
 }
 \description{
 Returns the variance-covariance matrix of the specified random effect.
+This method does not support fits with trait-restricted random effects.
+Inspect the selected component in \code{object$var} instead.
 }

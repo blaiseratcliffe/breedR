@@ -20,7 +20,8 @@ remlf90(
   parallel = FALSE,
   progress_file = NULL,
   cont = FALSE,
-  debug = FALSE
+  debug = FALSE,
+  traits = NULL
 )
 }
 \arguments{
@@ -110,6 +111,14 @@ such option and the log itself is the checkpoint.}
 
 \item{debug}{logical. If \code{TRUE}, the input files for blupf90 programs
 and their output are shown, but results are not parsed.}
+
+\item{traits}{optional named list selecting response-column names for random
+effect groups, e.g. \code{list(rep = c("y1", "y3"))}. Unlisted groups
+apply to every response. Names are random formula terms, \code{genetic},
+\code{spatial}, \code{pec} when present, or final generic-group names.
+Selections must be nonempty and contain unique response names. Requires a
+multivariate response with unique column names. \code{NULL}, an empty
+list, or selecting every response preserves the existing model.}
 }
 \value{
 An object of class 'remlf90' that can be further questioned by
@@ -182,6 +191,31 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   \code{precision} matrix with conforming and suitable dimensions. 
   Optionally, an initial variance for the REML algorithm can be specified in 
   a third argument \code{var.ini}.
+
+  \subsection{Different random effects by trait}{
+  \code{traits} omits a random-effect group from unselected responses.
+  All members of a correlated group share one selection; for competition,
+  \code{genetic} selects both direct and competition effects together.
+  Fixed effects are still shared by all responses. Use \code{\link{renumf90}}
+  for different fixed effects by trait. Genetic trait restrictions cannot
+  currently be combined with \code{genomic}.
+
+  Initial covariance matrices retain their full dimensions and existing
+  effect-major, trait-inner order. Numeric matrices (including \code{Matrix}
+  objects) must be finite and symmetric; the selected principal submatrix
+  must be positive definite. Unselected entries are ignored and written as
+  zero. Compact matrices and \code{NA} starting values are not accepted.
+  An active off-diagonal initialized at zero remains a fixed-zero covariance;
+  it does not mean an absent effect. Matrix dimnames do not reorder values.
+
+  Absent variance components, coefficients and their standard errors are
+  reported as \code{NA}, with all response dimensions retained. They make
+  zero contribution to \code{fitted()} without discarding observations.
+  \code{summary()} lists the omitted combinations. Checkpoints retain raw
+  zero-padded matrices, which can be reused with the same \code{traits}
+  selection or through \code{cont = TRUE}. Use \code{model = fit} when
+  reading a restricted fit with \code{\link{reml_checkpoint}}.
+  }
   
   \subsection{Genetic effect}{ The available models for the genetic effect 
   are \code{add_animal} and \code{competition}. \code{add_animal} stands for 
@@ -407,6 +441,13 @@ dat <- transform(dat,
 res.lmm <- remlf90(fixed  = y ~ x,
                    random = ~ f3,
                    data   = dat)
+
+## The group effect applies only to the first response
+dat$y2 <- 2 + rnorm(n)
+res.traits <- remlf90(cbind(y, y2) ~ x, random = ~ f3, data = dat,
+                      traits = list(f3 = "y"))
+ranef(res.traits)$f3             # y2 estimates are NA
+fitted(res.traits)[, "y2"]       # fixed effects still contribute
 
 ## Following a long fit, and picking it up again
 ## While this runs, `tail -F run.log` in a shell, or from a second R

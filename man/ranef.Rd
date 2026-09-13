@@ -21,6 +21,10 @@ An object of class \code{ranef.breedR} composed of a list of vectors
   
   Each random effect has an attribute called \code{"se"} which is a vector 
   with the standard errors.
+  For groups restricted by \code{traits}, absent columns contain \code{NA}
+  values and standard errors, and a logical \code{trait.active} attribute
+  identifies the selected responses. Select a response column explicitly
+  before plotting these estimates.
   
   Additionally, depending of the nature of the random effect, there may be 
   further attributes. The pedigree will be given for genetic random effects 

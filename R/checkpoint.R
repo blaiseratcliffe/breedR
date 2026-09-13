@@ -136,13 +136,16 @@ reml_round_covariances <- function(x, from, to,
 #' @param names character vector of length \code{n_groups + 1}, ending in
 #'   \code{'residuals'}. \code{NULL} for positional names.
 #' @param spd logical. Require every recovered matrix to be positive definite.
+#' @param active list of logical vectors, in the same order as the covariance
+#'   blocks. A restricted block must have exact zeros outside its active
+#'   coordinates; its positive-definiteness check uses the active block only.
 #'
 #' @return named list of matrices with an integer attribute \code{round}. When
 #'   no round qualifies, an empty list with a character attribute
 #'   \code{reason}; test for failure with \code{!length(.)}.
 #' @keywords internal
 last_reml_checkpoint <- function(x, n_groups, dims = NULL,
-                                 names = NULL, spd = TRUE) {
+                                 names = NULL, spd = TRUE, active = NULL) {
 
   ## NULL cannot carry attributes, so failure is an empty list.
   failed <- function(reason) structure(list(), reason = reason)
@@ -168,7 +171,8 @@ last_reml_checkpoint <- function(x, n_groups, dims = NULL,
     names <- c(if (n_groups) paste0("G", seq_len(n_groups)), "residuals")
 
   is_spd <- function(m) {
-    isSymmetric(unname(m), check.attributes = FALSE) &&
+    all(is.finite(m)) &&
+      isSymmetric(unname(m), check.attributes = FALSE) &&
       all(eigen(m, symmetric = TRUE, only.values = TRUE)$values > 0)
   }
 
@@ -203,8 +207,31 @@ last_reml_checkpoint <- function(x, n_groups, dims = NULL,
       next
     }
 
-    ## Usable as initial variances?
-    if (spd && !all(vapply(blocks, is_spd, TRUE))) {
+    ## Absence must remain structural in a checkpoint. Unlike user-supplied
+    ## starting values, a backend value in an inactive row is never discarded.
+    if (!is.null(active) &&
+        !all(vapply(seq_along(blocks), function(j) {
+          a <- active[[j]]
+          is.null(a) || (length(a) == nrow(blocks[[j]]) &&
+            all(is.finite(blocks[[j]])) &&
+            all(blocks[[j]][!a, , drop = FALSE] == 0) &&
+            all(blocks[[j]][, !a, drop = FALSE] == 0))
+        }, TRUE))) {
+      reason <- "nonzero inactive covariance"
+      next
+    }
+
+    ## Usable as initial variances? Share the active-block validation with
+    ## model construction; ordinary checkpoints retain their existing policy.
+    usable <- function(j) {
+      if (is.null(active) || is.null(active[[j]]) || all(active[[j]]))
+        return(is_spd(blocks[[j]]))
+      tryCatch({
+        validate_variance(blocks[[j]], active = active[[j]])
+        TRUE
+      }, error = function(e) FALSE)
+    }
+    if (spd && !all(vapply(seq_along(blocks), usable, TRUE))) {
       reason <- "not positive definite"
       next
     }
@@ -226,7 +253,8 @@ last_reml_checkpoint <- function(x, n_groups, dims = NULL,
 #' @param effects list of effects, as built by \code{build.effects}.
 #' @param ntraits integer.
 #'
-#' @return list with \code{names} and \code{dims}.
+#' @return list with \code{names}, \code{dims}, \code{n_groups}, and active
+#'   covariance-coordinate masks in \code{active}.
 #' @keywords internal
 reml_checkpoint_layout <- function(effects, ntraits) {
 
@@ -236,7 +264,97 @@ reml_checkpoint_layout <- function(effects, ntraits) {
        dims = c(vapply(effects[rand],
                        function(g) nrow(as.matrix(g$cov.ini)), 1L),
                 ntraits),
-       n_groups = length(rand))
+       n_groups = length(rand),
+       active = c(lapply(effects[rand], effect_covariance_mask,
+                          ntraits = ntraits),
+                  list(rep(TRUE, ntraits))))
+}
+
+
+#' Effect positions in a backend log's parameter summary
+#'
+#' Reads the global trait coordinates, including zero-level virtual effects.
+#' Both legacy REMLF90/AI-REMLF90 and BLUPF90+ use this summary layout.
+#'
+#' @param x character vector. Lines of a REML log.
+#' @param ntraits integer. Expected number of traits.
+#' @return A list with \code{effect}, \code{levels}, \code{position}, and
+#'   \code{nest}; position fields are matrices with one column per trait.
+#'   \code{NULL} when the declaration cannot be verified.
+#' @keywords internal
+reml_log_effect_positions <- function(x, ntraits) {
+  header <- grep("^[[:space:]]*EFFECTS[[:space:]]*$", x)
+  nt <- grep("^[[:space:]]*Number of Traits[[:space:]]+[0-9]+[[:space:]]*$", x)
+  ne <- grep("^[[:space:]]*Number of Effects[[:space:]]+[0-9]+[[:space:]]*$", x)
+  if (length(header) != 1L || length(nt) != 1L || length(ne) != 1L)
+    return(NULL)
+  final_integer <- function(line) as.integer(sub(".*[[:space:]]+([0-9]+)[[:space:]]*$",
+                                                "\\1", line))
+  if (final_integer(x[nt]) != ntraits) return(NULL)
+  n_effects <- final_integer(x[ne])
+  end <- grep("^[[:space:]]*Residual \\(co\\)variance Matrix", x)
+  end <- end[end > header]
+  if (!length(end)) return(NULL)
+  rows <- x[seq.int(header + 1L, end[1L] - 1L)]
+  rows <- rows[nzchar(trimws(rows)) & !grepl("^[[:space:]]*#", rows)]
+  fields <- strsplit(trimws(rows), "[[:space:]]+")
+  if (length(fields) != n_effects || !length(fields)) return(NULL)
+  valid <- vapply(fields, function(z) {
+    length(z) %in% c(ntraits + 3L, 2L * ntraits + 3L) &&
+      all(grepl("^[0-9]+$", z[-2L]))
+  }, TRUE)
+  if (!all(valid)) return(NULL)
+  id <- vapply(fields, function(z) as.integer(z[1L]), 1L)
+  if (!identical(id, seq_len(n_effects))) return(NULL)
+  list(effect = id,
+       levels = vapply(fields, function(z) as.integer(z[ntraits + 3L]), 1L),
+       position = t(matrix(vapply(fields, function(z)
+         as.integer(z[seq.int(3L, ntraits + 2L)]), integer(ntraits)),
+         nrow = ntraits)),
+       nest = t(matrix(vapply(fields, function(z)
+         if (length(z) == ntraits + 3L) rep(NA_integer_, ntraits)
+         else as.integer(z[seq.int(ntraits + 4L, 2L * ntraits + 3L)]),
+         integer(ntraits)), nrow = ntraits)))
+}
+
+
+## Check the statistical presence pattern before selecting any checkpoint.
+## Positive-level solution anchors alone are insufficient: nested groups also
+## contain zero-level virtual rows which must carry the same trait selection.
+check_checkpoint_traits <- function(x, effects, ntraits) {
+  restricted <- has_trait_restrictions(effects)
+  declaration <- reml_log_effect_positions(x, ntraits)
+  if (is.null(declaration)) {
+    if (restricted)
+      stop("Cannot verify trait restrictions in the checkpoint log.",
+           call. = FALSE)
+    return(invisible(NULL))
+  }
+  ## Preserve the old identity checks for unrestricted logs and old objects,
+  ## while refusing an unrestricted restart of a known restricted model.
+  if (!restricted && all(declaration$position > 0) &&
+      all(declaration$nest[!is.na(declaration$nest)] > 0))
+    return(invisible(NULL))
+
+  rendered <- lapply(effects, renderpf90)
+  masks <- lapply(seq_along(effects), function(i)
+    matrix(effect_trait_mask(effects[[i]], ntraits),
+           nrow = length(rendered[[i]]$pos), ncol = ntraits, byrow = TRUE))
+  wanted <- do.call(rbind, masks)
+  nested <- unlist(lapply(rendered, function(g) !is.na(g$nest)),
+                   use.names = FALSE)
+  mismatch <- !identical(dim(wanted), dim(declaration$position))
+  if (!mismatch) {
+    mismatch <- any(wanted != (declaration$position > 0)) ||
+      any(rowSums(!is.na(declaration$nest)) != ifelse(nested, ntraits, 0L))
+    if (!mismatch && any(nested))
+      mismatch <- any(wanted[nested, , drop = FALSE] !=
+                        (declaration$nest[nested, , drop = FALSE] > 0))
+  }
+  if (mismatch)
+    stop("Trait restrictions in the checkpoint log do not match this model.",
+         call. = FALSE)
+  invisible(NULL)
 }
 
 
@@ -255,9 +373,12 @@ reml_checkpoint_var.ini <- function(file, effects, ntraits,
 
   x <- if (is.null(lines)) readLines(file, warn = FALSE) else lines
   lay <- reml_checkpoint_layout(effects, ntraits)
+  check_checkpoint_traits(x, effects, ntraits)
 
   ck <- last_reml_checkpoint(x, n_groups = lay$n_groups, dims = lay$dims,
-                             names = lay$names, spd = spd)
+                             names = lay$names, spd = spd,
+                             active = if (has_trait_restrictions(effects))
+                               lay$active else NULL)
 
   if (!length(ck)) {
     reason <- attr(ck, 'reason')
@@ -271,6 +392,9 @@ reml_checkpoint_var.ini <- function(file, effects, ntraits,
              `not positive definite` = paste(
                "none of its rounds holds a positive-definite set of",
                "(co)variance matrices"),
+             `nonzero inactive covariance` = paste(
+               "its rounds contain nonzero or nonfinite values in an",
+               "inactive covariance row or column"),
              incomplete = "it holds no complete round",
              paste0("it holds ", reason))
     stop("Cannot resume from '", file, "': ", detail, ".", call. = FALSE)
@@ -278,11 +402,14 @@ reml_checkpoint_var.ini <- function(file, effects, ntraits,
 
   ## The constructor's validation is bypassed by assigning cov.ini directly,
   ## so run it here instead.
-  for (nm in utils::head(lay$names, -1))
-    validate_variance(ck[[nm]],
-                      dimension = dim(as.matrix(effects[[nm]]$cov.ini)),
-                      what = paste0("recovered variance for '", nm, "'"),
-                      where = paste("progress file", file))
+  if (spd)
+    for (nm in utils::head(lay$names, -1))
+      validate_variance(ck[[nm]],
+                        dimension = dim(as.matrix(effects[[nm]]$cov.ini)),
+                        what = paste0("recovered variance for '", nm, "'"),
+                        where = paste("progress file", file),
+                        active = if (!is.null(effects[[nm]]$trait.active))
+                          effect_covariance_mask(effects[[nm]], ntraits))
 
   list(var = ck, round = attr(ck, 'round'))
 }
@@ -311,7 +438,9 @@ reml_checkpoint_var.ini <- function(file, effects, ntraits,
 #' @param file character. Path of a REML log, e.g. one written by the
 #'   \code{progress_file} argument of \code{\link{remlf90}}.
 #' @param model a fitted \code{remlf90} object. When given, the components are
-#'   named after its random effects and checked against their dimensions.
+#'   named after its random effects and checked against their dimensions and
+#'   trait restrictions. Restricted effects require positive definiteness only
+#'   on their active traits, with exact zero padding elsewhere.
 #'   Otherwise names are positional.
 #' @param spd logical. Only return a round whose matrices are all positive
 #'   definite. \code{FALSE} returns the last complete round whatever its state,
@@ -321,6 +450,13 @@ reml_checkpoint_var.ini <- function(file, effects, ntraits,
 #'   with an integer attribute \code{round}.
 #'
 #' @details
+#' For a trait-restricted fit, supply \code{model} to check the active covariance
+#' blocks and the log's effect-position declarations. Recovered matrices keep
+#' the full trait dimensions and numerical zeros for absent effects, so they
+#' can be reused with the same \code{traits} specification. Without a model,
+#' \code{spd = TRUE} still requires full positive definiteness; use
+#' \code{spd = FALSE} to inspect raw zero-padded matrices without a model.
+#'
 #' The result is not a drop-in for the \code{var.ini} argument of
 #' \code{\link{remlf90}}, which covers only the terms of \code{random} plus the
 #' residual; the genetic and spatial components have to go to their own slots:

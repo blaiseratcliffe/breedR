@@ -50,15 +50,26 @@ dim.breedr_effect <- function(x) {
 #' @param x list of breedr_effect elements
 #' @param cov.ini initial covariance matrix for the estimation algorithm
 #' @param ntraits number of traits in the model
+#' @param trait.active optional logical presence mask in global response order.
+#'   All group members share the mask. Absent covariance coordinates are stored
+#'   as zeros; the retained principal submatrix must be positive definite.
 #' 
 #' @return A list of \code{breedr_effect} elements.
-effect_group <- function(x, cov.ini, ntraits) {
+effect_group <- function(x, cov.ini, ntraits, trait.active = NULL) {
   
   ## Checks ==========================================
   ## x is a list and cov.ini a SPD matrix
   stopifnot(is.list(x))
   cov.ini <- as.matrix(cov.ini)
-  validate_variance(cov.ini)
+  if (!is.null(trait.active)) {
+    trait.active <- trait_mask(trait.active, ntraits)
+    if (all(trait.active)) trait.active <- NULL
+  }
+  active <- if (!is.null(trait.active))
+    expand_trait_mask(trait.active, ntraits, length(x))
+  validate_variance(cov.ini, dimension = if (is.null(active)) dim(cov.ini)
+                    else rep(length(x) * ntraits, 2), active = active)
+  cov.ini <- mask_variance(cov.ini, active)
   
   ## all elements are breedr_effects
   if (!all(sapply(x, inherits, 'breedr_effect')))
@@ -73,6 +84,7 @@ effect_group <- function(x, cov.ini, ntraits) {
   ans <- structure(list(effects = x, 
                         cov.ini = cov.ini),
                    class = 'effect_group')
+  if (!is.null(trait.active)) ans$trait.active <- trait.active
   return(ans)
 }
 

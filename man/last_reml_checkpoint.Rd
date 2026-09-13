@@ -4,7 +4,14 @@
 \alias{last_reml_checkpoint}
 \title{Last usable checkpoint in a REML log}
 \usage{
-last_reml_checkpoint(x, n_groups, dims = NULL, names = NULL, spd = TRUE)
+last_reml_checkpoint(
+  x,
+  n_groups,
+  dims = NULL,
+  names = NULL,
+  spd = TRUE,
+  active = NULL
+)
 }
 \arguments{
 \item{x}{character vector. Lines of a REML log.}
@@ -18,6 +25,10 @@ of each group and, last, of the residual. \code{NULL} to skip the check.}
 \code{'residuals'}. \code{NULL} for positional names.}
 
 \item{spd}{logical. Require every recovered matrix to be positive definite.}
+
+\item{active}{list of logical vectors, in the same order as the covariance
+blocks. A restricted block must have exact zeros outside its active
+coordinates; its positive-definiteness check uses the active block only.}
 }
 \value{
 named list of matrices with an integer attribute \code{round}. When

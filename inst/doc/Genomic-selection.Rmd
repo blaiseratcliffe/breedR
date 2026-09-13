@@ -178,10 +178,20 @@ colMeans(res_b$samples)              # posterior means of the variance component
 diag <- postgibbsf90(res_b)          # convergence diagnostics (Geweke, ESS, HPD)
 ```
 
-**RENUMF90 data preparation.** For alphanumeric ids, unknown-parent groups or
-multi-trait models with per-trait effects, prepare the data with
-`renumf90_from_data()` (which takes R data.frames directly) and fit with
-`remlf90_from_renum()`.
+**Random effects on selected responses.** In a joint model,
+`remlf90(cbind(height, diameter) ~ ..., random = ~ rep,
+traits = list(rep = "height"), ...)` fits the replicate effect on height only.
+Unlisted random groups apply to both responses. This also works with `genomic`
+when the genetic group remains present on every response; narrowing the
+genetic group with `genomic` is currently rejected. Initial covariance matrices
+retain their full dimensions. Absent coefficient and variance entries are
+reported as `NA`, and contribute zero to fitted values.
+
+**RENUMF90 data preparation.** For alphanumeric ids or unknown-parent groups,
+prepare the data with `renumf90_from_data()` (which takes R data.frames
+directly). For different fixed effects per trait, use `renumf90()` with explicit
+per-trait effect positions. Fit either result with `remlf90_from_renum()`, which
+returns a plain list of raw results rather than a `remlf90` object.
 
 **Prediction validation.** `validate_prediction()` implements the LR validation
 method. Note the current backend limitation described in the package README

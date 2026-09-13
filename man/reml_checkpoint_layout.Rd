@@ -12,7 +12,8 @@ reml_checkpoint_layout(effects, ntraits)
 \item{ntraits}{integer.}
 }
 \value{
-list with \code{names} and \code{dims}.
+list with \code{names}, \code{dims}, \code{n_groups}, and active
+  covariance-coordinate masks in \code{active}.
 }
 \description{
 The key property this whole feature rests on: the vector returned here is the
