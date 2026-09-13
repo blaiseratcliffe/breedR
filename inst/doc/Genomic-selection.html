@@ -12,7 +12,7 @@
 
 <meta name="author" content="breedR" />
 
-<meta name="date" content="2026-08-19" />
+<meta name="date" content="2026-09-13" />
 
 <title>Genomic selection with breedR: ssGBLUP, GWAS and genomic prediction</title>
 
@@ -342,7 +342,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h1 class="title toc-ignore">Genomic selection with breedR: ssGBLUP,
 GWAS and genomic prediction</h1>
 <h4 class="author">breedR</h4>
-<h4 class="date">2026-08-19</h4>
+<h4 class="date">2026-09-13</h4>
 
 
 
@@ -487,11 +487,23 @@ estimation (and threshold/categorical traits) use
 <span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a></span>
 <span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="fu">colMeans</span>(res_b<span class="sc">$</span>samples)              <span class="co"># posterior means of the variance components</span></span>
 <span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>diag <span class="ot">&lt;-</span> <span class="fu">postgibbsf90</span>(res_b)          <span class="co"># convergence diagnostics (Geweke, ESS, HPD)</span></span></code></pre></div>
-<p><strong>RENUMF90 data preparation.</strong> For alphanumeric ids,
-unknown-parent groups or multi-trait models with per-trait effects,
-prepare the data with <code>renumf90_from_data()</code> (which takes R
-data.frames directly) and fit with
-<code>remlf90_from_renum()</code>.</p>
+<p><strong>Random effects on selected responses.</strong> In a joint
+model,
+<code>remlf90(cbind(height, diameter) ~ ..., random = ~ rep, traits = list(rep = &quot;height&quot;), ...)</code>
+fits the replicate effect on height only. Unlisted random groups apply
+to both responses. This also works with <code>genomic</code> when the
+genetic group remains present on every response; narrowing the genetic
+group with <code>genomic</code> is currently rejected. Initial
+covariance matrices retain their full dimensions. Absent coefficient and
+variance entries are reported as <code>NA</code>, and contribute zero to
+fitted values.</p>
+<p><strong>RENUMF90 data preparation.</strong> For alphanumeric ids or
+unknown-parent groups, prepare the data with
+<code>renumf90_from_data()</code> (which takes R data.frames directly).
+For different fixed effects per trait, use <code>renumf90()</code> with
+explicit per-trait effect positions. Fit either result with
+<code>remlf90_from_renum()</code>, which returns a plain list of raw
+results rather than a <code>remlf90</code> object.</p>
 <p><strong>Prediction validation.</strong>
 <code>validate_prediction()</code> implements the LR validation method.
 Note the current backend limitation described in the package README

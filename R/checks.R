@@ -15,8 +15,9 @@
 #' @param x list. user specification of var.ini (or NULL)
 #' @param random formula. user specification of random effects.
 #' @param response numeric vector or matrix.
+#' @param traits internal named list of logical trait-presence masks.
 #' @return  matrix of observation values.
-check_var.ini <- function (x, random, response) {
+check_var.ini <- function (x, random, response, traits = NULL) {
   
   
   ## terms in the random component + 'residual'
@@ -52,7 +53,15 @@ check_var.ini <- function (x, random, response) {
   
   ## validate values
   for (i in seq_along(x)) {
-    validate_variance(x[[i]], what = names(x)[i], where = "var.ini specification")
+    active <- if (names(x)[i] != 'residuals') traits[[names(x)[i]]]
+    if (is.null(active)) {
+      validate_variance(x[[i]], what = names(x)[i], where = "var.ini specification")
+    } else {
+      validate_variance(x[[i]], dimension = rep(ncol(as.matrix(response)), 2),
+                        what = names(x)[i], where = "var.ini specification",
+                        active = active)
+      x[[i]] <- mask_variance(x[[i]], active)
+    }
   }
   
   ## return component with names normalised and 
@@ -72,13 +81,15 @@ check_genetic <- function(model = c('add_animal', 'competition'),
                           var.ini,
                           data,
                           response,
+                          trait.active = NULL,
+                          pec.trait.active = NULL,
                           ...) {
   
   ## do not include data in the call
   ## data is an auxiliar for checking and substituting id
   ## but it is not part of the genetic component specification
   mc <- match.call()
-  mc <- mc[!names(mc) %in% c('data', 'response')]
+  mc <- mc[!names(mc) %in% c('data', 'response', 'trait.active', 'pec.trait.active')]
   
   ## Mandatory arguments
   for (arg in c('model', 'pedigree', 'id')) {
@@ -154,10 +165,13 @@ check_genetic <- function(model = c('add_animal', 'competition'),
   }
   
   ## Validate initial variance (SPD, dimensions, etc.)
+  active <- if (!is.null(trait.active))
+    expand_trait_mask(trait.active, ncol(as.matrix(response)), dim)
   validate_variance(
     var.ini,
     dimension = rep(dim*ncol(as.matrix(response)), 2),
-    where = 'genetic component.')
+    where = 'genetic component.', active = active)
+  var.ini <- mask_variance(var.ini, active)
   
   ## Checks specific to competition models
   if (mc$model == 'competition') {
@@ -219,7 +233,11 @@ check_genetic <- function(model = c('add_animal', 'competition'),
     ## Validate initial variance in pec
     validate_variance(pec$var.ini,
                       what = "pec$var.ini",
-                      where = "genetic component")
+                      where = "genetic component",
+                      dimension = if (is.null(pec.trait.active)) dim(as.matrix(pec$var.ini))
+                                  else rep(ncol(as.matrix(response)), 2),
+                      active = pec.trait.active)
+    pec$var.ini <- mask_variance(pec$var.ini, pec.trait.active)
     
     ## At this point, names should match exactly those
     if (!all(idx <- names(pec) %in% c('present', 'var.ini'))) {
@@ -259,13 +277,14 @@ check_spatial <- function(model = c('splines', 'AR', 'blocks'),
                           sparse   = TRUE,
                           var.ini,
                           data,
-                          response) {
+                          response,
+                          trait.active = NULL) {
 
   ## do not include data in the call
   ## data is an auxiliar for checking and substituting id
   ## but it is not part of the genetic component specification
   mc <- match.call()
-  mc <- mc[!names(mc) %in% c('data', 'response')]
+  mc <- mc[!names(mc) %in% c('data', 'response', 'trait.active')]
   
   for (arg in c('model', 'coordinates')) {
     if (eval(call('missing', as.name(arg))))
@@ -372,9 +391,9 @@ check_spatial <- function(model = c('splines', 'AR', 'blocks'),
   validate_variance(
     var.ini,
     dimension = rep(dim*ncol(as.matrix(response)), 2),
-    where = 'spatial component.'
+    where = 'spatial component.', active = trait.active
   )
-  mc$var.ini <- var.ini
+  mc$var.ini <- mask_variance(var.ini, trait.active)
   
   ## evaluate remaining parameters
   mc$autofill <- autofill
@@ -386,7 +405,7 @@ check_spatial <- function(model = c('splines', 'AR', 'blocks'),
 
 
 
-check_generic <- function(x, response){
+check_generic <- function(x, response, traits = NULL){
   
   mc <- match.call()
   
@@ -417,7 +436,8 @@ check_generic <- function(x, response){
       'validate_generic_element', 
       c(x[[arg.idx]],
         response = list(response),
-        where = id)
+        where = id,
+        trait.active = list(traits[[generic_effect_names(x)[arg.idx]]]))
     )
     ## If valid, the original spec might have been completed
     ## with a default initial variance
@@ -445,10 +465,11 @@ validate_generic_element <- function(incidence,
                                      precision, 
                                      var.ini, 
                                      response,
-                                     where) {
+                                     where,
+                                     trait.active = NULL) {
   
   mc <- match.call()
-  mc <- mc[names(mc) != 'response' & names(mc) != 'where']
+  mc <- mc[!names(mc) %in% c('response', 'where', 'trait.active')]
   
   for (arg in c('incidence')) {
     if (eval(call('missing', as.name(arg))))
@@ -499,9 +520,9 @@ validate_generic_element <- function(incidence,
   validate_variance(
     var.ini,
     dimension = rep(dim*ncol(as.matrix(response)), 2),
-    where = where)
+    where = where, active = trait.active)
   
-  mc$var.ini <- var.ini
+  mc$var.ini <- mask_variance(var.ini, trait.active)
   
   return(structure(as.list(mc[-1]),
                    var.ini.default = attr(mc, 'var.ini.default')))
@@ -548,10 +569,13 @@ normalise_coordinates <- function (x, where = '') {
 #' @param what string. What are we validating
 #' @param where string. Model component where coordinates were specified. For 
 #'   error messages only. E.g. \code{where = 'competition specification'}.
+#' @param active optional logical vector selecting the covariance coordinates
+#'   that must form a positive-definite principal submatrix. The full matrix
+#'   must still be finite, symmetric, and of the specified dimensions.
 #'
 #' @return \code{TRUE} if all checks pass
 validate_variance <- function (x, dimension = dim(as.matrix(x)),
-                               what = 'var.ini', where = '') {
+                               what = 'var.ini', where = '', active = NULL) {
 
   stopifnot(
     is.numeric(x <- as.matrix(x)),
@@ -564,9 +588,121 @@ validate_variance <- function (x, dimension = dim(as.matrix(x)),
   if (length(x) != prod(dimension))
     stop(paste(what, "must be a", paste(dimension, collapse = 'x'),
                "matrix in the", where), call. = FALSE)
+  if (!is.null(active)) {
+    active <- trait_mask(active, nrow(x))
+    if (!all(is.finite(x)) || !isSymmetric(x, check.attributes = FALSE))
+      stop(paste(what, 'must be finite and symmetric in the', where), call. = FALSE)
+    retained <- x[active, active, drop = FALSE]
+    if (!all(eigen(retained, symmetric = TRUE, only.values = TRUE)$values > 0))
+      stop("The active covariance block for '", what, "' must be SPD",
+           if (!is.null(names(active))) paste0(' (traits: ',
+             paste(unique(names(active)[active]), collapse = ', '), ')'),
+           '.', call. = FALSE)
+    return(TRUE)
+  }
   ev <- eigen(x, symmetric = TRUE, only.values = TRUE)$values
   if (!isSymmetric(x, check.attributes = FALSE) || !all( ev > 0 ))
     stop(paste(what, "must be a SPD matrix in the", where), call. = FALSE)
   
   return(TRUE)
+}
+
+
+## Trait presence is independent of starting values and observation missingness.
+## Keep these helpers shared by all effects, backend translation and recovery.
+trait_mask <- function(trait.active, ntraits) {
+  if (is.null(trait.active)) return(rep(TRUE, ntraits))
+  if (!is.logical(trait.active) || length(trait.active) != ntraits ||
+      anyNA(trait.active) || !any(trait.active))
+    stop('Invalid internal trait-presence mask.', call. = FALSE)
+  trait.active
+}
+
+expand_trait_mask <- function(trait.active, ntraits, size = 1L) {
+  rep(trait_mask(trait.active, ntraits), times = size)
+}
+
+effect_trait_mask <- function(effect, ntraits) {
+  trait_mask(effect$trait.active, ntraits)
+}
+
+effect_covariance_mask <- function(effect, ntraits) {
+  expand_trait_mask(effect$trait.active, ntraits, length(effect$effects))
+}
+
+has_trait_restrictions <- function(effects) {
+  any(vapply(effects, function(x) !is.null(x$trait.active) &&
+               any(!x$trait.active), TRUE))
+}
+
+solution_trait_masks <- function(effects, ntraits) {
+  masks <- lapply(effects, function(g)
+    rep(list(effect_trait_mask(g, ntraits)), max(1L, length(g$effects))))
+  stats::setNames(unlist(masks, recursive = FALSE), get_efnames(effects))
+}
+
+mask_variance <- function(x, active) {
+  if (is.null(active) || all(active)) return(x)
+  x <- as.matrix(x)
+  x[!active, ] <- 0
+  x[, !active] <- 0
+  x
+}
+
+generic_effect_names <- function(generic) {
+  nm <- names(generic)
+  special <- nm %in% c('genetic', 'spatial')
+  nm[special] <- paste0('generic_', nm[special])
+  nm
+}
+
+random_group_names <- function(mf, genetic, spatial, generic) {
+  tt <- attr(attr(mf, 'terms'), 'term.types')
+  c(names(tt)[tt == 'random'],
+    if (!is.null(genetic)) 'genetic',
+    if (!is.null(genetic) && identical(genetic$model, 'competition') &&
+        isTRUE(genetic$pec$present)) 'pec',
+    if (!is.null(spatial)) 'spatial', generic_effect_names(generic))
+}
+
+check_effect_traits <- function(traits, response) {
+  if (is.null(traits) || (is.list(traits) && !length(traits))) return(NULL)
+  nm <- names(traits)
+  if (!is.list(traits) || is.null(nm) || anyNA(nm) ||
+      any(!nzchar(nm)) || anyDuplicated(nm))
+    stop("'traits' must be a list with unique, nonempty random-effect group names.",
+         call. = FALSE)
+  tr <- colnames(response)
+  if (ncol(response) < 2L || is.null(tr) || anyNA(tr) ||
+      any(!nzchar(tr)) || anyDuplicated(tr))
+    stop("'traits' requires a multivariate response with unique, nonempty column names.",
+         call. = FALSE)
+  lapply(stats::setNames(nm, nm), function(n) {
+    selected <- traits[[n]]
+    if (!is.character(selected) || !length(selected) || anyNA(selected) ||
+        any(!nzchar(selected)) || anyDuplicated(selected))
+      stop("traits[['", n, "']] must contain unique, nonmissing response names ",
+           'and select at least one trait.', call. = FALSE)
+    unknown <- setdiff(selected, tr)
+    if (length(unknown))
+      stop("Unknown trait '", paste(unknown, collapse = "', '"),
+           "' for random-effect group '", n, "'. Available traits: ",
+           paste(tr, collapse = ', '), '.', call. = FALSE)
+    stats::setNames(tr %in% selected, tr)
+  })
+}
+
+check_trait_groups <- function(traits, mf, genetic, spatial, generic) {
+  if (is.null(traits)) return(NULL)
+  groups <- random_group_names(mf, genetic, spatial, generic)
+  tt <- attr(attr(mf, 'terms'), 'term.types')
+  all_names <- c(names(tt)[tt == 'fixed'], groups)
+  for (nm in names(traits)) {
+    if (!nm %in% groups || sum(all_names == nm) != 1L)
+      stop("Unknown or ambiguous random-effect group '", nm,
+           "' in 'traits'. Available groups: ", paste(unique(groups), collapse = ', '),
+           '. For different fixed effects by trait, use renumf90().', call. = FALSE)
+  }
+  traits <- traits[!vapply(traits, all, TRUE)]
+  if (!length(traits)) NULL else traits
 }

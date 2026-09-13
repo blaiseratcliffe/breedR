@@ -457,3 +457,183 @@ test_that("the tail drain splits CRLF the way the line reader does", {
   expect_identical(drained, c("alpha", "beta"))
   expect_false(any(grepl("\r", drained)))
 })
+
+
+## -- trait-specific random effects ---------------------------------------
+
+checkpoint_trait_log <- function(G = diag(c(2, 0, 3)),
+                                 positions = "4 0 4", nested = NULL,
+                                 R = diag(3)) {
+  matrix_lines <- function(m)
+    apply(m, 1L, function(z) paste0(" ", paste(sprintf("%13.5G", z),
+                                             collapse = " ")))
+  c(" BLUPF90+ ver. 2.76",
+    paste(" Number of Traits", nrow(R)),
+    " Number of Effects 1",
+    "EFFECTS",
+    " # type position (2) levels [positions for nested]",
+    paste(" 1 cross-classified", positions, "3", nested),
+    " Residual (co)variance Matrix",
+    matrix_lines(R),
+    " In round 1 convergence= 0.1",
+    " new R", matrix_lines(R),
+    " new G", matrix_lines(G),
+    " solutions stored")
+}
+
+checkpoint_trait_effects <- function(active = c(y1 = TRUE, y2 = FALSE,
+                                                y3 = TRUE)) {
+  group <- effect_group(list(diagonal(factor(rep(letters[1:3], 2)))),
+                        cov.ini = diag(3), ntraits = 3L)
+  group$trait.active <- active
+  group$cov.ini[!active, ] <- 0
+  group$cov.ini[, !active] <- 0
+  list(rep = group)
+}
+
+test_that("checkpoint effect positions retain all global and virtual rows", {
+  old_ai <- reml_log_effect_positions(x3, 2L)
+  expect_identical(old_ai$effect, 1:4)
+  expect_equal(old_ai$position, matrix(rep(3:6, 2), ncol = 2))
+  expect_true(all(is.na(old_ai$nest)))
+
+  old_em <- reml_log_effect_positions(y1, 5L)
+  expect_identical(old_em$effect, 1:10)
+  expect_identical(which(old_em$levels == 0L), 3:9)
+  expect_equal(old_em$nest[3:10, ], matrix(rep(16:23, 5), ncol = 5))
+
+  modern <- reml_log_effect_positions(checkpoint_trait_log(), 3L)
+  expect_identical(modern$position, matrix(c(4L, 0L, 4L), nrow = 1))
+  expect_null(reml_log_effect_positions(checkpoint_trait_log(), 2L))
+  expect_null(reml_log_effect_positions(character(), 3L))
+
+  uni <- reml_log_effect_positions(
+    checkpoint_trait_log(matrix(2), positions = "2", R = matrix(1)), 1L)
+  expect_identical(dim(uni$position), c(1L, 1L))
+})
+
+test_that("model-aware checkpoints accept full zero padding and active SPD", {
+  effects <- checkpoint_trait_effects()
+  log <- checkpoint_trait_log()
+  recovered <- reml_checkpoint_var.ini("traits.log", effects, 3L, lines = log)
+  expect_equal(recovered$round, 1L)
+  expect_equal(unname(recovered$var$rep), diag(c(2, 0, 3)))
+  expect_false(anyNA(recovered$var$rep))
+
+  ## A retained zero covariance is still a numerical, structural constraint.
+  expect_identical(recovered$var$rep[1, 3], 0)
+  expect_equal(unname(lapply(reml_checkpoint_layout(effects, 3L)$active, unname)),
+               list(c(TRUE, FALSE, TRUE), rep(TRUE, 3)))
+
+  expect_error(reml_checkpoint_var.ini("traits.log", effects, 3L,
+                 lines = checkpoint_trait_log(diag(c(-1, 0, 3)))),
+               "positive-definite")
+  expect_error(reml_checkpoint_var.ini("traits.log", effects, 3L,
+                 lines = checkpoint_trait_log(diag(c(2, 1e-8, 3)))),
+               "inactive covariance")
+
+  bad_cross <- diag(c(2, 0, 3))
+  bad_cross[1, 2] <- bad_cross[2, 1] <- 1e-8
+  expect_error(reml_checkpoint_var.ini("traits.log", effects, 3L,
+                 lines = checkpoint_trait_log(bad_cross)),
+               "inactive covariance")
+})
+
+test_that("captured BLUPF90+ AI and EM checkpoints preserve trait absence", {
+  effects <- list(
+    '(Intercept)' = fixed(rep(1, 24)),
+    rep = effect_group(list(diagonal(factor(rep(1:6, each = 4)))),
+                       diag(c(5, 0)), ntraits = 2L,
+                       trait.active = c(y1 = TRUE, y2 = FALSE)))
+  for (method in c('ai', 'em')) {
+    log <- log_lines(paste0('issue51_analytic_', method, '.log'))
+    recovered <- reml_checkpoint_var.ini('captured.log', effects, 2L,
+                                         lines = log)
+    expect_equal(recovered$var$rep[1, 1], 79/15, tolerance = 1e-4)
+    expect_identical(unname(recovered$var$rep[2, ]), c(0, 0))
+    expect_equal(recovered$var$residuals[2, 2], 96/23, tolerance = 1e-4)
+    expect_equal(recovered$round, as.integer(tail(names(reml_round_index(log)), 1)))
+  }
+})
+
+test_that("checkpoint masks expand in effect-major covariance order", {
+  members <- list(diagonal(factor(1:3)), diagonal(factor(1:3)))
+  group <- effect_group(members, diag(6), ntraits = 3L)
+  group$trait.active <- c(y1 = TRUE, y2 = FALSE, y3 = TRUE)
+  layout <- reml_checkpoint_layout(list(rep = group), 3L)
+  expect_equal(unname(layout$active[[1]]), rep(c(TRUE, FALSE, TRUE), 2))
+
+  padded <- diag(c(2, 0, 3, 4, 0, 5))
+  ck <- last_reml_checkpoint(checkpoint_trait_log(G = padded),
+                            n_groups = 1L, dims = c(6L, 3L),
+                            active = layout$active)
+  expect_equal(attr(ck, "round"), 1L)
+  expect_equal(unname(ck[[1]]), padded)
+})
+
+test_that("checkpoint trait identities require matching effect positions", {
+  effects <- checkpoint_trait_effects()
+  expect_error(reml_checkpoint_var.ini("traits.log", effects, 3L,
+                 lines = checkpoint_trait_log(positions = "4 4 0")),
+               "Trait restrictions.*do not match")
+  expect_error(reml_checkpoint_var.ini("traits.log", effects, 3L,
+                 lines = checkpoint_trait_log(positions = "4 4 4")),
+               "Trait restrictions.*do not match")
+
+  no_header <- checkpoint_trait_log()
+  no_header <- no_header[seq.int(grep("In round", no_header), length(no_header))]
+  expect_error(reml_checkpoint_var.ini("traits.log", effects, 3L,
+                 lines = no_header),
+               "Cannot verify trait restrictions in the checkpoint log")
+
+  ## An old unrestricted object may omit trait.active, but it cannot resume
+  ## a log which demonstrably used a narrower model of the same dimensions.
+  effects$rep$trait.active <- NULL
+  expect_error(reml_checkpoint_var.ini("traits.log", effects, 3L,
+                 lines = checkpoint_trait_log()),
+               "Trait restrictions.*do not match")
+})
+
+test_that("checkpoint validation includes zero-level nested virtual effects", {
+  incidence <- matrix(c(1, 2, 0, 0, 1, 2), nrow = 2, byrow = TRUE)
+  group <- effect_group(list(generic(incidence, covariance = diag(3))),
+                        diag(3), ntraits = 3L)
+  group$trait.active <- c(y1 = TRUE, y2 = FALSE, y3 = TRUE)
+  group$cov.ini[2, ] <- group$cov.ini[, 2] <- 0
+  effects <- list(rep = group)
+  log <- checkpoint_trait_log()
+  log[grep("Number of Effects", log)] <- " Number of Effects 2"
+  row <- grep("cross-classified", log)
+  log <- append(log[-row], c(" 1 covariable 4 0 4 0 6 0 6",
+                            " 2 covariable 5 0 5 3 7 0 7"), after = row - 1L)
+  expect_error(reml_checkpoint_var.ini("nested.log", effects, 3L, lines = log),
+               NA)
+
+  broken <- sub("1 covariable 4 0 4 0 6 0 6", "1 covariable 4 0 4 0 6 6 6",
+                 log, fixed = TRUE)
+  expect_error(reml_checkpoint_var.ini("nested.log", effects, 3L,
+                                      lines = broken),
+               "Trait restrictions.*do not match")
+})
+
+test_that("raw checkpoint inspection preserves the model-free SPD policy", {
+  f <- tempfile(fileext = ".log")
+  on.exit(unlink(f))
+  writeLines(checkpoint_trait_log(), f)
+  expect_error(reml_checkpoint(f), "not positive definite")
+  raw <- reml_checkpoint(f, spd = FALSE)
+  expect_equal(unname(raw$G1), diag(c(2, 0, 3)))
+  expect_false(anyNA(raw$G1))
+
+  mf <- model.frame(cbind(y1, y2, y3) ~ 1,
+                    data = data.frame(y1 = 1:6, y2 = 2:7, y3 = 3:8))
+  model <- structure(list(effects = checkpoint_trait_effects(), mf = mf),
+                     class = 'remlf90')
+  expect_equal(unname(reml_checkpoint(f, model)$rep), diag(c(2, 0, 3)))
+
+  ## Diagnostic mode may recover a non-SPD active block, without treating
+  ## its negative variance as absence or converting raw zeros to NAs.
+  writeLines(checkpoint_trait_log(diag(c(-1, 0, 3))), f)
+  expect_equal(unname(reml_checkpoint(f, model, spd = FALSE)$rep),
+               diag(c(-1, 0, 3)))
+})

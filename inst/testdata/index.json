@@ -95,5 +95,44 @@
 		"n_rounds": 6,
 		"converged": "TRUE",
 		"notes": "Heterogeneous residual variances (issue #1), two traits. cbind(y, y3) ~ x, no random effect, OPTION hetres_pos 4 4 and hetres_pol 1 1 0.1 0.1 (data columns: y, y3, Intercept, x). Simulated with set.seed(5), n = 3000: x ~ U(0, 2), y = 10 + x + e1 with var(e1) = exp(0.5 + 0.8 x), y3 = 3 - x + e3 with var(e3) = exp(2 - 1.2 x). Files written by progsf90()/write.progsf90() with initial residual diag(3, 2) and blupf90+ run on them directly. Coefficients are printed coefficient-major, trait-inner (a0.y, a0.y3, a1.y, a1.y3), the order of the inverse AI matrix. The backend's 'SE for R' is a 2x2 matrix that does not match the coefficients"
-	}
+	},
+  {
+    "file_name": "issue51_analytic_ai.log",
+    "solutions_file": "issue51_analytic_ai.sol",
+    "program": "BLUPF90+ 2.76",
+    "data_type": "log",
+    "n_traits": 2,
+    "n_effects": 2,
+    "n_parameters": 3,
+    "n_records": 24,
+    "n_random_effects": 1,
+    "converged": "TRUE",
+    "notes": "Issue #51 analytical oracle, AI-REML. Six groups of four records: y1=10+a[group]+(-1,1,-1,1), a=(-3,-2,-1,1,2,3); y2=20+(-2,-2,2,2). Random rep on y1 only. Initial G=diag(5,0), R=diag(1,4); OPTION method VCE, maxrounds 80, conv_crit 1d-12, sol se. Final G11=79/15, R11=4/3, R22=96/23; BLUP=(79/84)*a. Full zero-padded variance and solution rows with compact 3x3 inverse AI. Captured 2026-09-11. Binary SHA-256 c6a30aecd4b49c9d5732d775a9078eb4ee69c597aa6f8b5682f8ab6f6d05ce81. Deterministic model reconstruction in parse_issue51_fixture() in test-parse_results.R."
+  },
+  {
+    "file_name": "issue51_analytic_em.log",
+    "solutions_file": "issue51_analytic_em.sol",
+    "program": "BLUPF90+ 2.76",
+    "data_type": "log",
+    "n_traits": 2,
+    "n_effects": 2,
+    "n_parameters": 3,
+    "n_records": 24,
+    "n_random_effects": 1,
+    "converged": "TRUE",
+    "notes": "Same data and initial covariance matrices as issue51_analytic_ai.log, with OPTION EM-REML pure and maxrounds 200. No inverse AI or variance SE. Captured 2026-09-12. Same BLUPF90+ 2.76 binary hash as the AI fixture."
+  },
+  {
+    "file_name": "issue51_nested_ai.log",
+    "solutions_file": "issue51_nested_ai.sol",
+    "program": "BLUPF90+ 2.76",
+    "data_type": "log",
+    "n_traits": 2,
+    "n_effects": 3,
+    "n_parameters": 3,
+    "n_records": 24,
+    "n_random_effects": 1,
+    "converged": "TRUE",
+    "notes": "Same responses as issue51_analytic_ai.log, but generic rep incidence assigns 0.7 to the original group and 0.3 to its cyclic successor, with identity covariance structure. Restricted to y1. Two nested virtual effect rows have positions 4/0 and 5/0, nesting positions 6/0 and 7/0, and levels 0 and 6; solutions are attached to positive-level anchor effect 3. OPTION maxrounds 80 and sol se. Captured 2026-09-12. Same BLUPF90+ 2.76 binary hash as the analytical fixture. This fixture establishes nested layout, not the analytical random-intercept BLUP oracle."
+  }
 ]

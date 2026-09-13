@@ -165,17 +165,19 @@ renderpf90.breedr_modelframe <- function(x, ntraits, weights, ...) {
   offsets <- structure(head(end.columns, -1),
                        names = names(dat.widths))
   
-  collapse_traits <- function(x, ntraits) {
-    if (!is.na(x))
-      paste(rep(x, ntraits), collapse = " ")
-    else ''
+  collapse_traits <- function(x, active) {
+    if (is.na(x)) return('')
+    pos <- rep(x, length(active))
+    pos[!active] <- 0
+    paste(pos, collapse = " ")
   }
 
   for (i in seq_along(xpf90)) {
+    active <- effect_trait_mask(x[[i]], ntraits)
     xpf90[[i]]$pos <- vapply(offsets[[i]] + xpf90[[i]]$pos,
-                          collapse_traits, "str", ntraits)
+                          collapse_traits, "str", active)
     xpf90[[i]]$nest <- vapply(offsets[[i]] + xpf90[[i]]$nest,
-                           collapse_traits, "str", ntraits)
+                           collapse_traits, "str", active)
   }
   
 

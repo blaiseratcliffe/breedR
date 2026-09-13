@@ -107,3 +107,77 @@ test_that('(ai)remlf90() predict correctly when missing code is not 0', {
   expect_equal(fitted(res)[1], fixef(res)$group[1], 
                check.attributes = FALSE)
 })
+
+
+test_that("trait absence preserves missing-response and factor-level alignment", {
+  skip_if_not(isTRUE(check_progsf90(quiet = TRUE)), "PROGSF90 binaries not installed")
+  a <- c(-3, -2, -1, 1, 2, 3)
+  dat <- data.frame(
+    rep = factor(rep(letters[1:6], each = 4), levels = rev(letters[1:6])),
+    y1 = 10 + rep(a, each = 4) + rep(c(-1, 1, -1, 1), 6),
+    y2 = 20 + rep(c(-2, -2, 2, 2), 6)
+  )
+  dat$y1[c(2, 11)] <- NA
+  dat$y2[c(3, 17)] <- NA
+  rownames(dat) <- paste0("tree", seq_len(nrow(dat)))
+  fit_selected <- function(d) suppressMessages(remlf90(
+    cbind(y1, y2) ~ 1, random = ~ rep, data = d,
+    traits = list(rep = "y1"),
+    var.ini = list(rep = diag(c(5, 0)), residuals = diag(c(1, 4))),
+    progsf90.options = c("maxrounds 100", "conv_crit 1d-12")
+  ))
+  fit <- fit_selected(dat)
+  expect_identical(rownames(ranef(fit)$rep), levels(dat$rep))
+  expect_identical(rownames(model.frame(fit)), rownames(dat))
+  expect_identical(dim(fitted(fit)), c(24L, 2L))
+  expect_identical(rownames(fitted(fit)), rownames(dat))
+  expect_identical(colnames(fitted(fit)), c("y1", "y2"))
+  expect_true(all(is.finite(fitted(fit))))
+  expect_equal(as.numeric(fitted(fit)[, 2]), rep(mean(dat$y2, na.rm = TRUE), 24),
+               tolerance = 1e-5)
+  expect_equal(unname(residuals(fit)),
+               unname(as.matrix(dat[, c("y1", "y2")]) - fitted(fit)),
+               check.attributes = FALSE)
+  expect_identical(is.na(residuals(fit)),
+                   is.na(as.matrix(dat[, c("y1", "y2")])))
+
+  permutation <- c(seq(24, 2, by = -2), seq(23, 1, by = -2))
+  shuffled <- fit_selected(dat[permutation, ])
+  expect_equal(unname(fitted(shuffled)[order(permutation), ]), unname(fitted(fit)),
+               tolerance = 1e-4)
+  expect_equal(ranef(shuffled)$rep, ranef(fit)$rep, tolerance = 1e-4)
+})
+
+
+test_that("a restricted single-level generic effect preserves trait matrices", {
+  skip_if_not(isTRUE(check_progsf90(quiet = TRUE)), "PROGSF90 binaries not installed")
+  x <- seq(-2, 2, length.out = 24)
+  dat <- data.frame(x = x,
+                    y1 = 10 + 2*x + rep(c(-.1, .1), 12),
+                    y2 = 3*x + rep(c(-1, 1), 12))
+  fit <- suppressMessages(remlf90(
+    cbind(y1, y2) ~ 0 + x, data = dat,
+    generic = list(shared = list(incidence = matrix(1, 24, 1),
+                                  covariance = matrix(1),
+                                  var.ini = diag(c(100, 0)))),
+    traits = list(shared = "y1"),
+    var.ini = list(residuals = diag(c(.01, 1))),
+    progsf90.options = c("maxrounds 100", "conv_crit 1d-10")
+  ))
+  shared <- ranef(fit)$shared
+  expect_identical(dim(shared), c(1L, 2L))
+  expect_identical(dim(attr(shared, "se")), c(1L, 2L))
+  expect_identical(colnames(shared), c("y1", "y2"))
+  expect_identical(dimnames(attr(shared, "se")), dimnames(shared))
+  expect_true(is.finite(shared[1, "y1"]))
+  expect_true(is.finite(attr(shared, "se")[1, "y1"]))
+  expect_true(is.na(shared[1, "y2"]))
+  expect_true(is.na(attr(shared, "se")[1, "y2"]))
+  expect_identical(dim(fixef(fit)$x), c(1L, 2L))
+  expect_identical(dim(fitted(fit)), c(24L, 2L))
+  expect_true(all(is.finite(fitted(fit))))
+  ## With no shared random effect on y2 and zero residual covariance, its
+  ## prediction is the ordinary least-squares line through the origin.
+  expected_y2 <- x * sum(x * dat$y2) / sum(x^2)
+  expect_equal(as.numeric(fitted(fit)[, "y2"]), expected_y2, tolerance = 1e-5)
+})

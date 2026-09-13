@@ -4,6 +4,24 @@ All notable changes from the original [famuvie/breedR](https://github.com/famuvi
 
 ## [Unreleased]
 
+### Random-effect groups can be omitted from selected responses (#51)
+
+`remlf90()` now accepts a trailing `traits = NULL` argument. For example,
+`traits = list(rep = c("y1", "y3"))` retains the replicate effect on the first
+and third responses of a three-trait model. Unlisted groups apply to every
+response; calls without restrictions keep their existing behavior.
+
+The backend receives zero effect positions and full covariance matrices with
+the absent rows and columns zeroed. Returned coefficient and variance shapes
+are preserved, with `NA` for absent combinations and zero contribution to
+fitted values. Active covariance blocks must be positive definite, and the
+same selection is used when validating checkpoints or resuming a fit.
+
+One selection applies to every member of a correlated random-effect group.
+Fixed-effect selections remain available through the RENUMF90 route. Genomic
+fits support restrictions on other groups while retaining the genetic group
+on all responses.
+
 ### `remlf90()` can be followed while it runs, and resumed after it dies
 
 A REML fit returns everything or nothing. On a three-site joint MET with

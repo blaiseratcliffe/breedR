@@ -3,6 +3,25 @@
 ### Test the effect_group constructor ###
 context("effect_group() constructor")
 
+test_that('trait presence preserves effect-major covariance dimensions', {
+  members <- list(breedr_effect(1), breedr_effect(2))
+  active <- c(y1 = TRUE, y2 = FALSE, y3 = TRUE)
+  g <- diag(1:6)
+  g[1, 4] <- g[4, 1] <- .5
+  restricted <- effect_group(members, g, 3, active)
+  expect_identical(restricted$effects, members)
+  expect_identical(restricted$trait.active, active)
+  expect_equal(dim(restricted), c(size = 2, ntraits = 3))
+  expect_equal(restricted$cov.ini[c(1, 3, 4, 6), c(1, 3, 4, 6)],
+                g[c(1, 3, 4, 6), c(1, 3, 4, 6)])
+  expect_true(all(restricted$cov.ini[c(2, 5), ] == 0))
+  expect_true(all(restricted$cov.ini[, c(2, 5)] == 0))
+  legacy <- effect_group(members, g, 3)
+  expect_identical(effect_group(members, g, 3, rep(TRUE, 3)), legacy)
+  expect_identical(effect_trait_mask(legacy, 3), rep(TRUE, 3))
+  expect_error(effect_group(members, diag(4), 3, active), '6x6 matrix')
+})
+
 
 test_that('Valid specs of effect groups pass checks', {
   

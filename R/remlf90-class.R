@@ -73,6 +73,13 @@
 #'   such option and the log itself is the checkpoint.
 #' @param debug logical. If \code{TRUE}, the input files for blupf90 programs
 #'   and their output are shown, but results are not parsed.
+#' @param traits optional named list selecting response-column names for random
+#'   effect groups, e.g. \code{list(rep = c("y1", "y3"))}. Unlisted groups
+#'   apply to every response. Names are random formula terms, \code{genetic},
+#'   \code{spatial}, \code{pec} when present, or final generic-group names.
+#'   Selections must be nonempty and contain unique response names. Requires a
+#'   multivariate response with unique column names. \code{NULL}, an empty
+#'   list, or selecting every response preserves the existing model.
 #'
 #' @details If either \code{genetic} or \code{spatial} are not \code{NULL}, the 
 #'   model residuals are assumed to have an additive genetic effects or a 
@@ -88,6 +95,31 @@
 #'   \code{precision} matrix with conforming and suitable dimensions. 
 #'   Optionally, an initial variance for the REML algorithm can be specified in 
 #'   a third argument \code{var.ini}.
+#'
+#'   \subsection{Different random effects by trait}{
+#'   \code{traits} omits a random-effect group from unselected responses.
+#'   All members of a correlated group share one selection; for competition,
+#'   \code{genetic} selects both direct and competition effects together.
+#'   Fixed effects are still shared by all responses. Use \code{\link{renumf90}}
+#'   for different fixed effects by trait. Genetic trait restrictions cannot
+#'   currently be combined with \code{genomic}.
+#'
+#'   Initial covariance matrices retain their full dimensions and existing
+#'   effect-major, trait-inner order. Numeric matrices (including \code{Matrix}
+#'   objects) must be finite and symmetric; the selected principal submatrix
+#'   must be positive definite. Unselected entries are ignored and written as
+#'   zero. Compact matrices and \code{NA} starting values are not accepted.
+#'   An active off-diagonal initialized at zero remains a fixed-zero covariance;
+#'   it does not mean an absent effect. Matrix dimnames do not reorder values.
+#'
+#'   Absent variance components, coefficients and their standard errors are
+#'   reported as \code{NA}, with all response dimensions retained. They make
+#'   zero contribution to \code{fitted()} without discarding observations.
+#'   \code{summary()} lists the omitted combinations. Checkpoints retain raw
+#'   zero-padded matrices, which can be reused with the same \code{traits}
+#'   selection or through \code{cont = TRUE}. Use \code{model = fit} when
+#'   reading a restricted fit with \code{\link{reml_checkpoint}}.
+#'   }
 #'   
 #'   \subsection{Genetic effect}{ The available models for the genetic effect 
 #'   are \code{add_animal} and \code{competition}. \code{add_animal} stands for 
@@ -381,6 +413,13 @@
 #'                    random = ~ f3,
 #'                    data   = dat)
 #' 
+#' ## The group effect applies only to the first response
+#' dat$y2 <- 2 + rnorm(n)
+#' res.traits <- remlf90(cbind(y, y2) ~ x, random = ~ f3, data = dat,
+#'                       traits = list(f3 = "y"))
+#' ranef(res.traits)$f3             # y2 estimates are NA
+#' fitted(res.traits)[, "y2"]       # fixed effects still contribute
+#'
 #' ## Following a long fit, and picking it up again
 #' ## While this runs, `tail -F run.log` in a shell, or from a second R
 #' ## session: reml_checkpoint("run.log")
@@ -485,7 +524,8 @@ remlf90 <- function(fixed,
                     parallel = FALSE,
                     progress_file = NULL,
                     cont = FALSE,
-                    debug = FALSE) {
+                    debug = FALSE,
+                    traits = NULL) {
   
   ## Assumptions:
   ## Only 1 pedigree
@@ -546,6 +586,7 @@ remlf90 <- function(fixed,
   
   ### Response matrix (ntraits = ncols)
   responsem <- as.matrix(model.response(mf))
+  trait_masks <- check_effect_traits(traits, responsem)
   
   ## Genetic specification
   if (!is.null(genetic)) {
@@ -553,7 +594,9 @@ remlf90 <- function(fixed,
     ## necessary variables (also for special effects and response)
     genetic <- do.call('check_genetic',
                        c(genetic, list(data = data, 
-                                       response = responsem)))
+                                       response = responsem,
+                                       trait.active = trait_masks[['genetic']],
+                                       pec.trait.active = trait_masks[['pec']])))
   }
   
   
@@ -563,7 +606,8 @@ remlf90 <- function(fixed,
     ## necessary variables (also for special effects and response)
     spatial <- do.call('check_spatial', 
                        c(spatial, list(data = data,
-                                       response = responsem)))
+                                       response = responsem,
+                                       trait.active = trait_masks[['spatial']])))
   }
 
   ## An AR model with rho unspecified, or given as a grid, is fitted once per
@@ -591,6 +635,51 @@ remlf90 <- function(fixed,
            "available with breedR.bin = '", breedR.bin, "'.\n",
            " Fix rho to a single pair and re-run.", call. = FALSE)
   }
+
+  ## Validate the complete model before an AR grid can catch per-fit errors.
+  ## Generic specification
+  if (!is.null(generic)) {
+    generic <- check_generic(generic, response = responsem, traits = trait_masks)
+  }
+
+  ## Genomic specification
+  if (!is.null(genomic)) {
+    if (is.null(genetic))
+      stop("'genomic' requires a 'genetic' component (e.g. add_animal model).",
+           call. = FALSE)
+    genomic <- check_genomic(genomic)
+    if (!is.null(trait_masks[['genetic']]) && any(!trait_masks[['genetic']]))
+      stop("Trait restrictions on 'genetic' are not supported with 'genomic'.",
+           call. = FALSE)
+  }
+
+  ## Initial variances specification
+  ## We check even the NULL case, where the function returns the
+  ## default initial variances for all random effects + residuals
+  trait_masks <- check_trait_groups(trait_masks, mf, genetic, spatial, generic)
+  var.ini <- check_var.ini(var.ini, random, responsem, traits = trait_masks)
+
+  ## Whether the initial variances for each component are defaults
+  has_var.ini <-
+    function(x) {
+      if (eval(call('is.null', as.symbol(x)))) return(NA)
+      else eval(call('attr', as.symbol(x), 'var.ini.default'))
+    }
+  var.ini.checks <- vapply(c('genetic', 'spatial', 'generic', 'var.ini'),
+                           has_var.ini,
+                           TRUE)
+
+  ## Either all initial variances specified, or no specification at all
+  if (any(var.ini.checks, na.rm = TRUE) && any(!var.ini.checks, na.rm = TRUE))
+    stop(paste('Some initial variances missing.\n',
+               'Please specify either all or none.'))
+
+  ## Resuming supplies every initial variance, so an explicit specification
+  ## would be silently discarded. Say so instead of quietly ignoring it.
+  if (isTRUE(cont) && any(!var.ini.checks, na.rm = TRUE))
+    stop("'cont = TRUE' takes the initial variances from ", progress_file,
+         ".\n Drop the explicit var.ini specifications, or set cont = FALSE.",
+         call. = FALSE)
 
   ## After every argument check above, so that they are reachable without the
   ## backend installed.
@@ -866,48 +955,6 @@ remlf90 <- function(fixed,
     }
   }
 
-  ## Generic specification
-  if (!is.null(generic)) {
-    ## TODO: multitrait case shoud check initial variance conformity
-    ## and return a sensible default
-    generic <- check_generic(generic, response = responsem)
-  }
-  
-  ## Genomic specification
-  if (!is.null(genomic)) {
-    if (is.null(genetic))
-      stop("'genomic' requires a 'genetic' component (e.g. add_animal model).",
-           call. = FALSE)
-    genomic <- check_genomic(genomic)
-  }
-
-  ## Initial variances specification
-  ## We check even the NULL case, where the function returns the
-  ## default initial variances for all random effects + residuals
-  var.ini <- check_var.ini(var.ini, random, responsem)
-  
-  ## Whether the initial variances for each component are defaults
-  has_var.ini <- 
-    function(x) {
-      if (eval(call('is.null', as.symbol(x)))) return(NA)
-      else eval(call('attr', as.symbol(x), 'var.ini.default'))
-    }
-  var.ini.checks <- vapply(c('genetic', 'spatial', 'generic', 'var.ini'),
-                           has_var.ini,
-                           TRUE)
-
-  ## Either all initial variances specified, or no specification at all
-  if (any(var.ini.checks, na.rm = TRUE) && any(!var.ini.checks, na.rm = TRUE))
-    stop(paste('Some initial variances missing.\n',
-               'Please specify either all or none.'))
-
-  ## Resuming supplies every initial variance, so an explicit specification
-  ## would be silently discarded. Say so instead of quietly ignoring it.
-  if (isTRUE(cont) && any(!var.ini.checks, na.rm = TRUE))
-    stop("'cont = TRUE' takes the initial variances from ", progress_file,
-         ".\n Drop the explicit var.ini specifications, or set cont = FALSE.",
-         call. = FALSE)
-
   ## Issue a warning in the case of no specification
   if (all(var.ini.checks, na.rm = TRUE) && !isTRUE(cont)) {
     message(paste0('Using default initial variances given by ',
@@ -917,7 +964,7 @@ remlf90 <- function(fixed,
   
   
   # Build a list of parameters and information for each effect
-  effects <- build.effects(mf, genetic, spatial, generic, var.ini)
+  effects <- build.effects(mf, genetic, spatial, generic, var.ini, traits = trait_masks)
 
   ## Resume from a previous run's log.
   ##
@@ -1328,6 +1375,13 @@ fitted.remlf90 <- function (object, ...) {
   ## Match order
   stopifnot(setequal(names(mml), names(vall)))
   vall <- vall[names(mml)]
+  if (has_trait_restrictions(object$effects)) {
+    masks <- solution_trait_masks(object$effects,
+                                  ncol(as.matrix(model.response(object$mf))))
+    for (nm in names(vall)) {
+      if (any(!masks[[nm]])) vall[[nm]][, !masks[[nm]]] <- 0
+    }
+  }
   
   silent.matmult.drop <- function(x, y) {
     suppressMessages(drop(as.matrix(x %*% y)))
@@ -1341,6 +1395,8 @@ fitted.remlf90 <- function (object, ...) {
   # Linear Predictor / Fitted Values
   ndim <- length(dim(comp.mat))
   eta <- rowSums(comp.mat, dims = ndim - 1)
+  if (has_trait_restrictions(object$effects))
+    dimnames(eta) <- dimnames(as.matrix(model.response(object$mf)))
 
   return(eta)
 }
@@ -1368,7 +1424,7 @@ fitted.remlf90 <- function (object, ...) {
 #' @export fixef
 #' @export
 fixef.remlf90 <- function (object, ...) {
-  ans <- get_estimates(object$fixed)
+  ans <- get_estimates(object$fixed, drop = !has_trait_restrictions(object$effects))
   class(ans) <- 'breedR_estimates'
   return(ans)
 }
@@ -1445,6 +1501,9 @@ nobs.remlf90 <- function (object, ...) {
 plot.remlf90 <- function (x, type = c('phenotype', 'fitted', 'spatial', 'fullspatial', 'residuals'), z = NULL, ...) {
   
   type = match.arg(type)
+  if (has_trait_restrictions(x$effects) && is.null(z))
+    stop("Select one trait and supply its values through 'z', e.g. ",
+         "plot(fit, z = fitted(fit)[, 'y1']).", call. = FALSE)
   
   if( length(coord <- coordinates(x)) == 0) {
     stop(paste('Missing spatial structure. Use coordinates(',
@@ -1524,6 +1583,9 @@ plot.remlf90 <- function (x, type = c('phenotype', 'fitted', 'spatial', 'fullspa
 # @describeIn ranef.breedR
 #' @export
 plot.ranef.breedR <- function(x, y, ...) {
+  if (any(vapply(x, function(e) !is.null(attr(e, 'trait.active')), TRUE)))
+    stop('Select one trait from the random-effect estimates before plotting.',
+         call. = FALSE)
   ## dotplot for each random effect
   ## only makes sense for random effects with a few levels
   ## thus we exclude from the plot genetic, spatial or other 
@@ -1593,6 +1655,10 @@ print.breedR_estimates <- function(x, ...) {
 #'   
 #'   Each random effect has an attribute called \code{"se"} which is a vector 
 #'   with the standard errors.
+#'   For groups restricted by \code{traits}, absent columns contain \code{NA}
+#'   values and standard errors, and a logical \code{trait.active} attribute
+#'   identifies the selected responses. Select a response column explicitly
+#'   before plotting these estimates.
 #'   
 #'   Additionally, depending of the nature of the random effect, there may be 
 #'   further attributes. The pedigree will be given for genetic random effects 
@@ -1619,7 +1685,7 @@ ranef.remlf90 <- function (object, ...) {
   ## and further methods will let the user compute their 'projection'
   ## onto observed individuals (fit) or predict over unobserved individuals (pred)
   
-  ans <- get_estimates(object$ranef)
+  ans <- get_estimates(object$ranef, drop = !has_trait_restrictions(object$effects))
   
   ## Additional attributes
   
@@ -1648,6 +1714,13 @@ ranef.remlf90 <- function (object, ...) {
         colnames(attr(model.matrix(object)$random[[x]], 'contrasts'))
   }
   
+  if (has_trait_restrictions(object$effects)) {
+    masks <- solution_trait_masks(object$effects,
+                                  ncol(as.matrix(model.response(object$mf))))
+    for (nm in names(ans)) {
+      if (any(!masks[[nm]])) attr(ans[[nm]], 'trait.active') <- masks[[nm]]
+    }
+  }
   class(ans) <- c('ranef.breedR', 'breedR_estimates')
   return(ans)
 }
@@ -1656,6 +1729,8 @@ ranef.remlf90 <- function (object, ...) {
 #' Covariance matrix of a fitted remlf90 object
 #' 
 #' Returns the variance-covariance matrix of the specified random effect.
+#' This method does not support fits with trait-restricted random effects.
+#' Inspect the selected component in \code{object$var} instead.
 #' 
 #' @param object a fitted model of class \code{remlf90}
 #' @param effect the structured random effect of interest
@@ -1670,6 +1745,9 @@ vcov.remlf90 <- function (object,
                                      'genetic_competition',
                                      'pec'),
                           ...) {
+  if (has_trait_restrictions(object$effects))
+    stop('vcov() does not support trait-restricted fits; inspect object$var.',
+         call. = FALSE)
   
   effect <- match.arg(effect)
   
@@ -1900,6 +1978,15 @@ print.summary.remlf90 <- function(x, digits = max(3, getOption("digits") - 3),
 
   cat("\nVariance components:\n")
   print(x$var, quote = FALSE, digits = digits, ...)
+  if (has_trait_restrictions(x$effects)) {
+    omitted <- vapply(names(x$effects), function(nm) {
+      active <- x$effects[[nm]]$trait.active
+      if (is.null(active)) return('')
+      paste0(nm, ' on ', paste(names(active)[!active], collapse = ', '))
+    }, '')
+    cat('\nAbsent random effects: ', paste(omitted[nzchar(omitted)], collapse = '; '),
+        '.\nNA for these combinations means not fitted.\n', sep = '')
+  }
   
   ## heterogeneous residual variances replace the Residual row above
   if (!is.null(x$hetres)) {

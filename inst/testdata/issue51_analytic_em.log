@@ -1,0 +1,249 @@
+
+model.par
+     BLUPF90+ ver. 2.76
+
+ Parameter file:             model.par
+ Data file:                  data.txt
+ Number of Traits             2
+ Number of Effects            2
+ Position of Observations      1  2
+ Position of Weights           0  0
+ Value of Missing Trait/Observation           0
+
+EFFECTS
+ #  type                position (2)        levels   [positions for nested]
+    1  cross-classified       3    3         1
+    2  cross-classified       4    0         6
+
+ Residual (co)variance Matrix
+  1.0000      0.0000    
+  0.0000      4.0000    
+
+ Random Effect(s)    2
+ Type of Random Effect:      diagonal
+ trait   effect    (CO)VARIANCES
+  1       2     5.000       0.000    
+  2       2     0.000       0.000    
+
+ REMARKS
+  (1) Weight position 0 means no weights utilized
+  (2) Effect positions of 0 for some effects and traits means that such
+      effects are missing for specified traits
+ 
+
+ * The limited number of OpenMP threads = 4
+
+ * BLUPF90+ sparse operations version
+ 
+ * START JOB (BLUPF90): 09-12-2026  08h 40m 55s 981
+ 
+ *** Statistical method from OPTION VCE                 
+ * convergence criterion (default=1e-12):  1.0000000E-12
+ * maximum number of iterations (default=10000):         200
+ * store solutions and s.e. *** se                  
+ * Run EM-REML until convergence
+ 
+ IJA4 version
+ Data record length =            4
+ # free parameters=           3
+ # parameters=           3
+ # random effects=           1
+ # elements for random effects=           3
+ # maximum (ntrait*random)**2=           4
+ # (co)variance matrices=           1
+
+Read 24 records in 2.39 s,  14 nonzeroes
+
+
+finished peds (VCE) in 2.39 s,  26 nonzeroes
+
+ left hand side
+     24.0000      0.0000      4.0000      0.0000      4.0000      0.0000      4.0000      0.0000      4.0000      0.0000      4.0000      0.0000      4.0000      0.0000
+      0.0000      6.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      4.2000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.0000      0.0000      4.2000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.0000      0.0000      0.0000      0.0000      4.2000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      4.2000      0.0000      0.0000      0.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      4.2000      0.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      4.2000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+ right hand side:
+  240.00  120.00   28.00    0.00   32.00    0.00   36.00    0.00   44.00    0.00
+   48.00    0.00   52.00    0.00
+ rank=           8
+solution:   10.0000   20.0000   -2.8571    0.0000   -1.9048    0.0000   -0.9524    0.0000    0.9524    0.0000    1.9048    0.0000    2.8571    0.0000
+               **************
+               **** FSPAK ***
+               **************
+               MPE / IM / MAE
+                   Jun 1994
+
+              SPARSE STATISTICS
+      DIMENSION OF MATRIX     =                       14
+      RANK                    =                        8
+      STORAGE AVAILABLE       =                      241
+      MAXIMUM NEEDED          =                      241
+      NZE IN UPPER TRIANGULAR =                       40
+      NZE IN FACTOR           =                       12
+      NO. OF CALLS NUM FACT   =                        1
+      NO. OF CALLS SOLVE      =                        1
+      NO. OF CALLS SPARS SOLV =                        0
+      NO. OF CALLS DET / LDET =                        1
+      NO. OF CALLS SPARS INV  =                        1
+      TOTAL CPU TIME IN FSPAK =                 0.000000
+      TIME FOR FINDING ORDER  =                 0.000000
+      TIME FOR SYMBOLIC FAC   =                 0.000000
+      TIME FOR NUMERICAL FAC  =                 0.000000
+      TIME FOR SOLVE          =                 0.000000
+      TIME FOR SPARSE SOLVE   =                 0.000000
+      TIME FOR SPARSE INVERSE =                 0.000000
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     148.796823488404     : AIC =     154.796823488404    logL convergence   0.327942639589310    
+  In round            1  convergence=  2.525188757859546E-003
+ round            1
+ new r
+   1.2507       0.0000    
+   0.0000       4.1667    
+ new G
+   5.2646       0.0000    
+   0.0000       0.0000    
+ * START ITERATION: 09-12-2026  08h 40m 56s 331
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.981082101400     : AIC =     153.981082101400    logL convergence   0.551247084513307E-02
+  In round            2  convergence=  1.026073406394831E-005
+ round            2
+ new r
+   1.3127       0.0000    
+   0.0000       4.1736    
+ new G
+   5.2815       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.945533812097     : AIC =     153.945533812097    logL convergence   0.240279565332457E-03
+  In round            3  convergence=  1.826292219755009E-006
+ round            3
+ new r
+   1.3282       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2743       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.943470959989     : AIC =     153.943470959989    logL convergence   0.139435160235735E-04
+  In round            4  convergence=  7.970547172594427E-007
+ round            4
+ new r
+   1.3320       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2696       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.943340498379     : AIC =     153.943340498379    logL convergence   0.881834978372353E-06
+  In round            5  convergence=  1.365722557716792E-007
+ round            5
+ new r
+   1.3330       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2677       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.943331838962     : AIC =     153.943331838962    logL convergence   0.585319845924914E-07
+  In round            6  convergence=  1.724237475090795E-008
+ round            6
+ new r
+   1.3332       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2670       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.943331242286     : AIC =     153.943331242286    logL convergence   0.403313649144366E-08
+  In round            7  convergence=  1.869997970347439E-009
+ round            7
+ new r
+   1.3333       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2668       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.943331199865     : AIC =     153.943331199865    logL convergence   0.286735996057885E-09
+  In round            8  convergence=  1.853722971666679E-010
+ round            8
+ new r
+   1.3333       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2667       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.943331196770     : AIC =     153.943331196770    logL convergence   0.209206280771257E-10
+  In round            9  convergence=  1.733079884733269E-011
+ min,max changes:   0.101844531656553       0.101844531656553     
+ round            9
+ new r
+   1.3333       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2667       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.943331196540     : AIC =     153.943331196540    logL convergence   0.155457135879444E-11
+  In round           10  convergence=  1.555906191406547E-012
+ round           10
+ new r
+   1.3333       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2667       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.943331196524     : AIC =     153.943331196524    logL convergence   0.107967020740452E-12
+  In round           11  convergence=  1.356542551153481E-013
+ min,max changes:   9.087912030221086E-002  9.087912030221086E-002
+ round           11
+ new r
+   1.3333       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2667       0.0000    
+   0.0000       0.0000    
+
+ At round: 11 Converge in fewer rounds than EM-REML rounds: 200
+    Stop EM-REML at 11 and no runs with AI-REML
+
+ * END ITERATION: 09-12-2026  08h 40m 56s 334
+ solutions and s.e. stored in file: solutions
+
+Final Estimates
+ Genetic variance(s) for effect  2       
+   5.2667       0.0000    
+   0.0000       0.0000    
+   correlations
+   1.0000       0.0000    
+   0.0000       0.0000    
+   eigenvectors
+   0.0000       1.0000    
+   1.0000       0.0000    
+  eigenvalues
+   0.0000       5.2667    
+ Residual variance(s)
+   1.3333       0.0000    
+   0.0000       4.1739    
+   correlations
+   1.0000       0.0000    
+   0.0000       1.0000    
+   eigenvectors
+   1.0000       0.0000    
+   0.0000       1.0000    
+  eigenvalues
+   1.3333       4.1739    
+ *** Statistical Method: VCE                 
+ * FINISHED (BLUPF90): 09-12-2026  08h 40m 56s 335

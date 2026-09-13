@@ -1,0 +1,984 @@
+
+model.par
+     BLUPF90+ ver. 2.76
+
+ Parameter file:             model.par
+ Data file:                  data.txt
+ Number of Traits             2
+ Number of Effects            3
+ Position of Observations      1  2
+ Position of Weights           0  0
+ Value of Missing Trait/Observation           0
+
+EFFECTS
+ #  type                position (2)        levels   [positions for nested]
+    1  cross-classified       3    3         1
+    2  covariable             4    0         0     6   0
+    3  covariable             5    0         6     7   0
+
+ Residual (co)variance Matrix
+  1.0000      0.0000    
+  0.0000      4.0000    
+
+ Random Effect(s)    3
+ Type of Random Effect:      user defined from file and inverted
+ User File:                  identity.txt                                                                                                                                                                                                                                              
+ trait   effect    (CO)VARIANCES
+  1       3     5.000       0.000    
+  2       3     0.000       0.000    
+
+ REMARKS
+  (1) Weight position 0 means no weights utilized
+  (2) Effect positions of 0 for some effects and traits means that such
+      effects are missing for specified traits
+ 
+
+ * The limited number of OpenMP threads = 4
+
+ * BLUPF90+ sparse operations version
+ 
+ * START JOB (BLUPF90): 09-12-2026  16h 03m 55s 891
+ 
+ *** Statistical method from OPTION VCE                 
+ * maximum number of iterations (default=10000):          80
+ * store solutions and s.e. *** se                  
+ 
+ IJA4 version
+ Data record length =            7
+ # free parameters=           3
+ # parameters=           3
+ # random effects=           1
+ # elements for random effects=           3
+ # maximum (ntrait*random)**2=           4
+ # (co)variance matrices=           1
+
+Read 24 records in 1.56 s,  20 nonzeroes
+
+ g_usr_inv: read            6  elements
+ largest row, column, diagonal:           6           6           6
+ a_usr_ija
+ user defined matrix
+      1.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      0.0000      1.0000      0.0000      0.0000      0.0000      0.0000
+      0.0000      0.0000      1.0000      0.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      1.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      1.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      1.0000
+
+finished peds (VCE) in 1.56 s,  20 nonzeroes
+
+ left hand side
+     24.0000      0.0000      4.0000      0.0000      4.0000      0.0000      4.0000      0.0000      4.0000      0.0000      4.0000      0.0000      4.0000      0.0000
+      0.0000      6.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      2.5200      0.0000      0.8400      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.8400      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.8400      0.0000      2.5200      0.0000      0.8400      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.0000      0.0000      0.8400      0.0000      2.5200      0.0000      0.8400      0.0000      0.0000      0.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.8400      0.0000      2.5200      0.0000      0.8400      0.0000      0.0000      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.8400      0.0000      2.5200      0.0000      0.8400      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+      4.0000      0.0000      0.8400      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.8400      0.0000      2.5200      0.0000
+      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000      0.0000
+ right hand side:
+  240.00  120.00   35.20    0.00   30.80    0.00   34.80    0.00   41.60    0.00
+   46.80    0.00   50.80    0.00
+ rank=           8
+solution:   10.0000   20.0000   -2.8571    0.0000   -2.1429    0.0000   -1.6667    0.0000    0.9524    0.0000    0.7143    0.0000    5.0000    0.0000
+               **************
+               **** FSPAK ***
+               **************
+               MPE / IM / MAE
+                   Jun 1994
+
+              SPARSE STATISTICS
+      DIMENSION OF MATRIX     =                       14
+      RANK                    =                        8
+      STORAGE AVAILABLE       =                      249
+      MAXIMUM NEEDED          =                      249
+      NZE IN UPPER TRIANGULAR =                       40
+      NZE IN FACTOR           =                       15
+      NO. OF CALLS NUM FACT   =                        2
+      NO. OF CALLS SOLVE      =                        7
+      NO. OF CALLS SPARS SOLV =                        0
+      NO. OF CALLS DET / LDET =                        1
+      NO. OF CALLS SPARS INV  =                        1
+      TOTAL CPU TIME IN FSPAK =                 0.000000
+      TIME FOR FINDING ORDER  =                 0.000000
+      TIME FOR SYMBOLIC FAC   =                 0.000000
+      TIME FOR NUMERICAL FAC  =                 0.000000
+      TIME FOR SOLVE          =                 0.000000
+      TIME FOR SPARSE SOLVE   =                 0.000000
+      TIME FOR SPARSE INVERSE =                 0.000000
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     149.098993354149     : AIC =     155.098993354149    logL convergence   0.329304665327072    
+  In round            1  convergence=  0.497420805151262     
+  delta convergence=   4.14343759638021     
+ new R
+   1.2984       0.0000    
+   0.0000       4.1667    
+ new G
+   16.965       0.0000    
+   0.0000       0.0000    
+ * START ITERATION: 09-12-2026  16h 03m 56s 310
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.498380701952     : AIC =     153.498380701952    logL convergence   0.108517305925488E-01
+Corrections made:   23 , final bending proportions of AI and EM     0.770000    0.230000
+  In round            2  convergence=   1640.68945350691     
+  delta convergence=   5.52893157620127     
+ new R
+   1.3214       0.0000    
+   0.0000       4.1738    
+ new G
+  0.40875       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     178.790423653698     : AIC =     184.790423653698    logL convergence   0.175020799040794    
+  In round            3  convergence=  0.876926182981726     
+  delta convergence=   2.08821246323987     
+ new R
+   1.5635       0.0000    
+   0.0000       4.1739    
+ new G
+   6.4313       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.554634829827     : AIC =     153.554634829827    logL convergence   0.211689651012421    
+  In round            4  convergence=  0.375345123402262     
+  delta convergence=   3.45764902928872     
+ new R
+   1.3627       0.0000    
+   0.0000       4.1739    
+ new G
+   16.603       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.460998875063     : AIC =     153.460998875063    logL convergence   0.634987954981625E-03
+Corrections made:   22 , final bending proportions of AI and EM     0.780000    0.220000
+  In round            5  convergence=   1222.42541681383     
+  delta convergence=   5.39317241726016     
+ new R
+   1.3249       0.0000    
+   0.0000       4.1739    
+ new G
+  0.46168       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     176.527396087778     : AIC =     182.527396087778    logL convergence   0.164656579494476    
+  In round            6  convergence=  0.868023034395172     
+  delta convergence=   2.19975713352581     
+ new R
+   1.6285       0.0000    
+   0.0000       4.1739    
+ new G
+   6.7573       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.576172524803     : AIC =     153.576172524803    logL convergence   0.196178168058395    
+  In round            7  convergence=  0.338306785839896     
+  delta convergence=   3.23036131013668     
+ new R
+   1.3321       0.0000    
+   0.0000       4.1739    
+ new G
+   16.152       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.405806198995     : AIC =     153.405806198995    logL convergence   0.115576398093253E-02
+Corrections made:   20 , final bending proportions of AI and EM     0.800000    0.200000
+  In round            8  convergence=   1624.07306529785     
+  delta convergence=   5.25644789120340     
+ new R
+   1.3236       0.0000    
+   0.0000       4.1739    
+ new G
+  0.39109       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     179.545118965748     : AIC =     185.545118965748    logL convergence   0.179004102945328    
+  In round            9  convergence=  0.880260616258225     
+  delta convergence=   2.05193560896018     
+ new R
+   1.5399       0.0000    
+   0.0000       4.1739    
+ new G
+   6.3306       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.551948295214     : AIC =     153.551948295214    logL convergence   0.216826483607292    
+  In round           10  convergence=  0.386166228124537     
+  delta convergence=   3.51998253502221     
+ new R
+   1.3715       0.0000    
+   0.0000       4.1739    
+ new G
+   16.722       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.477462401855     : AIC =     153.477462401855    logL convergence   0.505066302139312E-03
+Corrections made:   22 , final bending proportions of AI and EM     0.780000    0.220000
+  In round           11  convergence=   4565.56667312892     
+  delta convergence=   5.50824172495194     
+ new R
+   1.3250       0.0000    
+   0.0000       4.1739    
+ new G
+  0.24387       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     187.728244884296     : AIC =     193.728244884296    logL convergence   0.214409843087196    
+  In round           12  convergence=  0.912216452106156     
+  delta convergence=   1.74332829755954     
+ new R
+   1.2826       0.0000    
+   0.0000       4.1739    
+ new G
+   5.4315       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.850121047078     : AIC =     153.850121047078    logL convergence   0.269719928503036    
+  In round           13  convergence=  0.469237708523813     
+  delta convergence=   3.97719406804064     
+ new R
+   1.4023       0.0000    
+   0.0000       4.1739    
+ new G
+   17.243       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.552717671105     : AIC =     153.552717671105    logL convergence   0.201557367108762E-02
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           14  convergence=   3991.73249912421     
+  delta convergence=   5.68383394104488     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.26867       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     186.095680837620     : AIC =     192.095680837620    logL convergence   0.207113683223724    
+  In round           15  convergence=  0.906121807508305     
+  delta convergence=   1.77528020444688     
+ new R
+   1.3338       0.0000    
+   0.0000       4.1739    
+ new G
+   5.5862       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.734150642347     : AIC =     153.734150642347    logL convergence   0.259665966033936    
+  In round           16  convergence=  0.456666200195012     
+  delta convergence=   3.90486789917734     
+ new R
+   1.4055       0.0000    
+   0.0000       4.1739    
+ new G
+   17.229       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.553420497940     : AIC =     153.553420497940    logL convergence   0.122484553139657E-02
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           17  convergence=   3487.25941769234     
+  delta convergence=   5.67408516747124     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.28690       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     184.976900962482     : AIC =     190.976900962482    logL convergence   0.202314347028732    
+  In round           18  convergence=  0.901841884223928     
+  delta convergence=   1.81848302824792     
+ new R
+   1.3693       0.0000    
+   0.0000       4.1739    
+ new G
+   5.6985       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.673055828153     : AIC =     153.673055828153    logL convergence   0.252611041069031    
+  In round           19  convergence=  0.447090314842613     
+  delta convergence=   3.84498082361738     
+ new R
+   1.4051       0.0000    
+   0.0000       4.1739    
+ new G
+   17.198       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.549609006621     : AIC =     153.549609006621    logL convergence   0.836646184325218E-03
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           20  convergence=   2496.78009478631     
+  delta convergence=   5.64661769985905     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.33742       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     182.144655868661     : AIC =     188.144655868661    logL convergence   0.189931720495224    
+  In round           21  convergence=  0.890844950846837     
+  delta convergence=   1.93490809796097     
+ new R
+   1.4588       0.0000    
+   0.0000       4.1739    
+ new G
+   6.0088       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.577130871158     : AIC =     153.577130871158    logL convergence   0.234233617782593    
+  In round           22  convergence=  0.418670171981508     
+  delta convergence=   3.69344977318362     
+ new R
+   1.3941       0.0000    
+   0.0000       4.1739    
+ new G
+   17.024       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.522889792546     : AIC =     153.522889792546    logL convergence   0.367679080227390E-03
+Corrections made:   23 , final bending proportions of AI and EM     0.770000    0.230000
+  In round           23  convergence=   9969.66330065206     
+  delta convergence=   5.64150841681032     
+ new R
+   1.3252       0.0000    
+   0.0000       4.1739    
+ new G
+  0.16881       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     193.417686020785     : AIC =     199.417686020785    logL convergence   0.237283349037170    
+  In round           24  convergence=  0.933192055177111     
+  delta convergence=   1.67245649238665     
+ new R
+   1.1069       0.0000    
+   0.0000       4.1739    
+ new G
+   4.9678       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     148.557261128080     : AIC =     154.557261128080    logL convergence   0.301973968744278    
+  In round           25  convergence=  0.502468995183228     
+  delta convergence=   4.11519545458778     
+ new R
+   1.3575       0.0000    
+   0.0000       4.1739    
+ new G
+   17.063       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.509799447481     : AIC =     153.509799447481    logL convergence   0.710096349939704E-02
+Corrections made:   23 , final bending proportions of AI and EM     0.770000    0.230000
+  In round           26  convergence=   11266.7415436237     
+  delta convergence=   5.64538940825572     
+ new R
+   1.3249       0.0000    
+   0.0000       4.1739    
+ new G
+  0.15925       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     194.258363786603     : AIC =     200.258363786603    logL convergence   0.240651488304138    
+  In round           27  convergence=  0.936153205522258     
+  delta convergence=   1.66366773821568     
+ new R
+   1.0822       0.0000    
+   0.0000       4.1739    
+ new G
+   4.9076       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     148.707199887119     : AIC =     154.707199887119    logL convergence   0.306314438581467    
+  In round           28  convergence=  0.506289809663793     
+  delta convergence=   4.12346512887029     
+ new R
+   1.3471       0.0000    
+   0.0000       4.1739    
+ new G
+   17.013       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.501614108803     : AIC =     153.501614108803    logL convergence   0.817337352782488E-02
+Corrections made:   23 , final bending proportions of AI and EM     0.770000    0.230000
+  In round           29  convergence=   4241.74691223336     
+  delta convergence=   5.59276886614084     
+ new R
+   1.3245       0.0000    
+   0.0000       4.1739    
+ new G
+  0.25727       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     186.850821191660     : AIC =     192.850821191660    logL convergence   0.210591569542885    
+  In round           30  convergence=  0.908846032987101     
+  delta convergence=   1.75656396422858     
+ new R
+   1.3106       0.0000    
+   0.0000       4.1739    
+ new G
+   5.5130       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.783517621939     : AIC =     153.783517621939    logL convergence   0.264354944229126    
+  In round           31  convergence=  0.462702508450186     
+  delta convergence=   3.94043236474307     
+ new R
+   1.4047       0.0000    
+   0.0000       4.1739    
+ new G
+   17.240       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.554063163988     : AIC =     153.554063163988    logL convergence   0.155505351722240E-02
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           32  convergence=   3941.24252562885     
+  delta convergence=   5.68305434324820     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.27031       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     185.993349765476     : AIC =     191.993349765476    logL convergence   0.206670224666595    
+  In round           33  convergence=  0.905728181230592     
+  delta convergence=   1.77917709579184     
+ new R
+   1.3371       0.0000    
+   0.0000       4.1739    
+ new G
+   5.5962       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.727959937771     : AIC =     153.727959937771    logL convergence   0.259026050567627    
+  In round           34  convergence=  0.455825676663953     
+  delta convergence=   3.89975336595408     
+ new R
+   1.4056       0.0000    
+   0.0000       4.1739    
+ new G
+   17.227       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.553226959914     : AIC =     153.553226959914    logL convergence   0.118420307990164E-02
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           35  convergence=   3407.26273104762     
+  delta convergence=   5.67231892747263     
+ new R
+   1.3254       0.0000    
+   0.0000       4.1739    
+ new G
+  0.29015       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     184.782669152494     : AIC =     190.782669152494    logL convergence   0.201476916670799    
+  In round           36  convergence=  0.901095878012881     
+  delta convergence=   1.82613788520245     
+ new R
+   1.3755       0.0000    
+   0.0000       4.1739    
+ new G
+   5.7185       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.663880157398     : AIC =     153.663880157398    logL convergence   0.251373529434204    
+  In round           37  convergence=  0.445339843012010     
+  delta convergence=   3.83366503298496     
+ new R
+   1.4048       0.0000    
+   0.0000       4.1739    
+ new G
+   17.190       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.548564972859     : AIC =     153.548564972859    logL convergence   0.781540526077151E-03
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           38  convergence=   2320.11390784322     
+  delta convergence=   5.63997237846372     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.34963       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     181.514317004709     : AIC =     187.514317004709    logL convergence   0.187124371528625    
+  In round           39  convergence=  0.888360133378977     
+  delta convergence=   1.96228041992723     
+ new R
+   1.4785       0.0000    
+   0.0000       4.1739    
+ new G
+   6.0835       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.565889911754     : AIC =     153.565889911754    logL convergence   0.230056062340736    
+  In round           40  convergence=  0.411411200276359     
+  delta convergence=   3.65681218899866     
+ new R
+   1.3897       0.0000    
+   0.0000       4.1739    
+ new G
+   16.965       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.513622812027     : AIC =     153.513622812027    logL convergence   0.354320480255410E-03
+Corrections made:   23 , final bending proportions of AI and EM     0.770000    0.230000
+  In round           41  convergence=   3721.36165416698     
+  delta convergence=   5.58530003866883     
+ new R
+   1.3253       0.0000    
+   0.0000       4.1739    
+ new G
+  0.27362       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     185.791495789987     : AIC =     191.791495789987    logL convergence   0.206025972962379    
+  In round           42  convergence=  0.904933167474732     
+  delta convergence=   1.78693928003449     
+ new R
+   1.3436       0.0000    
+   0.0000       4.1739    
+ new G
+   5.6161       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.716115528145     : AIC =     153.716115528145    logL convergence   0.257760494947433    
+  In round           43  convergence=  0.454151277180109     
+  delta convergence=   3.88944881184881     
+ new R
+   1.4057       0.0000    
+   0.0000       4.1739    
+ new G
+   17.222       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.552765433634     : AIC =     153.552765433634    logL convergence   0.110706221312284E-02
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           44  convergence=   3240.49905407459     
+  delta convergence=   5.66842949265388     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.29732       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     184.361230112194     : AIC =     190.361230112194    logL convergence   0.199654042720795    
+  In round           45  convergence=  0.899473273898899     
+  delta convergence=   1.84290946397399     
+ new R
+   1.3888       0.0000    
+   0.0000       4.1739    
+ new G
+   5.7627       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.645364318686     : AIC =     153.645364318686    logL convergence   0.248676046729088    
+  In round           46  convergence=  0.441447738367799     
+  delta convergence=   3.80813731555418     
+ new R
+   1.4039       0.0000    
+   0.0000       4.1739    
+ new G
+   17.172       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.545903116815     : AIC =     153.545903116815    logL convergence   0.674103444907814E-03
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           47  convergence=   1955.28814208111     
+  delta convergence=   5.62355626287852     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.37975       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     180.037556171992     : AIC =     186.037556171992    logL convergence   0.180471524596214    
+  In round           48  convergence=  0.882478879607978     
+  delta convergence=   2.02861942465494     
+ new R
+   1.5242       0.0000    
+   0.0000       4.1739    
+ new G
+   6.2669       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.551943012566     : AIC =     153.551943012566    logL convergence   0.220163911581039    
+  In round           49  convergence=  0.392857074290276     
+  delta convergence=   3.55738705564369     
+ new R
+   1.3767       0.0000    
+   0.0000       4.1739    
+ new G
+   16.792       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.487518528534     : AIC =     153.487518528534    logL convergence   0.436813134001568E-03
+Corrections made:   22 , final bending proportions of AI and EM     0.780000    0.220000
+  In round           50  convergence=   20817.3586937623     
+  delta convergence=   5.57595217058611     
+ new R
+   1.3250       0.0000    
+   0.0000       4.1739    
+ new G
+  0.11558       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     198.395761947434     : AIC =     204.395761947434    logL convergence   0.256599456071854    
+  In round           51  convergence=  0.950779113838267     
+  delta convergence=   1.62800734384999     
+ new R
+  0.96323       0.0000    
+   0.0000       4.1739    
+ new G
+   4.6378       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     149.663547536233     : AIC =     155.663547536233    logL convergence   0.325611770153046    
+  In round           52  convergence=  0.521811736755698     
+  delta convergence=   4.12907849747854     
+ new R
+   1.2834       0.0000    
+   0.0000       4.1739    
+ new G
+   16.705       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.475540686110     : AIC =     153.475540686110    logL convergence   0.148364054039121E-01
+Corrections made:   22 , final bending proportions of AI and EM     0.780000    0.220000
+  In round           53  convergence=   1561.18213407725     
+  delta convergence=   5.44304325006404     
+ new R
+   1.3201       0.0000    
+   0.0000       4.1739    
+ new G
+  0.41235       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     178.657737641084     : AIC =     184.657737641084    logL convergence   0.174535945057869    
+  In round           54  convergence=  0.876212274422438     
+  delta convergence=   2.09489565139230     
+ new R
+   1.5679       0.0000    
+   0.0000       4.1739    
+ new G
+   6.4492       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.556042410315     : AIC =     153.556042410315    logL convergence   0.210778862237930    
+  In round           55  convergence=  0.373377738874414     
+  delta convergence=   3.44620277953536     
+ new R
+   1.3610       0.0000    
+   0.0000       4.1739    
+ new G
+   16.581       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.457937653816     : AIC =     153.457937653816    logL convergence   0.665306695736945E-03
+Corrections made:   21 , final bending proportions of AI and EM     0.790000    0.210000
+  In round           56  convergence=   251800.190421420     
+  delta convergence=   5.52806387155131     
+ new R
+   1.3246       0.0000    
+   0.0000       4.1739    
+ new G
+  0.32977E-01   0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     208.343965919500     : AIC =     214.343965919500    logL convergence   0.292238026857376    
+  In round           57  convergence=  0.984074700790953     
+  delta convergence=   1.56741550990630     
+ new R
+  0.71429       0.0000    
+   0.0000       4.1739    
+ new G
+   4.1249       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     153.787732551507     : AIC =     159.787732551507    logL convergence   0.354750216007233    
+  In round           58  convergence=  0.543917966991987     
+  delta convergence=   3.98477862965344     
+ new R
+   1.0791       0.0000    
+   0.0000       4.1739    
+ new G
+   15.714       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.775499841195     : AIC =     153.775499841195    logL convergence   0.406849086284637E-01
+Corrections made:   17 , final bending proportions of AI and EM     0.830000    0.170000
+  In round           59  convergence=   2251.00631148687     
+  delta convergence=   5.19584043299270     
+ new R
+   1.2765       0.0000    
+   0.0000       4.1739    
+ new G
+  0.32438       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     183.976207164021     : AIC =     189.976207164021    logL convergence   0.196768417954445    
+  In round           60  convergence=  0.891138444735269     
+  delta convergence=   1.87342329093520     
+ new R
+   1.4286       0.0000    
+   0.0000       4.1739    
+ new G
+   5.7926       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.647226931162     : AIC =     153.647226931162    logL convergence   0.246052578091621    
+  In round           61  convergence=  0.438643583222929     
+  delta convergence=   3.79528619989744     
+ new R
+   1.4033       0.0000    
+   0.0000       4.1739    
+ new G
+   17.153       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.543377655650     : AIC =     153.543377655650    logL convergence   0.703855883330107E-03
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           62  convergence=   1664.70064948527     
+  delta convergence=   5.60689146586579     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.41036       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     178.643730845191     : AIC =     184.643730845191    logL convergence   0.174091488122940    
+  In round           63  convergence=  0.876842669231963     
+  delta convergence=   2.09419905706312     
+ new R
+   1.5664       0.0000    
+   0.0000       4.1739    
+ new G
+   6.4520       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.552904103942     : AIC =     153.552904103942    logL convergence   0.210709691047668    
+  In round           64  convergence=  0.373120591924800     
+  delta convergence=   3.44412389417302     
+ new R
+   1.3612       0.0000    
+   0.0000       4.1739    
+ new G
+   16.579       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.457855489182     : AIC =     153.457855489182    logL convergence   0.644581567030400E-03
+Corrections made:   21 , final bending proportions of AI and EM     0.790000    0.210000
+  In round           65  convergence=   218399.161552960     
+  delta convergence=   5.52681266412850     
+ new R
+   1.3246       0.0000    
+   0.0000       4.1739    
+ new G
+  0.35401E-01   0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     208.002885125547     : AIC =     214.002885125547    logL convergence   0.291077822446823    
+  In round           66  convergence=  0.982971537219619     
+  delta convergence=   1.56910636895422     
+ new R
+  0.72191       0.0000    
+   0.0000       4.1739    
+ new G
+   4.1400       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     153.594580107436     : AIC =     159.594580107436    logL convergence   0.354233235120773    
+  In round           67  convergence=  0.543414590110130     
+  delta convergence=   3.99210939230086     
+ new R
+   1.0867       0.0000    
+   0.0000       4.1739    
+ new G
+   15.752       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.750480095218     : AIC =     153.750480095218    logL convergence   0.395538471639156E-01
+Corrections made:   17 , final bending proportions of AI and EM     0.830000    0.170000
+  In round           68  convergence=   4593.71849053411     
+  delta convergence=   5.23829110183416     
+ new R
+   1.2791       0.0000    
+   0.0000       4.1739    
+ new G
+  0.22902       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     190.097683138230     : AIC =     196.097683138230    logL convergence   0.222765490412712    
+  In round           69  convergence=  0.913992186849778     
+  delta convergence=   1.67152309170843     
+ new R
+   1.2440       0.0000    
+   0.0000       4.1739    
+ new G
+   5.2086       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     148.032484623081     : AIC =     154.032484623081    logL convergence   0.284161955118179    
+  In round           70  convergence=  0.486675733995304     
+  delta convergence=   4.05784749006337     
+ new R
+   1.4008       0.0000    
+   0.0000       4.1739    
+ new G
+   17.225       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.549669614372     : AIC =     153.549669614372    logL convergence   0.327222025953233E-02
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           71  convergence=   3195.95752406303     
+  delta convergence=   5.66707751924881     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.29940       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     184.239082567109     : AIC =     190.239082567109    logL convergence   0.199140220880508    
+  In round           72  convergence=  0.899010161700764     
+  delta convergence=   1.84779451734668     
+ new R
+   1.3927       0.0000    
+   0.0000       4.1739    
+ new G
+   5.7756       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.640330694343     : AIC =     153.640330694343    logL convergence   0.247891291975975    
+  In round           73  convergence=  0.440293702638236     
+  delta convergence=   3.80048915078911     
+ new R
+   1.4036       0.0000    
+   0.0000       4.1739    
+ new G
+   17.166       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.545027935980     : AIC =     153.545027935980    logL convergence   0.645923195406795E-03
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           74  convergence=   1855.74047079062     
+  delta convergence=   5.61827325512810     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.38945       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     179.585075441667     : AIC =     185.585075441667    logL convergence   0.178411528468132    
+  In round           75  convergence=  0.880658903365880     
+  delta convergence=   2.04958535108259     
+ new R
+   1.5380       0.0000    
+   0.0000       4.1739    
+ new G
+   6.3257       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.550856093205     : AIC =     153.550856093205    logL convergence   0.217106297612190    
+  In round           76  convergence=  0.386701479786931     
+  delta convergence=   3.52280609513279     
+ new R
+   1.3720       0.0000    
+   0.0000       4.1739    
+ new G
+   16.728       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.478380025169     : AIC =     153.478380025169    logL convergence   0.491435232106596E-03
+Corrections made:   22 , final bending proportions of AI and EM     0.780000    0.220000
+  In round           77  convergence=   5035.11911416163     
+  delta convergence=   5.51426455995828     
+ new R
+   1.3250       0.0000    
+   0.0000       4.1739    
+ new G
+  0.23247       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     188.512427535134     : AIC =     194.512427535134    logL convergence   0.217672899365425    
+  In round           78  convergence=  0.915153836724522     
+  delta convergence=   1.73185027158700     
+ new R
+   1.2579       0.0000    
+   0.0000       4.1739    
+ new G
+   5.3610       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.918192775230     : AIC =     153.918192775230    logL convergence   0.274437069892883    
+  In round           79  convergence=  0.474725895714676     
+  delta convergence=   4.00611464438364     
+ new R
+   1.3992       0.0000    
+   0.0000       4.1739    
+ new G
+   17.238       0.0000    
+   0.0000       0.0000    
+quadr_ija: OpenMP threads=  1  4         6 OMP= F
+-2logL =     147.549947526121     : AIC =     153.549947526121    logL convergence   0.249573285691440E-02
+Corrections made:   24 , final bending proportions of AI and EM     0.760000    0.240000
+  In round           80  convergence=   3631.21094827455     
+  delta convergence=   5.67677967301575     
+ new R
+   1.3255       0.0000    
+   0.0000       4.1739    
+ new G
+  0.28139       0.0000    
+   0.0000       0.0000    
+ * END ITERATION: 09-12-2026  16h 03m 56s 342
+ solutions and s.e. stored in file: solutions
+
+Final Estimates
+ Genetic variance(s) for effect  3       
+  0.28139       0.0000    
+   0.0000       0.0000    
+   correlations
+   1.0000       0.0000    
+   0.0000       0.0000    
+   eigenvectors
+   0.0000       1.0000    
+   1.0000       0.0000    
+  eigenvalues
+   0.0000      0.28139    
+ Residual variance(s)
+   1.3255       0.0000    
+   0.0000       4.1739    
+   correlations
+   1.0000       0.0000    
+   0.0000       1.0000    
+   eigenvectors
+   1.0000       0.0000    
+   0.0000       1.0000    
+  eigenvalues
+   1.3255       4.1739    
+ inverse of AI matrix (Sampling Variance)
+   304.26      0.56149E-01   0.0000    
+  0.56149E-01  0.20820       0.0000    
+   0.0000       0.0000       1.4993    
+ Correlations from inverse of AI matrix
+   1.0000      0.70546E-02   0.0000    
+  0.70546E-02   1.0000       0.0000    
+   0.0000       0.0000       1.0000    
+ SE for G
+   17.443       0.0000    
+   0.0000       0.0000    
+ SE for R
+  0.45629       0.0000    
+   0.0000       1.2244    
+ *** Statistical Method: VCE                 
+ * FINISHED (BLUPF90): 09-12-2026  16h 03m 56s 346

@@ -5,7 +5,7 @@
 \alias{dim.effect_group}
 \title{Constructor for a group of effects}
 \usage{
-effect_group(x, cov.ini, ntraits)
+effect_group(x, cov.ini, ntraits, trait.active = NULL)
 
 \method{dim}{effect_group}(x)
 }
@@ -15,6 +15,10 @@ effect_group(x, cov.ini, ntraits)
 \item{cov.ini}{initial covariance matrix for the estimation algorithm}
 
 \item{ntraits}{number of traits in the model}
+
+\item{trait.active}{optional logical presence mask in global response order.
+All group members share the mask. Absent covariance coordinates are stored
+as zeros; the retained principal submatrix must be positive definite.}
 }
 \value{
 A list of \code{breedr_effect} elements.

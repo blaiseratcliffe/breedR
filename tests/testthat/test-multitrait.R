@@ -1,5 +1,37 @@
 context("Basic Multitrait models")
 
+test_that("restricted methods distinguish absent effects from unknown estimates", {
+  d <- data.frame(y1 = 1:6, y2 = c(3, 2, 4, 6, 5, 7),
+                  group = factor(c('b', 'a', 'c', 'b', 'a', 'c')))
+  data <- d
+  mf <- build.mf(call('remlf90', fixed = cbind(y1, y2) ~ 1,
+                      random = ~ group, data = quote(d)))
+  effects <- build.effects(mf, NULL, NULL, NULL, list(group = diag(2)),
+                            traits = list(group = c(y1 = TRUE, y2 = FALSE)))
+  coefficients <- function(value, labels)
+    data.frame(value = value, s.e. = ifelse(is.na(value), NA_real_, 1),
+                row.names = labels)
+  fit <- structure(list(mf = mf, effects = effects, reml = list(method = 'ai'),
+                         components = list(pedigree = FALSE),
+                         fixed = list(Intercept = list(
+                           y1 = coefficients(10, '1'), y2 = coefficients(20, '1'))),
+                         ranef = list(group = list(
+                           y1 = coefficients(c(-1, 0, 1), levels(d$group)),
+                           y2 = coefficients(rep(NA_real_, 3), levels(d$group))))),
+                    class = 'remlf90')
+  ## Coefficient presence comes from the model, never inferred from NA values.
+  expect_equal(unname(fitted(fit)), cbind(10 + c(0, -1, 1, 0, -1, 1), rep(20, 6)))
+  expect_identical(dimnames(fitted(fit)), dimnames(as.matrix(model.response(mf))))
+  expect_identical(attr(ranef(fit)$group, 'trait.active'), c(y1 = TRUE, y2 = FALSE))
+  expect_true(all(is.na(attr(ranef(fit)$group, 'se')[, 'y2'])))
+  expect_error(plot(fit), 'Select one trait')
+  expect_error(plot(ranef(fit)), 'Select one trait')
+  expect_error(vcov(fit), 'does not support trait-restricted')
+  fit$ranef$group$y1$value[1] <- NA_real_
+  expect_true(anyNA(fitted(fit)[, 'y1']))
+  expect_false(anyNA(fitted(fit)[, 'y2']))
+})
+
 ## Bivariate model with a random effect of block and a genetic effect.
 res_mt <- readRDS(file.path(testdata, "res_mt.rds"))
 ntraits <- ncol(as.matrix(model.response(res_mt$mf)))

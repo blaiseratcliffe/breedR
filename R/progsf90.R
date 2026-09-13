@@ -4,7 +4,7 @@
 # as required by Misztal's progsf90 suite of programs
 # @references
 # \url{http://nce.ads.uga.edu/wiki/lib/exe/fetch.php?media=blupf90.pdf}
-build.effects <- function (mf, genetic, spatial, generic, var.ini) {
+build.effects <- function (mf, genetic, spatial, generic, var.ini, traits = NULL) {
   
   # Build up effects data (position, levels, type)
 
@@ -26,7 +26,8 @@ build.effects <- function (mf, genetic, spatial, generic, var.ini) {
   for (x in names(mf.rnd)) {
     effect.item <- effect_group(list(diagonal(mf.rnd[[x]])),
                                 cov.ini = var.ini[[x]],
-                                ntraits = ncol(stats::model.response(mf)))
+                                ntraits = ncol(stats::model.response(mf)),
+                                trait.active = traits[[x]])
     effect.item.list <- structure(list(effect.item),
                                   names = x)
     effects <- c(effects, effect.item.list)
@@ -52,7 +53,8 @@ build.effects <- function (mf, genetic, spatial, generic, var.ini) {
       ## additive-genetic only
       effect.item <- effect_group(list(direct = gen_direct),
                                   cov.ini = genetic$var.ini,
-                                  ntraits = ncol(stats::model.response(mf)))
+                                  ntraits = ncol(stats::model.response(mf)),
+                                  trait.active = traits[['genetic']])
       effect.item.list <- list(genetic = effect.item)
     } else {
       
@@ -68,7 +70,8 @@ build.effects <- function (mf, genetic, spatial, generic, var.ini) {
       effect.item <- effect_group(list(genetic_direct = gen_direct,
                                        genetic_competition = gen_comp),
                                   cov.ini = genetic$var.ini,
-                                  ntraits = ncol(stats::model.response(mf)))
+                                  ntraits = ncol(stats::model.response(mf)),
+                                  trait.active = traits[['genetic']])
       effect.item.list <- list(genetic = effect.item)
       
       ## eventually, a second effect-group for pec      
@@ -80,7 +83,8 @@ build.effects <- function (mf, genetic, spatial, generic, var.ini) {
         )
         effect.item <- effect_group(list(pec = pec),
                                     cov.ini = genetic$pec$var.ini,
-                                    ntraits = ncol(stats::model.response(mf)))
+                                    ntraits = ncol(stats::model.response(mf)),
+                                    trait.active = traits[['pec']])
         effect.item.list <- c(
           effect.item.list,
           list(pec = effect.item)
@@ -105,7 +109,8 @@ build.effects <- function (mf, genetic, spatial, generic, var.ini) {
     ## build the effect group with the (single) spatial model
     effect.item <- effect_group(structure(list(sp), names = class(sp)[1]),
                                 cov.ini = spatial$var.ini,
-                                ntraits = ncol(stats::model.response(mf)))
+                                ntraits = ncol(stats::model.response(mf)),
+                                trait.active = traits[['spatial']])
     
     effects <- c(effects, list(spatial = effect.item))
   }
@@ -117,23 +122,18 @@ build.effects <- function (mf, genetic, spatial, generic, var.ini) {
     
     ## From each element in the generic list, we build a generic object
     ## and make an effect_group with it alone, and the corresponding var.ini
-    make_group <- function(x) {
+    make_group <- function(x, name) {
       stopifnot('var.ini' %in% names(x))
       go <- do.call('generic', x[-grep('var.ini', names(x))])
       ef <- effect_group(list(go),
                          x[['var.ini']],
-                         ntraits = ncol(stats::model.response(mf)))
+                         ntraits = ncol(stats::model.response(mf)),
+                         trait.active = traits[[name]])
       return(ef)
     }
-    generic.groups <- lapply(generic, make_group)
-    
-    ## Make sure the names do not clash any of the 'special' names
-    ## i.e. 'genetic' or 'spatial'
-    match.idx <- names(generic.groups) %in% c('genetic', 'spatial')
-    if (any(match.idx)) {
-      names(generic.groups)[match.idx] <- 
-        paste0('generic_', names(generic.groups)[match.idx])
-    }
+    group.names <- generic_effect_names(generic)
+    generic.groups <- Map(make_group, generic, group.names)
+    names(generic.groups) <- group.names
     
     effects <- c(effects,
                  generic.groups)
@@ -208,10 +208,13 @@ progsf90 <- function (mf, weights, effects, opt = c("sol se"), res.var.ini = 10)
     # Determine the right position in the effects list
     group.head.abs <- sum(sapply(effect.lst, length)[1:(x-1)]) + group.head
     
-    return(list(pos = group.head.abs + 1:group.size - 1,
+    ans <- list(pos = group.head.abs + 1:group.size - 1,
                 type = effects.pf90[[x]]$model, 
                 file = effects.pf90[[x]]$file_name, 
-                cov  = effects.pf90[[x]]$var))
+                cov  = effects.pf90[[x]]$var)
+    if (!is.null(effects[[x]]$trait.active))
+      ans$trait.active <- effects[[x]]$trait.active
+    return(ans)
   }
   # Parameters  
   par <- list(datafile = 'data',
@@ -332,6 +335,123 @@ first_number <- function(x) {
 }
 
 
+# Read the backend's fixed-width solution fields, including touching trait and
+# effect columns when a virtual effect has four digits (issue #24).
+read_pf90_solutions <- function(solfile, restricted = FALSE) {
+  sol.file <- try(utils::read.table(solfile, header = FALSE, skip = 1),
+                  silent = restricted)
+  if (inherits(sol.file, 'try-error') ||
+      (restricted && ncol(sol.file) == 4L)) {
+    sol.file <- utils::read.table(solfile, header = FALSE, skip = 1, fill = TRUE)
+    if (restricted && ncol(sol.file) == 4L) sol.file[[5]] <- NA_real_
+    bug.idx <- which(is.na(sol.file[, 5]))
+    stopifnot(all(!is.na(sol.file[bug.idx, -5])))
+    if (restricted) {
+      trait <- sol.file[bug.idx, 1] %/% 1e4
+      effect <- sol.file[bug.idx, 1] %% 1e4
+      sol.file[bug.idx, ] <- cbind(trait, effect, sol.file[bug.idx, 2:4])
+    } else {
+      ## Preserve the original single-trait compatibility branch.
+      stopifnot(all(substr(sol.file[bug.idx, 1], 1, 1) == '1'))
+      sol.file[bug.idx, 1] <- sol.file[bug.idx, 1] - 1e4
+      sol.file[bug.idx, ] <- cbind(1, sol.file[bug.idx, 1:4])
+    }
+  }
+  colnames(sol.file) <- c('trait', 'effect', 'level', 'value', 's.e.')
+  sol.file
+}
+
+
+# Solution-bearing rows in the backend's virtual-effect layout. A nested
+# incidence matrix may render several zero-level rows before its one anchor.
+pf90_effect_layout <- function(effects, ntraits) {
+  rendered <- lapply(effects, renderpf90)
+  offset <- c(0L, head(cumsum(vapply(rendered,
+                                    function(x) length(x$levels), 1L)), -1L))
+  layout <- do.call(rbind, lapply(seq_along(effects), function(i) {
+    anchors <- which(rendered[[i]]$levels > 0)
+    data.frame(effect = offset[i] + anchors, group = i,
+               member = seq_along(anchors),
+               levels = rendered[[i]]$levels[anchors])
+  }))
+  if (nrow(layout) != length(get_efnames(effects)))
+    stop('Backend effect layout does not match the model.', call. = FALSE)
+  layout$name <- get_efnames(effects)
+  layout
+}
+
+
+# Align by all three backend keys before displaying absent coordinates as NA.
+# Missing rows are legitimate only for combinations explicitly omitted by the
+# model. Active zero solutions are ordinary estimates and must remain zero.
+parse_trait_solutions <- function(sol, effects, ntraits, trait_names) {
+  layout <- pf90_effect_layout(effects, ntraits)
+  fail <- function(detail)
+    stop('Invalid backend solution layout: ', detail, '.', call. = FALSE)
+  keys <- sol[, c('effect', 'trait', 'level')]
+  if (!all(vapply(keys, is.numeric, TRUE)) ||
+      anyNA(keys) || any(!is.finite(as.matrix(keys))) ||
+      any(as.matrix(keys) != floor(as.matrix(keys))))
+    fail('effect, trait and level keys must be integers')
+  if (anyDuplicated(keys)) fail('duplicate effect/trait/level keys')
+  anchor <- match(sol$effect, layout$effect)
+  if (anyNA(anchor) || any(sol$trait < 1 | sol$trait > ntraits) ||
+      any(sol$level < 1 | sol$level > layout$levels[anchor]))
+    fail('out-of-range effect/trait/level keys')
+
+  result <- lapply(seq_len(nrow(layout)), function(i) {
+    active <- effect_trait_mask(effects[[layout$group[i]]], ntraits)
+    tabs <- lapply(seq_len(ntraits), function(t) {
+      rows <- which(sol$effect == layout$effect[i] & sol$trait == t)
+      idx <- match(seq_len(layout$levels[i]), sol$level[rows])
+      if (active[t] && anyNA(idx))
+        fail(paste('missing active solution rows for', layout$name[i],
+                   'trait', trait_names[t]))
+      ans <- data.frame(value = rep(NA_real_, layout$levels[i]),
+                        s.e. = rep(NA_real_, layout$levels[i]))
+      if (active[t]) ans[] <- sol[rows[idx], c('value', 's.e.')]
+      ans
+    })
+    stats::setNames(tabs, trait_names)
+  })
+  stats::setNames(result, layout$name)
+}
+
+
+# Keep full covariance blocks even when only one trait remains, or a fit fails
+# to converge. The legacy scalar representation is untouched for old models.
+parse_trait_variances <- function(x, effects, sizes, vc_names, trait_names,
+                                  method, converged, is_hetres) {
+  subnames <- lapply(names(sizes), function(name)
+    names_effect(names(effects[[name]]$effects), trait_names))
+  read_blocks <- function(pattern) {
+    at <- grep(pattern, x) + 1L
+    if (length(at) != length(sizes))
+      stop('Backend covariance layout does not match the model.', call. = FALSE)
+    out <- lapply(seq_along(sizes), function(i) {
+      m <- parse.txtmat(extract_block(at[i], x), subnames[[i]])
+      if (!identical(dim(m), rep(as.integer(sizes[i]), 2L)))
+        stop('Backend covariance layout does not match the model.', call. = FALSE)
+      m
+    })
+    stats::setNames(out, vc_names)
+  }
+  if (converged) {
+    estimates <- read_blocks('Genetic variance|Residual variance')
+    if (method == 'ai')
+      se <- read_blocks(if (is_hetres) 'SE for G' else 'SE for G|SE for R')
+  } else {
+    estimates <- stats::setNames(lapply(seq_along(sizes), function(i)
+      matrix(NA_real_, sizes[i], sizes[i],
+             dimnames = list(subnames[[i]], subnames[[i]]))), vc_names)
+    if (method == 'ai') se <- estimates
+  }
+  if (method == 'ai')
+    cbind('Estimated variances' = estimates, 'S.E.' = se)
+  else estimates
+}
+
+
 # Parse results from a progsf90 'solutions' file
 parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
 
@@ -379,50 +499,26 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
     grep("Number of Traits", reml.out, value = TRUE),
     ' +')), 1))
   trait_names <- colnames(stats::model.response(mf))  # NULL for 1 trait
+  restricted <- has_trait_restrictions(effects)
   
   # Parsing the results
-  sol.file <- try(utils::read.table(solfile, header=FALSE, skip=1))
-  if( inherits(sol.file, 'try-error') ) {
-    ## The output file is formatted with fixed-width columns
-    ## leaving 4 spaces between the columns trait and effect
-    ## If there are more than 999 total random effects (e.g.
-    ## in a splines model with 30x30 knots), this two columns
-    ## become one.
-    ## The following is a workaround treating it as one column
-    ## filling the last with NA and then rearranging
-    ## Fixes #24
-    sol.file <- read.table(solfile, header=FALSE, skip=1, fill=TRUE)
-    bug.idx <- which(is.na(sol.file[, 5]))
-    
-    ## check that only one column was lost
-    stopifnot(all(!is.na(sol.file[bug.idx, -5])))
-    
-    ## check that the first digit of the trait/effect code is 1
-    stopifnot(all(substr(sol.file[bug.idx, 1], 1, 1) == "1"))
-    
-    ## correct the code of the effect by removing the leading 1
-    sol.file[bug.idx, 1] <- sol.file[bug.idx, 1] - 1e4
-    
-    ## shift all the columns to the right
-    sol.file[bug.idx, ] <- cbind(1, sol.file[bug.idx, 1:4])
-  }
-  colnames(sol.file) <- c('trait', 'effect', 'level', 'value', 's.e.')
+  sol.file <- read_pf90_solutions(solfile, restricted)
   
   # trait < level < effect
   split_by <- function(x, var) {
     col.id <- match(var, names(x))
     split(x[, -col.id], x[[col.id]])
   }
-  result_by_effect <- split_by(sol.file[, -3], 'effect')
-  result <- lapply(result_by_effect, split_by, 'trait')
+  if (restricted) {
+    result <- parse_trait_solutions(sol.file, effects, ntraits, trait_names)
+  } else {
+    result_by_effect <- split_by(sol.file[, -3], 'effect')
+    result <- lapply(result_by_effect, split_by, 'trait')
 
-  # Name the results according to effects
-  # Effects can be grouped (e.g. competition) and account for correlated
-  # effects
-  names(result) <- get_efnames(effects)
-  
-  # Name traits within effects
-  result <- lapply(result, structure, names = trait_names)
+    # Name the results according to effects and traits.
+    names(result) <- get_efnames(effects)
+    result <- lapply(result, structure, names = trait_names)
+  }
 
   # Different results can be associated to a single (group) effect
   effect.size <- vapply(effects, dim, numeric(2))["size", ]
@@ -486,7 +582,13 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
   varcomp.idx <- grep('Genetic variance|Residual variance', reml.out) + 1
   
   # Variance components
-  if (identical(last.round[1], max.it)) {
+  if (restricted) {
+    converged <- !isTRUE(last.round[1] == max.it)
+    if (!converged) warning('The algorithm did not converge')
+    varcomp <- parse_trait_variances(reml.out, effects, rangroup.sizes,
+                                     vc_names, trait_names, method,
+                                     converged, is_hetres)
+  } else if (identical(last.round[1], max.it)) {
     warning('The algorithm did not converge')
     varcomp <- cbind('Estimated variances' = rep(NA, length(vc_names)))
     rownames(varcomp) <- vc_names
@@ -590,10 +692,30 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
     comp_names <- unname(unlist(
       mapply(vcnames, names(rangroup.sizes), rangroup.sizes,
              MoreArgs = list(trnames = trait_names), SIMPLIFY = FALSE)))
-    estvar <- unlist(lapply(varcomp[, 1],
-                            function(x) x[lower.tri(x, diag = TRUE)]))
-    idx <- vapply(estvar, identical, TRUE, 0)
-    comp_names <- comp_names[!idx]
+    if (restricted) {
+      initial <- lapply(effects[effect.type == 'random'], function(g) g$cov.ini)
+      if (!is_hetres) {
+        at <- grep('Residual (co)variance Matrix', reml.out, fixed = TRUE)
+        if (length(at) != 1L)
+          stop('Backend AI layout does not match the active covariance parameters.',
+               call. = FALSE)
+        residual.ini <- parse.txtmat(extract_block(at + 1L, reml.out))
+        if (!identical(dim(residual.ini), rep(as.integer(ntraits), 2L)))
+          stop('Backend AI layout does not match the active covariance parameters.',
+               call. = FALSE)
+        initial <- c(initial, list(residual.ini))
+      }
+      free <- unlist(lapply(initial, function(x) {
+        x <- as.matrix(x)
+        x[lower.tri(x, diag = TRUE)] != 0
+      }))
+      comp_names <- comp_names[free]
+    } else {
+      estvar <- unlist(lapply(varcomp[, 1],
+                              function(x) x[lower.tri(x, diag = TRUE)]))
+      idx <- vapply(estvar, identical, TRUE, 0)
+      comp_names <- comp_names[!idx]
+    }
     
     ## under hetres the coefficients follow the G components, in the order
     ## they are printed (coefficient-major, trait-inner)
@@ -608,6 +730,20 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
       ## a random effect can have the same name as a coefficient (a0, a1, ...).
       if (is_hetres)
         hetres[, 'S.E.'] <- utils::tail(sqrt(diag(reml$invAI)), nrow(hetres))
+    } else if (restricted) {
+      stop('Backend AI layout does not match the active covariance parameters.',
+           call. = FALSE)
+    }
+  }
+
+  # Display absence only after the compact AI parameter order is established.
+  if (restricted) {
+    for (nm in names(effects)[effect.type == 'random']) {
+      active <- effect_covariance_mask(effects[[nm]], ntraits)
+      absent <- !outer(active, active, '&')
+      if (method == 'ai') {
+        for (j in seq_len(ncol(varcomp))) varcomp[[nm, j]][absent] <- NA_real_
+      } else varcomp[[nm]][absent] <- NA_real_
     }
   }
 
@@ -854,6 +990,16 @@ pf90_default_heritability <- function (rglist, traits = NULL, quiet = FALSE) {
     H2lbl <- "Heritability"
     if (!is.null(traits)) H2lbl <- paste(H2lbl, traits, sep = ":")
     option.str <- paste('se_covar_function', H2lbl, H2fml)
+    if (any(vapply(rglist, function(g) !is.null(g$trait.active), TRUE))) {
+      active <- vapply(rglist, function(g)
+        trait_mask(g$trait.active, length(tr_idx)), logical(length(tr_idx)))
+      denom <- vapply(seq_along(tr_idx), function(i)
+        paste(trait_component[i, c(active[i, ], TRUE)], collapse = '+'), '')
+      H2fml <- paste0(numerator, '/(', denom, ')')
+      option.str <- paste('se_covar_function', H2lbl, H2fml)
+      option.str <- option.str[active[, 'genetic']]
+      if (!length(option.str)) option.str <- NULL
+    }
     
   } else {
     
