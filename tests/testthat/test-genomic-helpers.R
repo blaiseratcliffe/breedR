@@ -295,6 +295,66 @@ test_that("write_xref_from_pedigree() finds genotyped ids of 1e5 and above (#43)
                    c('100000 100000', '5 5'))
 })
 
+test_that("write_xref_from_pedigree() translates ids of a recoded pedigree (#49)", {
+
+  ## Animal 1 precedes its parents 2 and 3, so the pedigree is recoded with
+  ## map 3 1 2. The SNP file holds the original ids; the XrefID must give the
+  ## recoded code that breedR writes in the pedigree and data files.
+  ped <- suppressWarnings(
+    build_pedigree(1:3, data = data.frame(self = 1:3, dad = c(2L, 0L, 0L),
+                                          mum = c(3L, 0L, 0L))))
+  expect_identical(attr(ped, 'map'), c(3L, 1L, 2L))
+  wd  <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  snp <- file.path(wd, 'geno.txt')
+  writeLines(c('1 0120', '2 1111', '3 2222'), snp)
+
+  write_xref_from_pedigree(snp, ped, wd)
+
+  expect_identical(readLines(file.path(wd, 'geno.txt_XrefID')),
+                   c('3 1', '1 2', '2 3'))
+})
+
+test_that("write_xref_from_pedigree() rejects a recoded code given as an id (#49)", {
+
+  ## Codes with gaps are recoded 10, 20, 30 -> 1, 2, 3. An id of 2 is not an
+  ## animal of this pedigree, even though 2 is one of its recoded codes.
+  ped <- suppressWarnings(
+    build_pedigree(1:3, data = data.frame(self = c(10L, 20L, 30L),
+                                          dad = 0L, mum = 0L)))
+  wd  <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  snp <- file.path(wd, 'geno.txt')
+
+  writeLines(c('30 0120', '10 1111'), snp)
+  write_xref_from_pedigree(snp, ped, wd)
+  expect_identical(readLines(file.path(wd, 'geno.txt_XrefID')),
+                   c('3 30', '1 10'))
+
+  writeLines(c('30 0120', '2 1111'), snp)
+  expect_error(write_xref_from_pedigree(snp, ped, wd),
+               "not found in the pedigree: 2$")
+})
+
+test_that("write_xref_from_pedigree() finds ids of 1e5 and above in a recoded pedigree (#43, #49)", {
+
+  ## Double codes with gaps are recoded. The ids translated back through the
+  ## map must print as "100000", not "1e+05", or no genotyped animal matches.
+  ped <- suppressWarnings(
+    build_pedigree(1:3, data = data.frame(self = c(1e5, 2.5e5, 300001),
+                                          dad = 0, mum = 0)))
+  expect_false(is.null(attr(ped, 'map')))
+  wd  <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  snp <- file.path(wd, 'geno.txt')
+  writeLines(c('300001 0120', '100000 1111'), snp)
+
+  write_xref_from_pedigree(snp, ped, wd)
+
+  expect_identical(readLines(file.path(wd, 'geno.txt_XrefID')),
+                   c('3 300001', '1 100000'))
+})
+
 
 ## -- postgsf90() input checks --
 

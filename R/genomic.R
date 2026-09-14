@@ -616,13 +616,17 @@ write_xref_file <- function(renumbered_ids, original_ids, snp_file) {
 ## Derive the preGSf90 XrefID from breedR's pedigree renumbering and write it
 ## into the working directory next to the copied SNP file. Each SNP-file row's
 ## (original) animal id is mapped to its renumbered code (its position in the
-## pedigree labels). Errors if a genotyped animal is absent from the pedigree.
+## pedigree). A recoded pedigree's labels are the new codes, so they are
+## translated back to the original ones through attr(pedigree, 'map') first.
+## Errors if a genotyped animal is absent from the pedigree.
 write_xref_from_pedigree <- function(snp_file, pedigree, tmpdir) {
   raw <- readLines(snp_file)
   raw <- raw[nchar(trimws(raw)) > 0]
   snp_ids <- vapply(strsplit(trimws(raw), "[[:space:]]+"), `[`, "", 1L)
 
   labels <- as.character(pedigree@label)
+  if (!is.null(map <- attr(pedigree, 'map')))
+    labels <- as.character(match(as.integer(pedigree@label), map))
   renum <- match(snp_ids, labels)
   if (anyNA(renum))
     stop("Genotyped animals not found in the pedigree: ",
