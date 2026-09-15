@@ -1,3 +1,7 @@
+* `ranef()` now names the standard errors of genetic and generic effects like
+their values, and labels the rows of multi-trait genetic effects by animal.
+Looking either up by name used to return another level's (#60)
+
 * Fix a crash in `parse_results()` ("replacement has length zero") on a fit
 whose AI matrix needed bending on its last round; the `-2logL` line is now
 searched for instead of assumed at a fixed offset from the last round (#24)

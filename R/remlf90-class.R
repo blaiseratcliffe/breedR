@@ -1639,6 +1639,16 @@ ranef.remlf90 <- function (object, ...) {
   
   ## Additional attributes
   
+  ## Label the levels of an effect, in its values and in their standard
+  ## errors alike: names for one trait, row names for several (#60)
+  label_levels <- function(x, nm) {
+    set_nm <- function(y) {
+      if (is.matrix(y)) rownames(y) <- nm else names(y) <- nm
+      y
+    }
+    structure(set_nm(x), se = set_nm(attr(x, 'se')))
+  }
+
   ## Genetic component: names of individuals
   if( object$components$pedigree ){
     
@@ -1646,7 +1656,7 @@ ranef.remlf90 <- function (object, ...) {
     gen.idx <- grep('genetic', names(ans))
     nm <- get_pedigree(object)@label
     
-    for (k in gen.idx) attr(ans[[k]], 'names') <- nm
+    for (k in gen.idx) ans[[k]] <- label_levels(ans[[k]], nm)
     
   }
   
@@ -1657,8 +1667,8 @@ ranef.remlf90 <- function (object, ...) {
     if("effect_group" %in% class(object$effects[[x]])){
       if("generic" %in% class(object$effects[[x]]$effects[[1]]) &
          ! is.null(rownames(object$effects[[x]]$effects[[1]]$structure.matrix)))
-        attr(ans[[x]], 'names') <- 
-          rownames(object$effects[[x]]$effects[[1]]$structure.matrix)
+        ans[[x]] <- label_levels(
+          ans[[x]], rownames(object$effects[[x]]$effects[[1]]$structure.matrix))
     } else
       attr(ans[[x]], 'names') <- 
         colnames(attr(model.matrix(object)$random[[x]], 'contrasts'))
