@@ -172,6 +172,31 @@ test_that("the user can specify a full or partial grid of combinations", {
 })
 
 
+## The parallel search fits one seed rho, copies its files to a directory per
+## rho, and overwrites only the precision matrix file there. If that file name
+## ever parts from the one in the parameter file, every rho is fitted against
+## the seed's matrix and the profile goes flat without any error (issue #2).
+res.par <- try(
+  suppressMessages(
+    remlf90(
+      fixed = y ~ z,
+      spatial = list(model = 'AR',
+                     coord = datlist[[1]][, 1:2],
+                     rho = gridlist[[1]]),
+      data = datlist[[1]],
+      parallel = 2L)
+  )
+)
+
+test_that("the parallel rho grid search agrees with the sequential one", {
+  expect_false(inherits(res.par, 'try-error'))
+  expect_gt(length(unique(res.par$rho$loglik)), 1)
+  expect_equal(res.par$rho, reslist.spec[[1]]$rho)
+  ## and returns the same winning fit
+  expect_equal(res.par$var, reslist.spec[[1]]$var)
+})
+
+
 # # Debug
 # image(s.mat)
 # image(matrix(res.bR$spatial$fit$z, nrow, ncol))
