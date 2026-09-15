@@ -700,8 +700,10 @@ remlf90 <- function(fixed,
                 coordinates = spatial$coordinates,
                 rho = rho_i,
                 autofill = spatial$autofill)
-              # Write the updated precision matrix file
-              ar_pf90 <- renderpf90(ar_obj)
+              # Overwrite the seed fit's precision matrix file. It is
+              # "ar_spatial", not renderpf90.ar()'s "ar":
+              # renderpf90.breedr_modelframe() suffixes the group name, and
+              # the copied parameter file reads that name.
               sm <- as.triplet(vcov(ar_obj))
               utils::write.table(sm, file = file.path(rd, "ar_spatial"),
                 row.names = FALSE, col.names = FALSE, na = "0")
