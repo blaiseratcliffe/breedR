@@ -355,6 +355,25 @@ test_that("write_xref_from_pedigree() finds ids of 1e5 and above in a recoded pe
                    c('3 300001', '1 100000'))
 })
 
+test_that("write_xref_from_pedigree() translates ids of a pedigree coded from 2 (#50)", {
+
+  ## Codes 2..4 are recoded to 1..3, so the map starts with NA. The genotyped
+  ## animals must still get the recoded code of their own original id.
+  ped <- suppressWarnings(
+    build_pedigree(1:3, data = data.frame(self = 2:4, dad = c(0L, 0L, 2L),
+                                          mum = c(0L, 0L, 3L))))
+  expect_identical(attr(ped, 'map'), c(NA, 1L, 2L, 3L))
+  wd  <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  snp <- file.path(wd, 'geno.txt')
+  writeLines(c('4 0120', '2 1111'), snp)
+
+  write_xref_from_pedigree(snp, ped, wd)
+
+  expect_identical(readLines(file.path(wd, 'geno.txt_XrefID')),
+                   c('3 4', '1 2'))
+})
+
 
 ## -- postgsf90() input checks --
 

@@ -9,7 +9,8 @@
 #' 
 #' Furthermore, the codes must be sorted in ascending and consecutive order 
 #' beginning from 1, and the offspring must follow parents. All this is checked, 
-#' and the pedigree is reordered and recoded if needed.
+#' and the pedigree is reordered and recoded if needed. Individual codes below 1
+#' are an error, since 0 marks an unknown parent.
 #' 
 #' If recoding is needed, the function issues a warning and an attribute 'map' 
 #' is attached to the pedigree, such that \code{map[i] = j} means that code 
@@ -53,6 +54,10 @@ build_pedigree <- function(x, self = x[[1]], sire = x[[2]], dam = x[[3]], data) 
   # Extract the relevant columns of the dataframe
   ped <- as.data.frame(data)[c(self, sire, dam)]
   names(ped) <- c('self', 'sire', 'dam')
+
+  # The recoding map is indexed by code, and 0 marks an unknown parent
+  if( any(ped$self < 1, na.rm = TRUE) )
+    stop("Individual codes must be 1 or greater (0 marks an unknown parent)")
 
   # 0 is to be interpreted as unknown parent, not as an individual code
   # recode it as NA
@@ -135,7 +140,7 @@ build_pedigree <- function(x, self = x[[1]], sire = x[[2]], dam = x[[3]], data) 
 #' 
 #' # Sometimes founders are missing
 #' (ped_notfull <- ped_ok[-c(1:2),])
-#' check_pedigree(ped_notfull)  # fails full_ped
+#' check_pedigree(ped_notfull)  # fails full_ped, and codes no longer start at 1
 #' 
 #' # Sometimes codes of parents are greater than their offspring
 #' sw_23 <- c(1, 3, 2, 4:6)
@@ -182,13 +187,14 @@ check_pedigree <- function(ped) {
   ord_codes <- order(ped[, 1])
   codes_sorted  <- identical(ord_codes, 1:N)
   
-  # Codes are consecutive
+  # Codes are consecutive, beginning from 1
   rg_codes <- range(ped[, 1])
   # Coerce both sides to integer: range()/seq() return doubles when the id
   # column is stored as double, and identical() is type-strict, which would
   # otherwise flag genuinely-consecutive codes as non-consecutive.
   codes_consec <- identical(as.integer(ped[ord_codes, 1]),
-                            as.integer(seq(rg_codes[1], rg_codes[2])))
+                            as.integer(seq(rg_codes[1], rg_codes[2]))) &&
+    rg_codes[1] == 1
   
   return(c(full_ped     = full_ped,
            offsp_follows = offsp_follows,

@@ -14,9 +14,12 @@ test_that('get_pedigree() returns NULL when there is no genetic effect', {
 data(m4)
 ped <- as.data.frame(m4)[, c('self', 'dad', 'mum')]
 
-test_that('The pedigree from m4 is not complete, but otherwise correct', {
-  expect_true(!check_pedigree(ped)['full_ped'])
-  expect_true(all(check_pedigree(ped)[-1]))
+test_that('The pedigree from m4 is not complete, so its codes do not start at 1', {
+  ## The founders are missing, so the lowest code is 161 (#50)
+  checks <- check_pedigree(ped)
+  expect_false(checks[['full_ped']])
+  expect_false(checks[['codes_consecutive']])
+  expect_true(all(checks[c('offsp_follows', 'codes_sorted')]))
 })
 
 # Generate a crazy map
@@ -63,5 +66,46 @@ test_that('build_pedigree() labels double codes of 1e5 and above in full (#43)',
 
   ## the storage type of the codes makes no difference
   expect_identical(ped43, build_pedigree(1:3, data = ped_int))
+})
+
+
+test_that('check_pedigree() requires the codes to start at 1 (#50)', {
+  expect_false(
+    check_pedigree(data.frame(self = 2:4, dad = 0, mum = 0))[['codes_consecutive']])
+  expect_true(
+    check_pedigree(data.frame(self = 1:3, dad = 0, mum = 0))[['codes_consecutive']])
+})
+
+
+test_that('build_pedigree() recodes a pedigree coded from 2 (#50)', {
+
+  ## Sorted, consecutive, and offspring follow parents. But the codes are used
+  ## as positions 1..n, so a pedigree that starts at 2 must be recoded.
+  ped2 <- data.frame(self = 2:5, dad = c(0L, 0L, 2L, 2L), mum = c(0L, 0L, 3L, 4L))
+  expect_warning(ped50 <- build_pedigree(1:3, data = ped2), 'recoded')
+
+  map <- attr(ped50, 'map')
+  expect_identical(map, c(NA, 1:4))
+  expect_true(all(check_pedigree(ped50)))
+
+  ## translated back through the map, it is the pedigree we started from
+  back <- as.data.frame(lapply(as.data.frame(ped50),
+                               function(x) ifelse(is.na(x), 0L, match(x, map))))
+  back <- back[order(back$self), ]
+  rownames(back) <- NULL
+  expect_identical(back, setNames(ped2, c('self', 'sire', 'dam')))
+})
+
+
+test_that('build_pedigree() refuses individual codes below 1 (#50)', {
+
+  ## 0 marks an unknown parent, and the recoding map is indexed by code. An
+  ## animal coded 0 used to go unrecoded, and every animal's data then went to
+  ## the animal coded one below it.
+  ped0 <- data.frame(self = 0:4, dad = c(0, 0, 0, 1, 1), mum = c(0, 0, 0, 2, 2))
+  expect_error(build_pedigree(1:3, data = ped0), 'codes must be 1 or greater')
+
+  ped_neg <- data.frame(self = -1:3, dad = c(0, 0, 0, 1, 1), mum = c(0, 0, 0, 2, 2))
+  expect_error(build_pedigree(1:3, data = ped_neg), 'codes must be 1 or greater')
 })
 

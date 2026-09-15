@@ -115,6 +115,43 @@ test_that("relabelling the animals so the pedigree is recoded changes nothing (#
                as.numeric(bv_gen), tolerance = 1e-6)
 })
 
+test_that("codes that start above 1 are recoded and change nothing (#50)", {
+
+  ## Adding 100 to every code keeps the pedigree sorted and consecutive, but it
+  ## no longer starts at 1. It used to go unrecoded, the codes were taken as
+  ## positions, and the fit stopped.
+  up <- function(x) ifelse(x == 0, 0L, as.integer(x + 100L))
+  glob_up <- globulus
+  glob_up[, c('self', 'dad', 'mum')] <-
+    lapply(globulus[, c('self', 'dad', 'mum')], up)
+
+  up_dir  <- breedR_workdir('shifted_')
+  on.exit(unlink(up_dir, recursive = TRUE), add = TRUE)
+  up_file <- file.path(up_dir, "test_ssgblup_shifted.txt")
+  write_snp_file(Gmat, ids = up(gen_ids), file = up_file)
+
+  res.up <- suppressWarnings(suppressMessages(
+    remlf90(fixed = phe_X ~ gg,
+            genetic = list(model = 'add_animal',
+                           pedigree = glob_up[, 1:3], id = 'self'),
+            genomic = list(snp_file = up_file, verify_parentage = 0L),
+            data = glob_up)))
+  map <- attr(get_pedigree(res.up), 'map')
+  expect_false(is.null(map))
+
+  expect_equal(as.numeric(logLik(res.up)), as.numeric(logLik(res.gen)),
+               tolerance = 1e-9)
+  expect_equal(res.up$var, res.gen$var, tolerance = 1e-6)
+  expect_equal(fitted(res.up), fitted(res.gen), tolerance = 1e-6)
+
+  ## Each animal's breeding value, matched by its globulus id
+  bv_up  <- ranef(res.up)$genetic
+  bv_gen <- ranef(res.gen)$genetic
+  orig   <- match(as.integer(names(bv_up)), map) - 100L
+  expect_equal(as.numeric(bv_up)[match(as.integer(names(bv_gen)), orig)],
+               as.numeric(bv_gen), tolerance = 1e-6)
+})
+
 test_that("a genotyped animal absent from the pedigree is an error", {
   bad_file <- file.path(tempdir(), "test_ssgblup_bad.txt")
   write_snp_file(Gmat[1:3, , drop = FALSE],
