@@ -6,6 +6,10 @@ searched for instead of assumed at a fixed offset from the last round (#24)
 element in get1index") when every candidate rho produced no usable
 log-likelihood; it now reports a clear error instead (#3)
 
+* `predf90()`'s `dir` argument is now required, with no default. Each fit now
+works in its own subdirectory of `tempdir()`, so there is no longer a
+directory that a default could point to (#25)
+
 * Parse large covariance matrices more robustly from REML logs (#101)
 
 * Store breedR model and REML log in temp dir for recovery (#100)
