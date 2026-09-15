@@ -162,6 +162,8 @@ test_that("ranef() gets a ranef.breedR object with random effect BLUPs and their
   
   expect_is(xse, 'numeric')
   expect_equal(length(xse), n.bvs)
+  ## the s.e. is named by animal, like the values (#60)
+  expect_identical(names(xse), names(x$genetic))
 })
 
 test_that("residuals() gets a vector of length N", {
