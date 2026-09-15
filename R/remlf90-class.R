@@ -766,7 +766,7 @@ remlf90 <- function(fixed,
               loglik = suppressWarnings(vapply(ans.rho, function(x) {
                 if (is.null(x)) NA_real_ else as.numeric(logLik(x))
               }, numeric(1))))
-            rho.idx <- which.max(loglik.rho$loglik)
+            rho.idx <- select_best_rho(loglik.rho$loglik)
             ans <- ans.rho[[rho.idx]]
             unlink(rho_dirs, recursive = TRUE)
             unlink(base_dir, recursive = TRUE)
@@ -850,7 +850,7 @@ remlf90 <- function(fixed,
                                       else as.numeric(logLik(x))
                                     }, numeric(1))
                                   ))
-          rho.idx <- which.max(loglik.rho$loglik)
+          rho.idx <- select_best_rho(loglik.rho$loglik)
           ans <- ans.rho[[rho.idx]]
           ## A grid is N fits, and each now keeps its own working directory.
           ## Only the winner's is ever referenced again, so drop the rest
@@ -1292,6 +1292,20 @@ rho_fit_dirs <- function(fits, keep) {
                  character(1))
   dirs <- dirs[-keep]
   dirs[!is.na(dirs)]
+}
+
+# Index of the rho with the highest log-likelihood, refusing to pick from an
+# empty/all-NA column: which.max() on all-NA returns integer(0), and indexing
+# a fit list with that throws an opaque "attempt to select less than one
+# element in get1index" several frames away from the actual cause -- a rho
+# grid where every candidate ran without error but produced no usable
+# log-likelihood (issue #3).
+select_best_rho <- function(loglik) {
+  ok <- which(is.finite(loglik))
+  if (!length(ok))
+    stop("No rho value produced a usable log-likelihood; ",
+         "all fits failed or did not converge.", call. = FALSE)
+  ok[which.max(loglik[ok])]
 }
 
 
