@@ -246,14 +246,27 @@ parse_gibbs_results <- function(dir) {
   }
 
   # Gibbs samples (variance components per round). Verified against gibbsf90+
-  # output: 3 header lines (effect/trait mapping), then alternating pairs of
+  # output: a header of one line giving the number of (co)variance components
+  # followed by one effect/trait mapping line per component, then alternating
+  # pairs of
   #   round_number  n_components
   #   value1  value2  ...  valueN
+  #
+  # The header is therefore as long as the model is wide: 3 lines for one
+  # random effect plus the residual, but 2 for a fixed-effects model, 4 for two
+  # random effects or for residuals in two classes, and 7 for two traits. It is
+  # found here by its end rather than assumed, because a header taken as three
+  # lines everywhere pairs each round line with the next round line as soon as
+  # the model has any other number of components, and returns round numbers and
+  # component counts in place of the variances (#77). Only the round lines hold
+  # nothing but two integers: the first header line has three fields, the
+  # mapping lines five, and the values are always written as reals.
   samples_file <- file.path(dir, "gibbs_samples")
   if (file.exists(samples_file) && file.info(samples_file)$size > 0) {
     raw_lines <- readLines(samples_file)
-    if (length(raw_lines) > 3) {
-      data_lines <- raw_lines[-(1:3)]  # skip 3 header lines
+    first_round <- which(grepl("^\\s*[0-9]+\\s+[0-9]+\\s*$", raw_lines))[1]
+    if (!is.na(first_round) && length(raw_lines) > first_round) {
+      data_lines <- raw_lines[-seq_len(first_round - 1L)]
       # Whole (round, value) pairs only; drop a dangling unpaired final line so
       # seq() cannot receive a wrong-signed 'by' when a single line remains.
       n_pairs <- length(data_lines) %/% 2L
@@ -264,8 +277,14 @@ parse_gibbs_results <- function(dir) {
           con <- textConnection(data_lines[value_idx])
           mat <- as.matrix(utils::read.table(con))
           close(con)
-          round_nums <- as.integer(
-            sub("\\s+.*", "", trimws(data_lines[round_idx])))
+          rounds <- trimws(data_lines[round_idx])
+          ## Each round line declares how many values follow it. Checked, so
+          ## that a layout this does not expect gives nothing rather than
+          ## numbers read from the wrong lines.
+          declared <- as.integer(sub("^[0-9]+\\s+", "", rounds))
+          if (!all(declared[seq_len(nrow(mat))] == ncol(mat)))
+            stop("unexpected layout of gibbs_samples")
+          round_nums <- as.integer(sub("\\s+.*", "", rounds))
           rownames(mat) <- round_nums[seq_len(nrow(mat))]
           mat
         }, error = function(e) NULL)
