@@ -218,6 +218,7 @@ validate_prediction <- function(renum,
   # Read base parameter file
   par_lines <- readLines(renum$par_file)
   par_with_opts <- c(par_lines, paste("OPTION", extra_opts))
+  refuse_hetres_int(par_with_opts)
 
   # --- Step 1: Fit with WHOLE data ---
   message("Fitting model with full data...")

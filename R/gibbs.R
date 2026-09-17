@@ -40,6 +40,8 @@
 #'   List with \code{col} and \code{n}.
 #' @param residual_var numeric or NULL. Fixed residual variance for
 #'   categorical traits.
+#' @param progsf90.options character. Additional options, passed directly to
+#'   the OPTIONS field of GIBBSF90+. No checks are performed, handle with care.
 #' @return A list with components:
 #'   \describe{
 #'     \item{solutions}{data.frame of posterior means + SDs for solutions}

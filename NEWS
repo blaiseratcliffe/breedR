@@ -1,3 +1,9 @@
+* `remlf90()`, `remlf90_from_renum()` and `validate_prediction()` now refuse
+class-based heterogeneous residual variances (`hetres_options(group_col = ...)`,
+`OPTION hetres_int`). BLUPF90+ reads them under REML but fits a homoscedastic
+model, which used to be returned without comment; `gibbsf90()` estimates
+them (#39)
+
 * `ranef()` now names the standard errors of genetic and generic effects like
 their values, and labels the rows of multi-trait genetic effects by animal.
 Looking either up by name used to return another level's (#60)

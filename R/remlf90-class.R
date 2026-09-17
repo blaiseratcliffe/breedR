@@ -51,8 +51,10 @@
 #'   \href{http://nce.ads.uga.edu/wiki/doku.php?id=readme.reml#options}{REMLF90}
 #'   and for 
 #'   \href{http://nce.ads.uga.edu/wiki/doku.php?id=readme.aireml#options}{AIREMLF90}.
-#'    Option \code{sol se} is passed always and cannot be removed. No checks are
-#'   performed, handle with care.
+#'    Option \code{sol se} is passed always and cannot be removed. The only
+#'   check performed is that class-based heterogeneous residual variances
+#'   (\code{hetres_int}) are refused (see \code{\link{hetres_options}});
+#'   otherwise, handle with care.
 #' @param weights numeric. A vector of weights for the residual variance.
 #' @param parallel logical or integer. If \code{TRUE}, the AR rho grid search
 #'   runs in parallel using all available cores. If an integer, uses that many
@@ -233,6 +235,9 @@
 #'   The default heritability is not requested for such a fit, because
 #'   BLUPF90+ does not support it with heterogeneous residuals. BLUPF90+ fits
 #'   these models by AI-REML only (\code{method = 'ai'}, the default).
+#'   Class-based heterogeneous residual variances (a variance per level of a
+#'   factor) are refused: BLUPF90+ does not estimate them by REML and would
+#'   fit a homoscedastic model instead. Use \code{\link{gibbsf90}} for those.
 #'   See \code{\link{hetres_options}} for details.}
 #'
 #'   \subsection{Remote computing}{ If \code{breedR.bin = 'remote'}, the REML 
@@ -535,6 +540,7 @@ remlf90 <- function(fixed,
   ## Checked before the binaries so that these guards are reachable without
   ## the backend installed.
   progress_file <- check_progress_args(progress_file, cont, breedR.bin, debug)
+  refuse_hetres_int(progsf90.options)
 
   ### Parse arguments
   method <- tolower(method)

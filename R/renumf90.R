@@ -412,15 +412,17 @@ remlf90_from_renum <- function(renum,
     stop("RENUMF90 parameter file not found. Run renumf90() first.",
          call. = FALSE)
 
+  # Read the RENUMF90-generated parameter file. RENUMF90 copies the OPTION
+  # lines it is given into it, so it is checked along with progsf90.options.
+  par_lines <- readLines(renum$par_file)
+  refuse_hetres_int(c(par_lines, progsf90.options))
+
   dir <- renum$dir
   bin_path <- breedR.getOption('breedR.bin')
 
   if (!check_progsf90(bin_path, quiet = TRUE))
     stop("BLUPF90+ binary not installed. See ?install_progsf90",
          call. = FALSE)
-
-  # Read the RENUMF90-generated parameter file
-  par_lines <- readLines(renum$par_file)
 
   # Add method-specific options
   method_opts <- 'method VCE'
