@@ -81,13 +81,17 @@ hide_backend <- function() {
   }
 }
 
-## A RENUMF90 output directory, as far as the REML entry points read it
-fake_renum <- function(par = character(0)) {
+## A RENUMF90 output directory, as far as the REML entry points read it.
+## par_content is what parse_renumf90() captured when renumf90() ran; the file
+## is what the last fit from this object left behind, which is not the same
+## thing (see the test on a rewritten parameter file below).
+fake_renum <- function(par = character(0), file_par = par) {
   d <- tempfile("fake_renum_")
   dir.create(d)
   par_file <- file.path(d, "renf90.par")
-  writeLines(c("DATAFILE", "renf90.dat", par), par_file)
-  list(par_file = par_file, dir = d)
+  writeLines(c("DATAFILE", "renf90.dat", file_par), par_file)
+  list(par_file = par_file, dir = d,
+       par_content = c("DATAFILE", "renf90.dat", par))
 }
 
 class_opts <- hetres_options(group_col = 2, n_groups = 2, var_file = "hv")
@@ -131,6 +135,14 @@ test_that("remlf90_from_renum() refuses class-based heterogeneous residuals", {
 
   ## control: no class-based option, so on to the binary check
   expect_error(remlf90_from_renum(fake_renum()), "not installed")
+
+  ## A fit from a renum object rewrites its renf90.par in place, so a previous
+  ## gibbsf90_from_renum() with class-based residuals leaves OPTION hetres_int
+  ## in the file. That is the Gibbs fit's option, not this call's: refusing on
+  ## it would tell a user who asked for a plain REML fit to go and use
+  ## gibbsf90(), which is exactly what they just did.
+  expect_error(remlf90_from_renum(fake_renum(file_par = "OPTION hetres_int 2 2")),
+               "not installed")
 })
 
 test_that("validate_prediction() refuses class-based heterogeneous residuals", {
@@ -143,4 +155,10 @@ test_that("validate_prediction() refuses class-based heterogeneous residuals", {
   expect_error(validate_prediction(fake_renum("OPTION hetres_int 2 2"),
                                    validation_ids = 1:2),
                "hetres_int")
+
+  ## as above: an option another fit left in the file is not this call's
+  msg <- tryCatch(validate_prediction(fake_renum(file_par = "OPTION hetres_int 2 2"),
+                                      validation_ids = 1:2),
+                  error = conditionMessage)
+  expect_false(grepl("hetres_int", msg, fixed = TRUE))
 })

@@ -412,10 +412,13 @@ remlf90_from_renum <- function(renum,
     stop("RENUMF90 parameter file not found. Run renumf90() first.",
          call. = FALSE)
 
-  # Read the RENUMF90-generated parameter file. RENUMF90 copies the OPTION
-  # lines it is given into it, so it is checked along with progsf90.options.
-  par_lines <- readLines(renum$par_file)
-  refuse_hetres_int(c(par_lines, progsf90.options))
+  # RENUMF90 copies the OPTION lines it is given into the parameter file, so
+  # they are checked along with progsf90.options. par_content is what RENUMF90
+  # wrote, not what is on disk now: every fit from a renum object rewrites
+  # renf90.par in place with its own appended options, so the file also holds
+  # whatever a previous gibbsf90_from_renum() asked for, which is not this
+  # call's to refuse.
+  refuse_hetres_int(c(renum$par_content, progsf90.options))
 
   dir <- renum$dir
   bin_path <- breedR.getOption('breedR.bin')
@@ -423,6 +426,9 @@ remlf90_from_renum <- function(renum,
   if (!check_progsf90(bin_path, quiet = TRUE))
     stop("BLUPF90+ binary not installed. See ?install_progsf90",
          call. = FALSE)
+
+  # Read the RENUMF90-generated parameter file
+  par_lines <- readLines(renum$par_file)
 
   # Add method-specific options
   method_opts <- 'method VCE'

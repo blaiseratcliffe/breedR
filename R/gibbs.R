@@ -266,7 +266,7 @@ parse_gibbs_results <- function(dir) {
     raw_lines <- readLines(samples_file)
     first_round <- which(grepl("^\\s*[0-9]+\\s+[0-9]+\\s*$", raw_lines))[1]
     if (!is.na(first_round) && length(raw_lines) > first_round) {
-      data_lines <- raw_lines[-seq_len(first_round - 1L)]
+      data_lines <- raw_lines[first_round:length(raw_lines)]
       # Whole (round, value) pairs only; drop a dangling unpaired final line so
       # seq() cannot receive a wrong-signed 'by' when a single line remains.
       n_pairs <- length(data_lines) %/% 2L

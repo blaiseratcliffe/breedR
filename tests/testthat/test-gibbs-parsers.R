@@ -96,6 +96,22 @@ test_that("parse_gibbs_results reads samples of a multi-trait model", {
                c(0.1013, -0.2511, 2.442, 10.61, 0.2098, 3.751))
 })
 
+test_that("parse_gibbs_results reads samples that start at a round line", {
+  ## The header is found rather than assumed, so a file without one parses
+  ## instead of collapsing to nothing.
+  dir <- samples_dir(c(
+    "      10       1",
+    "   10.27    ",
+    "      20       1",
+    "   9.967    "
+  ), "nohdr")
+  on.exit(unlink(dir, recursive = TRUE))
+
+  samples <- parse_gibbs_results(dir)$samples
+  expect_equal(dim(samples), c(2L, 1L))
+  expect_equal(unname(samples[, 1]), c(10.27, 9.967))
+})
+
 test_that("parse_gibbs_results reads gibbs_samples", {
   dir <- file.path(tempdir(), "test_gibbs_parse2")
   dir.create(dir, showWarnings = FALSE)
