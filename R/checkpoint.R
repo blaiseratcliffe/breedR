@@ -99,8 +99,7 @@ reml_round_covariances <- function(x, from, to,
 
   ## Anchored on the whole log so that extract_block() sees the real
   ## surroundings of the block, and never the parameter echo near the top of
-  ## the file -- parse.txtmat() drops the first field of every line, which is
-  ## only safe where Fortran carriage control guarantees a blank first column.
+  ## the file, whose rounds are not optimiser state.
   res_re <- "^[[:space:]]*new [Rr][[:space:]]*$"
   grp_re <- "^[[:space:]]*(new [Gg]|G)[[:space:]]*$"
 

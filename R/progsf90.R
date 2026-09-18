@@ -1024,9 +1024,13 @@ pf90_default_heritability <- function (rglist, traits = NULL, quiet = FALSE) {
 #' 
 #' If the matrix is not necessarily
 parse.txtmat <- function(x, names = NULL, square = TRUE) {
-  ## numeric values from the strings, spliting by spaces
+  ## numeric values from the strings, spliting by spaces.
+  ## Trim first rather than dropping the first field: Fortran carriage control
+  ## usually leaves column 1 blank, but a negative value wide enough to fill
+  ## its field starts flush against it, and dropping token 1 then eats the
+  ## value instead of the leading blank.
   ans <- unname(
-    lapply(x, function(x) as.numeric(strsplit(x, ' +')[[1]][-1]))
+    lapply(x, function(x) as.numeric(strsplit(trimws(x), ' +')[[1]]))
   )
   
   ## concatenate rows in groups of p

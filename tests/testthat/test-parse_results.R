@@ -36,13 +36,52 @@ test_that("Parse large covariance matrices", {
 
   
   square_test <- rep(test_line, 7)
-  
+
   expect_error(
     s_mat <- parse.txtmat(square_test),
     NA
   )
   expect_identical(dim(s_mat), c(7L, 7L))
 
+
+})
+
+
+test_that("Parse a covariance block whose rows start flush with a minus", {
+
+  ## Fortran carriage control usually leaves column 1 blank, but a negative
+  ## value wide enough to fill its field starts flush against it. Reading the
+  ## row must not consume that value as if it were the leading blank.
+  flush_block <- c("  4.2000    -0.16000    ",
+                   "-0.16000     0.50000    ")
+
+  expect_error(m <- parse.txtmat(flush_block), NA)
+  expect_equal(m, matrix(c(4.2, -0.16, -0.16, 0.5), 2, 2))
+  expect_true(isSymmetric(m))
+
+  ## Wider case: every row but the first starts flush.
+  flush3 <- c(" 0.18966     -0.27594E-04 -0.60787E-04",
+              "-0.27594E-04  0.39831E-02 -0.29742E-02",
+              "-0.60787E-04 -0.29742E-02  0.29915E-02")
+  expect_error(m3 <- parse.txtmat(flush3), NA)
+  expect_identical(dim(m3), c(3L, 3L))
+  expect_true(isSymmetric(m3))
+  expect_equal(m3[2, 1], -0.27594e-04)
+
+})
+
+
+test_that("Parse the residual (co)variance echo of a real REML log", {
+
+  ## The parameter echo near the top of the log is the one block the backend
+  ## prints with negative values flush at column 1. remlf90(traits = ) reads it
+  ## to work out which covariance parameters the AI matrix left free.
+  x3 <- readLines(file.path(testdata, "airemlf90_log_3.txt"))
+  at <- grep("Residual (co)variance Matrix", x3, fixed = TRUE)
+  expect_identical(length(at), 1L)
+
+  expect_error(m <- parse.txtmat(extract_block(at + 1L, x3)), NA)
+  expect_equal(m, matrix(c(4.2, -0.16, -0.16, 0.5), 2, 2))
 
 })
 
