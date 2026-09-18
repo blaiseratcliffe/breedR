@@ -1392,12 +1392,20 @@ fitted.remlf90 <- function (object, ...) {
   
   mml <- model.matrix(object)
   
-  vall <- c(fixef(object), ranef(object))
-  
+  ## Zeroing the absent trait columns below needs two-dimensional indexing, so
+  ## a restricted fit keeps single-level effects as one-row matrices here. The
+  ## public accessors keep dropping them, so that fixef(fit)$x["y1"] still
+  ## finds the estimate by name.
+  restricted <- has_trait_restrictions(object$effects)
+  vall <- if (restricted)
+    c(get_estimates(object$fixed, drop = FALSE),
+      get_estimates(object$ranef, drop = FALSE))
+  else c(fixef(object), ranef(object))
+
   ## Match order
   stopifnot(setequal(names(mml), names(vall)))
   vall <- vall[names(mml)]
-  if (has_trait_restrictions(object$effects)) {
+  if (restricted) {
     masks <- solution_trait_masks(object$effects,
                                   ncol(as.matrix(model.response(object$mf))))
     for (nm in names(vall)) {
@@ -1417,7 +1425,7 @@ fitted.remlf90 <- function (object, ...) {
   # Linear Predictor / Fitted Values
   ndim <- length(dim(comp.mat))
   eta <- rowSums(comp.mat, dims = ndim - 1)
-  if (has_trait_restrictions(object$effects))
+  if (restricted)
     dimnames(eta) <- dimnames(as.matrix(model.response(object$mf)))
 
   return(eta)
@@ -1446,7 +1454,7 @@ fitted.remlf90 <- function (object, ...) {
 #' @export fixef
 #' @export
 fixef.remlf90 <- function (object, ...) {
-  ans <- get_estimates(object$fixed, drop = !has_trait_restrictions(object$effects))
+  ans <- get_estimates(object$fixed)
   class(ans) <- 'breedR_estimates'
   return(ans)
 }
@@ -1707,7 +1715,7 @@ ranef.remlf90 <- function (object, ...) {
   ## and further methods will let the user compute their 'projection'
   ## onto observed individuals (fit) or predict over unobserved individuals (pred)
   
-  ans <- get_estimates(object$ranef, drop = !has_trait_restrictions(object$effects))
+  ans <- get_estimates(object$ranef)
   
   ## Additional attributes
   

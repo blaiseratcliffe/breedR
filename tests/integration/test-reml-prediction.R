@@ -149,7 +149,7 @@ test_that("trait absence preserves missing-response and factor-level alignment",
 })
 
 
-test_that("a restricted single-level generic effect preserves trait matrices", {
+test_that("a restricted single-level generic effect keeps its trait names", {
   skip_if_not(isTRUE(check_progsf90(quiet = TRUE)), "PROGSF90 binaries not installed")
   x <- seq(-2, 2, length.out = 24)
   dat <- data.frame(x = x,
@@ -164,16 +164,18 @@ test_that("a restricted single-level generic effect preserves trait matrices", {
     var.ini = list(residuals = diag(c(.01, 1))),
     progsf90.options = c("maxrounds 100", "conv_crit 1d-10")
   ))
+  ## A single-level effect of a multi-trait fit is a vector named by trait,
+  ## restricted or not, so that looking a trait up by name returns its estimate
+  ## rather than NA.
   shared <- ranef(fit)$shared
-  expect_identical(dim(shared), c(1L, 2L))
-  expect_identical(dim(attr(shared, "se")), c(1L, 2L))
-  expect_identical(colnames(shared), c("y1", "y2"))
-  expect_identical(dimnames(attr(shared, "se")), dimnames(shared))
-  expect_true(is.finite(shared[1, "y1"]))
-  expect_true(is.finite(attr(shared, "se")[1, "y1"]))
-  expect_true(is.na(shared[1, "y2"]))
-  expect_true(is.na(attr(shared, "se")[1, "y2"]))
-  expect_identical(dim(fixef(fit)$x), c(1L, 2L))
+  expect_null(dim(shared))
+  expect_identical(names(shared), c("y1", "y2"))
+  expect_identical(names(attr(shared, "se")), names(shared))
+  expect_true(is.finite(shared["y1"]))
+  expect_true(is.finite(attr(shared, "se")["y1"]))
+  expect_true(is.na(shared["y2"]))
+  expect_true(is.na(attr(shared, "se")["y2"]))
+  expect_identical(names(fixef(fit)$x), c("y1", "y2"))
   expect_identical(dim(fitted(fit)), c(24L, 2L))
   expect_true(all(is.finite(fitted(fit))))
   ## With no shared random effect on y2 and zero residual covariance, its
