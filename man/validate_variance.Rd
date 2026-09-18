@@ -8,7 +8,8 @@ validate_variance(
   x,
   dimension = dim(as.matrix(x)),
   what = "var.ini",
-  where = ""
+  where = "",
+  active = NULL
 )
 }
 \arguments{
@@ -20,6 +21,10 @@ validate_variance(
 
 \item{where}{string. Model component where coordinates were specified. For 
 error messages only. E.g. \code{where = 'competition specification'}.}
+
+\item{active}{optional logical vector selecting the covariance coordinates
+that must form a positive-definite principal submatrix. The full matrix
+must still be finite, symmetric, and of the specified dimensions.}
 }
 \value{
 \code{TRUE} if all checks pass

@@ -11,7 +11,9 @@ reml_checkpoint(file, model = NULL, spd = TRUE)
 \code{progress_file} argument of \code{\link{remlf90}}.}
 
 \item{model}{a fitted \code{remlf90} object. When given, the components are
-named after its random effects and checked against their dimensions.
+named after its random effects and checked against their dimensions and
+trait restrictions. Restricted effects require positive definiteness only
+on their active traits, with exact zero padding elsewhere.
 Otherwise names are positional.}
 
 \item{spd}{logical. Only return a round whose matrices are all positive
@@ -42,6 +44,13 @@ print every block in their final round — REMLF90 under EM omits the last
 \code{G} — in which case the round before it is used. The round chosen is
 returned in the \code{round} attribute.
 
+
+For a trait-restricted fit, supply \code{model} to check the active covariance
+blocks and the log's effect-position declarations. Recovered matrices keep
+the full trait dimensions and numerical zeros for absent effects, so they
+can be reused with the same \code{traits} specification. Without a model,
+\code{spd = TRUE} still requires full positive definiteness; use
+\code{spd = FALSE} to inspect raw zero-padded matrices without a model.
 
 The result is not a drop-in for the \code{var.ini} argument of
 \code{\link{remlf90}}, which covers only the terms of \code{random} plus the

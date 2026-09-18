@@ -4,7 +4,7 @@
 \alias{check_var.ini}
 \title{Check initial variances specification}
 \usage{
-check_var.ini(x, random, response)
+check_var.ini(x, random, response, traits = NULL)
 }
 \arguments{
 \item{x}{list. user specification of var.ini (or NULL)}
@@ -12,6 +12,8 @@ check_var.ini(x, random, response)
 \item{random}{formula. user specification of random effects.}
 
 \item{response}{numeric vector or matrix.}
+
+\item{traits}{internal named list of logical trait-presence masks.}
 }
 \value{
 A list with initial covariance matrices for all random effects in the

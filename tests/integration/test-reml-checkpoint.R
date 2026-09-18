@@ -82,6 +82,8 @@ test_that("the log is readable while the fit is still running", {
 
   writeLines(c(
     loader,
+    sprintf("breedR.setOption(breedR.bin = %s)",
+            shQuote(breedR.getOption("breedR.bin"))),
     "dat <- breedR::globulus",
     "invisible(suppressMessages(remlf90(",
     "  fixed = phe_X ~ gg, random = ~ bl,",
@@ -434,4 +436,64 @@ test_that("killing the backend frees the session it was poisoning", {
   ## ... and the session can still fit, which is the symptom users hit
   expect_error(after <- fit_globulus(), NA)
   expect_true(after$reml$rounds > 0L)
+})
+
+
+test_that("trait-restricted checkpoints support continuation and manual restart", {
+  ## Balanced 24-record model with known REML variances. The second response
+  ## has no replicate effect; its checkpoint covariance row stays exactly zero.
+  restricted_data <- data.frame(
+    y1 = 10 + rep(c(-3, -2, -1, 1, 2, 3), each = 4) +
+      rep(c(-1, 1, -1, 1), 6),
+    y2 = 20 + rep(c(-2, -2, 2, 2), 6),
+    rep = factor(rep(1:6, each = 4)))
+  fit_restricted <- function(...)
+    suppressMessages(remlf90(cbind(y1, y2) ~ 1, random = ~ rep,
+                             traits = list(rep = "y1"),
+                             data = restricted_data, ...))
+
+  f <- file.path(wd, "restricted.log")
+  cold <- fit_restricted(var.ini = list(rep = diag(c(5, 2)),
+                                         residuals = diag(c(1, 4))),
+                         progress_file = f,
+                         progsf90.options = "conv_crit 1d-12")
+  checkpoint <- reml_checkpoint(f, model = cold)
+  expect_equal(checkpoint$rep[1, 1], 79/15, tolerance = 1e-4)
+  expect_equal(checkpoint$residuals[1, 1], 4/3, tolerance = 1e-4)
+  expect_equal(checkpoint$residuals[2, 2], 96/23, tolerance = 1e-4)
+  expect_identical(unname(checkpoint$rep[2, ]), c(0, 0))
+  expect_false(anyNA(checkpoint$rep))
+
+  warm <- fit_restricted(progress_file = f, cont = TRUE,
+                         progsf90.options = "conv_crit 1d-12")
+  expect_equal(warm$reml$resumed_from, attr(checkpoint, "round"))
+  expect_equal(fitted(warm), fitted(cold), tolerance = 1e-4)
+  expect_equal(warm$var, cold$var, tolerance = 1e-4)
+
+  manual <- fit_restricted(var.ini = checkpoint,
+                           progsf90.options = "conv_crit 1d-12")
+  expect_equal(fitted(manual), fitted(cold), tolerance = 1e-4)
+  expect_equal(manual$var, cold$var, tolerance = 1e-4)
+
+  ## A same-size but different selection is rejected before moving the log.
+  saved <- readLines(f, warn = FALSE)
+  expect_error(suppressMessages(remlf90(cbind(y1, y2) ~ 1, random = ~ rep,
+                 traits = list(rep = "y2"), data = restricted_data,
+                 progress_file = f, cont = TRUE)),
+               "Trait restrictions.*do not match")
+  expect_identical(readLines(f, warn = FALSE), saved)
+
+  ## EM's last round is also reusable when the initial run hits its cap.
+  em_file <- file.path(wd, "restricted-em.log")
+  partial <- fit_restricted(method = 'em', progress_file = em_file,
+                            var.ini = list(rep = diag(c(5, 2)),
+                                           residuals = diag(c(1, 4))),
+                            progsf90.options = "maxrounds 2")
+  em_checkpoint <- reml_checkpoint(em_file, model = partial)
+  expect_equal(attr(em_checkpoint, "round"), 2L)
+  expect_identical(unname(em_checkpoint$rep[2, ]), c(0, 0))
+  em_warm <- fit_restricted(method = 'em', progress_file = em_file, cont = TRUE,
+                            progsf90.options = "conv_crit 1d-12")
+  expect_equal(em_warm$reml$resumed_from, 2L)
+  expect_equal(fitted(em_warm), fitted(cold), tolerance = 1e-4)
 })

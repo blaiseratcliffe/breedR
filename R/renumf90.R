@@ -355,9 +355,10 @@ parse_renumf90 <- function(dir) {
 #' with BLUPF90+ model fitting.
 #'
 #' This function is particularly useful for multi-trait models with different
-#' effects per trait, which the \code{\link{remlf90}} formula interface does
-#' not support. Use \code{\link{renumf90}} to set up the model with per-trait
-#' effect positions, then fit with this function.
+#' fixed effects per trait. Use \code{\link{renumf90}} to set up per-trait
+#' effect positions, then fit with this function. For different random-effect
+#' groups per trait and common fixed effects, \code{\link{remlf90}} supports
+#' a named \code{traits} list and returns the usual fitted-model object.
 #'
 #' @param renum output from \code{\link{renumf90}}.
 #' @param method either 'ai' or 'em'.
@@ -365,8 +366,9 @@ parse_renumf90 <- function(dir) {
 #'   Use \code{\link{var_functions}}, \code{\link{h2_formula}}, or
 #'   \code{\link{rg_formula}} to compute genetic parameters with SEs.
 #' @param debug logical.
-#' @return A list with model results (solutions, variance components, etc.)
-#'   and a \code{renum} component containing the RENUMF90 outputs.
+#' @return A plain list with raw model results (solutions and backend output)
+#'   and a \code{renum} component containing the RENUMF90 outputs. It is not
+#'   a \code{remlf90} object and does not provide its fitted-model methods.
 #'
 #' @examples
 #' \dontrun{

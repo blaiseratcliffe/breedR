@@ -1,9 +1,71 @@
 # Multi-Trait Models with Different Effects per Trait
 
-breedR's `remlf90()` formula interface applies the same fixed effects to all
-traits. When you need different fixed or random effects for each trait (e.g.,
-age affects height but not diameter), use the `renumf90()` + `remlf90_from_renum()`
-pathway.
+Use `remlf90(traits = ...)` to include a random-effect group on selected
+responses in a joint model. Fixed effects remain common to all responses.
+For different fixed effects per trait (e.g., age affects height but not
+diameter), use `renumf90()` + `remlf90_from_renum()`.
+
+## Selecting random effects in the formula interface
+
+This small example fits a replicate effect on height only:
+
+```r
+library(breedR)
+a <- c(-3, -2, -1, 1, 2, 3)
+dat <- data.frame(
+  rep = factor(rep(seq_along(a), each = 4)),
+  height = 10 + rep(a, each = 4) + rep(c(-1, 1, -1, 1), 6),
+  diameter = 20 + rep(c(-2, -2, 2, 2), 6)
+)
+fit <- remlf90(
+  cbind(height, diameter) ~ 1,
+  random = ~ rep,
+  traits = list(rep = "height"),
+  var.ini = list(rep = diag(c(5, 0)), residuals = diag(c(1, 4))),
+  data = dat
+)
+ranef(fit)$rep   # diameter coefficients are NA: this effect was not fitted
+fitted(fit)      # diameter fitted values still include its fixed intercept
+```
+
+The `traits` list names random-effect groups and gives response-column names.
+Unlisted groups apply to every response. `NULL`, an empty list, and explicitly
+selecting every response give the usual model. Selection order does not change
+response order; for example, `traits = list(rep = c("y3", "y1"))` selects the
+first and third columns of `cbind(y1, y2, y3)`. A selection must retain at least
+one response. Remove the group from the model to omit it everywhere.
+
+Groups may be ordinary random formula terms, `genetic`, `spatial`, `pec`, or
+named generic components. A correlated group shares one selection: direct and
+competition genetic effects cannot have different selections. Generic groups
+named `genetic` or `spatial` use their existing normalized names,
+`generic_genetic` and `generic_spatial`.
+
+Initial covariance matrices keep their full dimensions and existing order:
+group member first, then response. The active principal block must be positive
+definite. Inactive entries are ignored and their rows and columns are written
+as zero; supply finite, symmetric numeric matrices without `NA`. For example,
+both `diag(c(5, 0))` and `diag(c(5, 2))` initialize the fit above identically.
+An active off-diagonal zero still constrains that covariance to zero. A zero
+variance or an `NA` in `var.ini` does not select an absent effect.
+
+Variance and coefficient results retain all response dimensions. `NA` marks
+absent combinations; `summary()` identifies them. Their contribution to
+`fitted()` is zero, and missing response observations stay missing in
+`residuals()`. Model incidence matrices and observation order are unchanged.
+
+Use the same `traits` specification when restarting with `cont = TRUE` and
+`progress_file`. `reml_checkpoint(logfile, model = fit)` validates the active
+covariance blocks and returns full matrices with zero rows for absent traits;
+these can also be supplied in the existing `var.ini` locations with the same
+selection. Pass the fitted model when reading such a checkpoint: zero entries
+alone do not identify which effects were absent.
+
+With `genomic`, restrictions on other random groups are supported, but the
+genetic group must apply to all responses. Differing fixed effects and
+member-specific selections within a correlated group require the lower-level
+route below. That route returns raw results in a plain list, not a `remlf90`
+object with `ranef()`, `fitted()`, and `summary()` methods.
 
 ## The Key Concept: `pos = c(col_trait1, col_trait2)`
 
@@ -228,15 +290,15 @@ list(pos = c(6, 6), type = "cross", form = "numer",
 ```
 
 Note: integrating spatial effects through RENUMF90 requires manual
-precision matrix construction. For spatial models, consider using
-`remlf90()` directly when the same spatial structure applies to all
-traits.
+precision matrix construction. With common fixed effects, use `remlf90()`
+and select the spatial group's responses with `traits = list(spatial = ...)`.
 
 ## When to Use Each Pathway
 
 | Scenario | Use |
 |---|---|
 | Same fixed effects for all traits | `remlf90()` with `cbind(y1, y2) ~ ...` |
+| Random-effect groups present on selected traits | `remlf90(traits = list(group = c("y1", "y3")))` |
 | Different fixed effects per trait | `renumf90()` + `remlf90_from_renum()` |
 | Alphanumeric IDs | `renumf90()` |
 | Unknown parent groups | `renumf90()` |

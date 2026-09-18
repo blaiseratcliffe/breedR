@@ -63,3 +63,26 @@ test_that('pf90_default_heritability() works as expected for multiple traits', {
   expect_identical(pf90_default_heritability(rgl, traits = trts), ans)
 })
 
+
+test_that('default heritability excludes absent random contributions', {
+  tr <- c('y1', 'y2', 'y3')
+  rg <- list(rep = list(pos = 2, trait.active = c(TRUE, FALSE, TRUE)),
+              genetic = list(pos = 3))
+  result <- pf90_default_heritability(rg, traits = tr)
+  expect_identical(result[2],
+    'se_covar_function Heritability:y2 G_3_3_2_2/(G_3_3_2_2+R_2_2)')
+  expect_match(result[1], 'G_2_2_1_1', fixed = TRUE)
+  expect_match(result[3], 'G_2_2_3_3', fixed = TRUE)
+  rg$genetic$trait.active <- c(FALSE, TRUE, TRUE)
+  result <- pf90_default_heritability(rg, traits = tr)
+  expect_length(result, 2L)
+  expect_true(all(grepl('Heritability:y[23]', result)))
+  expect_false(any(grepl('Heritability:y1', result, fixed = TRUE)))
+})
+
+
+test_that('masked heritability retains the correlated-group limitation', {
+  rg <- list(genetic = list(pos = 2:3, trait.active = c(TRUE, FALSE)))
+  expect_null(pf90_default_heritability(rg, traits = c('y1', 'y2'), quiet = TRUE))
+})
+

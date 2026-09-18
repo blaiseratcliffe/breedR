@@ -360,3 +360,151 @@ test_that("Multitrait model with all kind of effects works as expected", {
 })
 
 
+test_that("trait-specific random effects match balanced REML and BLUPs", {
+  skip_if_not(isTRUE(check_progsf90(quiet = TRUE)), "PROGSF90 binaries not installed")
+  a <- c(-3, -2, -1, 1, 2, 3)
+  dat <- data.frame(
+    rep = factor(rep(seq_along(a), each = 4)),
+    y1 = 10 + rep(a, each = 4) + rep(c(-1, 1, -1, 1), 6),
+    y2 = 20 + rep(c(-2, -2, 2, 2), 6)
+  )
+  opts <- c("maxrounds 100", "conv_crit 1d-12")
+
+  ## The residual covariance is constrained to zero, so the joint likelihood
+  ## factors into a balanced random-intercept fit and an intercept-only fit.
+  ## MSwithin = 4/3, MSbetween = 112/5, G = (MSbetween - MSwithin)/4.
+  for (method in c("ai", "em")) {
+    fit <- suppressMessages(remlf90(
+      cbind(y1, y2) ~ 1, random = ~ rep, data = dat,
+      traits = list(rep = "y1"), method = method,
+      var.ini = list(rep = diag(c(5, 0)), residuals = diag(c(1, 4))),
+      progsf90.options = opts
+    ))
+    g <- if (method == "ai") fit$var[["rep", 1]] else fit$var$rep
+    r <- if (method == "ai") fit$var[["Residual", 1]] else fit$var$Residual
+    expect_equal(unname(g[1, 1]), 79/15, tolerance = 1e-4)
+    expect_true(all(is.na(g[2, ])))
+    expect_true(all(is.na(g[, 2])))
+    expect_equal(unname(diag(r)), c(4/3, 96/23), tolerance = 1e-4)
+    expect_identical(unname(r[1, 2]), 0)
+    expect_equal(as.numeric(fixef(fit)$Intercept), c(10, 20),
+                 tolerance = 1e-5)
+    expect_equal(as.numeric(ranef(fit)$rep[, "y1"]), 79/84*a,
+                 tolerance = 1e-4)
+    expect_true(all(is.na(ranef(fit)$rep[, "y2"])))
+    expect_output(print(summary(fit)), 'Absent random effects: rep on y2')
+    expect_equal(as.numeric(fitted(fit)[, 1]),
+                 10 + rep(79/84*a, each = 4), tolerance = 1e-4)
+    expect_equal(as.numeric(fitted(fit)[, 2]), rep(20, 24),
+                 tolerance = 1e-5)
+
+    first <- suppressMessages(remlf90(
+      y1 ~ 1, random = ~ rep, data = dat, method = method,
+      var.ini = list(rep = 5, residuals = 1), progsf90.options = opts
+    ))
+    second <- suppressMessages(remlf90(
+      y2 ~ 1, data = dat, method = method,
+      var.ini = list(residuals = 4), progsf90.options = opts
+    ))
+    expect_equal(as.numeric(fitted(fit)[, 1]), as.numeric(fitted(first)),
+                 tolerance = 1e-4)
+    expect_equal(as.numeric(fitted(fit)[, 2]), as.numeric(fitted(second)),
+                 tolerance = 1e-5)
+    if (method == "ai") {
+      expect_identical(rownames(fit$reml$invAI),
+                       c("rep.y1", "resid.y1", "resid.y2"))
+      expect_true(all(is.na(fit$var[["rep", 2]][2, ])))
+    }
+  }
+})
+
+
+test_that("default and all-trait selections preserve parameters and estimates", {
+  skip_if_not(isTRUE(check_progsf90(quiet = TRUE)), "PROGSF90 binaries not installed")
+  a <- rep(c(-3, -2, -1, 1, 2, 3), each = 4)
+  dat <- data.frame(rep = factor(rep(1:6, each = 4)),
+                    y1 = 10 + a + rep(c(-1, 1, -1, 1), 6),
+                    y2 = 20 + .75*a + rep(c(-2, -2, 2, 2), 6))
+  fit_default <- function(...) suppressMessages(remlf90(
+    cbind(y1, y2) ~ 1, random = ~ rep, data = dat,
+    var.ini = list(rep = diag(c(5, 2)), residuals = diag(c(1, 4))),
+    progsf90.options = c("maxrounds 100", "conv_crit 1d-12"), ...
+  ))
+  original <- fit_default()
+  parameters <- readLines(file.path(original$reml$dir, "parameters"))
+  for (selection in list(NULL, list(), list(rep = c("y2", "y1")))) {
+    fit <- fit_default(traits = selection)
+    expect_identical(readLines(file.path(fit$reml$dir, "parameters")), parameters)
+    expect_identical(fit$effects, original$effects)
+    expect_equal(fit$var, original$var, tolerance = 1e-12)
+    expect_equal(fitted(fit), fitted(original), tolerance = 1e-12)
+    expect_equal(as.numeric(logLik(fit)), as.numeric(logLik(original)),
+                 tolerance = 1e-12)
+  }
+})
+
+
+test_that("noncontiguous traits agree with a hand-written BLUPF90 model", {
+  skip_if_not(isTRUE(check_progsf90(quiet = TRUE)), "PROGSF90 binaries not installed")
+  set.seed(51)
+  group <- rep(seq_len(20), each = 6)
+  u1 <- rnorm(20, sd = 1.5)
+  u3 <- .4*u1 + rnorm(20, sd = 1.3)
+  shared <- rnorm(length(group), sd = .5)
+  dat <- data.frame(
+    y1 = 10 + u1[group] + shared + rnorm(length(group), sd = 1.5),
+    y2 = 20 + shared + rnorm(length(group), sd = 1.5),
+    y3 = 30 + u3[group] + shared + rnorm(length(group), sd = 1.5),
+    rep = factor(group)
+  )
+  initial_g <- matrix(c(2, 0, .4, 0, 0, 0, .4, 0, 2), 3)
+  initial_r <- matrix(.5, 3, 3) + diag(2.5, 3)
+  fit <- suppressMessages(remlf90(
+    cbind(y1, y2, y3) ~ 1, random = ~ rep, data = dat,
+    traits = list(rep = c("y3", "y1")),
+    var.ini = list(rep = initial_g, residuals = initial_r),
+    progsf90.options = c("maxrounds 100", "conv_crit 1d-10")
+  ))
+
+  ## Independent serialization: no breedR render or parse helper is used here.
+  direct_dir <- tempfile("trait-presence-direct-")
+  dir.create(direct_dir)
+  on.exit(unlink(direct_dir, recursive = TRUE), add = TRUE)
+  write.table(data.frame(dat[, 1:3], intercept = 1, group = group),
+              file.path(direct_dir, "data"), row.names = FALSE,
+              col.names = FALSE, quote = FALSE)
+  writeLines(c(
+    "DATAFILE", "data", "NUMBER_OF_TRAITS", "3", "NUMBER_OF_EFFECTS", "2",
+    "OBSERVATION(S)", "1 2 3", "WEIGHT(S)", "", "EFFECTS:",
+    "4 4 4 1 cross", "5 0 5 20 cross", "RANDOM_RESIDUAL VALUES",
+    "3 .5 .5", ".5 3 .5", ".5 .5 3", "RANDOM_GROUP", "2",
+    "RANDOM_TYPE", "diagonal", "FILE", "", "(CO)VARIANCES",
+    "2 0 .4", "0 0 0", ".4 0 2", "OPTION method VCE",
+    "OPTION maxrounds 100", "OPTION conv_crit 1d-10", "OPTION sol se"
+  ), file.path(direct_dir, "parameters"))
+  binary <- file.path(breedR.getOption("breedR.bin"),
+                      breedR:::progsf90_files(breedR:::breedR.os.type()))
+  oldwd <- setwd(direct_dir)
+  direct <- tryCatch(system2(binary, input = "parameters", stdout = TRUE),
+                     finally = setwd(oldwd))
+  expect_true(file.exists(file.path(direct_dir, "solutions")))
+  raw_solutions <- read.table(file.path(direct_dir, "solutions"), skip = 1)
+  for (trait in c(1, 3)) {
+    rows <- raw_solutions[raw_solutions$V1 == trait & raw_solutions$V2 == 2, ]
+    rows <- rows[order(rows$V3), ]
+    expect_equal(as.numeric(ranef(fit)$rep[, trait]), rows$V4, tolerance = 1e-4)
+  }
+  read_block <- function(label) {
+    start <- tail(grep(label, direct, fixed = TRUE), 1)
+    unname(as.matrix(read.table(text = paste(direct[start + 1:3], collapse = "\n"))))
+  }
+  expect_equal(unname(fit$var[["rep", 1]][c(1, 3), c(1, 3)]),
+               read_block("Genetic variance(s)")[c(1, 3), c(1, 3)],
+               tolerance = 1e-4)
+  expect_equal(unname(fit$var[["Residual", 1]]), read_block("Residual variance(s)"),
+               tolerance = 1e-4)
+  expect_true(all(is.na(ranef(fit)$rep[, "y2"])))
+  expect_identical(dim(fit$reml$invAI), c(9L, 9L))
+})
+
+

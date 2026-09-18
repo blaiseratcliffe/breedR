@@ -158,9 +158,9 @@ ldf2matrix <- function(x, vname, drop = TRUE) {
 # of effects estimates (or predictions)
 # x is a list of effects, where each element is a trait-wise
 # list of data.frames with columns 'value' and 's.e.'
-get_estimates <- function(x) {
-  values <- lapply(x, ldf2matrix, 'value')
-  se <- lapply(x, ldf2matrix, 's.e.')
+get_estimates <- function(x, drop = TRUE) {
+  values <- lapply(x, ldf2matrix, 'value', drop = drop)
+  se <- lapply(x, ldf2matrix, 's.e.', drop = drop)
   ans <- mapply(function(gvl, gse) structure(gvl, se = gse),
                 values, se, SIMPLIFY = FALSE)
   return(ans)

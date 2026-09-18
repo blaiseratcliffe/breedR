@@ -1,3 +1,8 @@
+* `remlf90()` accepts `traits`, a named list selecting the responses on which
+each random-effect group is fitted, so an effect can be dropped from some
+traits of a multi-trait model. Unlisted groups keep every trait; absent
+coefficients and variances are reported as `NA` (#51)
+
 * `gibbsf90()` now returns the per-round variance component samples for any
 model. `res$samples` held round numbers and component counts instead of the
 variances unless the model had exactly one random effect and a single residual

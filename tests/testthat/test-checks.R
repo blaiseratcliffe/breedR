@@ -681,6 +681,115 @@ test_that('validate_variance() returns informative error messages', {
                'this must be a SPD matrix in the there')
 })
 
+test_that('trait selections use response order and validate names early', {
+  response <- cbind(y1 = 1:6, y2 = 2:7, y3 = 3:8)
+  expect_null(check_effect_traits(NULL, response))
+  expect_null(check_effect_traits(list(), response))
+  expect_identical(check_effect_traits(list(rep = c('y3', 'y1')), response),
+                   list(rep = c(y1 = TRUE, y2 = FALSE, y3 = TRUE)))
+  for (bad in list('y1', list('y1'), list(rep = 'y1', rep = 'y2'),
+                   setNames(list('y1'), ''))) {
+    expect_error(check_effect_traits(bad, response), 'group names')
+  }
+  for (bad in list(NULL, character(), c('y1', 'y1'), NA_character_, 1, '')) {
+    expect_error(check_effect_traits(list(rep = bad), response),
+                 'unique, nonmissing response names')
+  }
+  expect_error(check_effect_traits(list(rep = 'typo'), response), 'Unknown trait')
+  expect_error(check_effect_traits(list(rep = 'y1'), response[, 1, drop = FALSE]),
+               'multivariate response')
+  colnames(response)[2] <- 'y1'
+  expect_error(check_effect_traits(list(rep = 'y1'), response), 'unique, nonempty')
+})
+
+test_that('trait group names resolve formulas and canonical generic names', {
+  d <- data.frame(y1 = 1:6, y2 = 2:7, rep = factor(c(1, 1, 2, 2, 3, 3)))
+  data <- d
+  mf <- build.mf(call('remlf90', fixed = cbind(y1, y2) ~ 1,
+                      random = ~ rep, data = quote(d)))
+  selected <- check_effect_traits(list(rep = 'y1'), as.matrix(model.response(mf)))
+  expect_identical(check_trait_groups(selected, mf, NULL, NULL, NULL), selected)
+  alltraits <- list(rep = c(y1 = TRUE, y2 = TRUE))
+  expect_null(check_trait_groups(alltraits, mf, NULL, NULL, NULL))
+  for (nm in c('Intercept', 'residuals', 'genetic_direct', 'pec', 'typo')) {
+    expect_error(check_trait_groups(setNames(selected, nm), mf, NULL, NULL, NULL),
+                 'Unknown or ambiguous random-effect group')
+  }
+  generic <- list(genetic = list(), spatial = list(), custom = list())
+  expect_identical(random_group_names(mf, NULL, NULL, generic),
+                   c('rep', 'generic_genetic', 'generic_spatial', 'custom'))
+  expect_error(check_trait_groups(selected, mf, NULL, NULL, list(rep = list())),
+               'ambiguous')
+})
+
+test_that('restricted covariance validation retains full coordinates', {
+  active <- c(y1 = TRUE, y2 = FALSE, y3 = TRUE)
+  g <- matrix(c(2, 8, .5, 8, -4, 9, .5, 9, 3), 3)
+  expect_true(validate_variance(g, dimension = c(3, 3), active = active))
+  expect_true(validate_variance(Matrix::Matrix(g), active = active))
+  expect_equal(mask_variance(g, active), matrix(c(2, 0, .5, 0, 0, 0, .5, 0, 3), 3))
+  expect_error(validate_variance(diag(2), dimension = c(3, 3), active = active),
+               '3x3 matrix')
+  g[1, 3] <- g[3, 1] <- 5
+  expect_error(validate_variance(g, active = active), 'active covariance block')
+  g <- diag(3)
+  g[2, 2] <- NA_real_
+  expect_error(validate_variance(g, active = active), 'finite and symmetric')
+  g[2, 2] <- Inf
+  expect_error(validate_variance(g, active = active), 'finite and symmetric')
+  g <- diag(3); g[2, 1] <- 1
+  expect_error(validate_variance(g, active = active), 'finite and symmetric')
+})
+
+test_that('all random component checkers canonicalize restricted covariance', {
+  response <- cbind(y1 = 1:4, y2 = c(1, 3, 2, 5))
+  active <- c(y1 = TRUE, y2 = FALSE)
+  g <- diag(c(2, 0))
+  ordinary <- check_var.ini(list(rep = g, residuals = diag(2)), ~ rep,
+                            response, list(rep = active))
+  expect_equal(ordinary$rep, g)
+  animal <- check_genetic('add_animal', ped, id, var.ini = g,
+                          response = response, trait.active = active)
+  expect_equal(animal$var.ini, g)
+  spatial <- check_spatial('AR', coordinates = cbind(1:4, 1:4),
+                           rho = c(.5, .5), var.ini = g, response = response,
+                           trait.active = active)
+  expect_equal(spatial$var.ini, g)
+  generic <- check_generic(list(genetic = list(incidence = diag(4),
+                                               covariance = diag(4), var.ini = g)),
+                            response, traits = list(generic_genetic = active))
+  expect_equal(generic$genetic$var.ini, g)
+  expect_false('trait.active' %in% names(generic$genetic))
+  comp <- check_genetic('competition', ped, id, var.ini = diag(c(2, 0, 3, 0)),
+                        coordinates = cbind(c(1, 1, 2, 2), c(1, 2, 1, 2)),
+                        pec = list(var.ini = diag(c(0, 4))), response = response,
+                        trait.active = active, pec.trait.active = !active)
+  expect_equal(comp$var.ini, diag(c(2, 0, 3, 0)))
+  expect_equal(comp$pec$var.ini, diag(c(0, 4)))
+})
+
+test_that('invalid trait specifications fail before checking the backend', {
+  local_mocked_bindings(check_progsf90 = function(...) stop('backend reached'),
+                        .package = 'breedR')
+  d <- data.frame(y1 = 1:6, y2 = c(1, 3, 2, 4, 6, 5), rep = factor(rep(1:3, 2)))
+  expect_error(remlf90(cbind(y1, y2) ~ 1, random = ~ rep, data = d,
+                       traits = list(typo = 'y1')), 'Unknown or ambiguous')
+  expect_error(remlf90(cbind(y1, y2) ~ 1, random = ~ rep, data = d,
+                       traits = list(rep = 'y1'),
+                       var.ini = list(rep = 1, residuals = diag(2))), '2x2 matrix')
+  expect_error(remlf90(cbind(y1, y2) ~ 1, random = ~ rep, data = d,
+                       spatial = list(model = 'AR', coordinates = cbind(1:6, 1:6),
+                                      rho = expand.grid(c(.2, .4), c(.2, .4))),
+                       traits = list(rep = 'typo')), 'Unknown trait')
+  local_mocked_bindings(check_genomic = function(x) x, .package = 'breedR')
+  expect_error(remlf90(cbind(y1, y2) ~ 1, data = d,
+                       genetic = list(model = 'add_animal',
+                         pedigree = data.frame(self = 1:6, sire = 0, dam = 0),
+                         id = 1:6), genomic = list(),
+                       traits = list(genetic = 'y1')),
+               "Trait restrictions on 'genetic' are not supported with 'genomic'")
+})
+
 test_that('default_initial_variance() works as expected', {
   
   ## One trait: always return half the phenotypic variance
