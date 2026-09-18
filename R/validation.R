@@ -218,6 +218,9 @@ validate_prediction <- function(renum,
   # Read base parameter file
   par_lines <- readLines(renum$par_file)
   par_with_opts <- c(par_lines, paste("OPTION", extra_opts))
+  ## par_content, not par_lines: the file on disk also holds the options of
+  ## whatever was fitted from this renum object last (see remlf90_from_renum).
+  refuse_hetres_int(c(renum$par_content, progsf90.options))
 
   # --- Step 1: Fit with WHOLE data ---
   message("Fitting model with full data...")

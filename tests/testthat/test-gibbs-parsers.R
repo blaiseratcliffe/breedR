@@ -24,12 +24,101 @@ test_that("parse_gibbs_results reads final_solutions", {
   expect_equal(result$solutions$solution[1], 13.58)
 })
 
+## GIBBSF90+ opens gibbs_samples with one line giving the number of
+## (co)variance components, then one mapping line per component, then
+## alternating round and value lines. The header is therefore as long as the
+## model is wide, and only a model with exactly two components has the three
+## header lines the parser used to assume (#77). The samples below are real
+## output: a fixed-effects model, one and two random effects, and two traits
+## with one random effect (3 genetic + 3 residual components).
+samples_dir <- function(lines, key) {
+  dir <- file.path(tempdir(), paste0("test_gibbs_samples_", key))
+  dir.create(dir, showWarnings = FALSE)
+  writeLines(lines, file.path(dir, "gibbs_samples"))
+  dir
+}
+
+test_that("parse_gibbs_results reads samples of a one-component model", {
+  dir <- samples_dir(c(
+    "      -1       1       4",
+    "    1    0    0    1    1",
+    "      10       1",
+    "   10.27    ",
+    "      20       1",
+    "   9.967    "
+  ), "1c")
+  on.exit(unlink(dir, recursive = TRUE))
+
+  samples <- parse_gibbs_results(dir)$samples
+  expect_equal(dim(samples), c(2L, 1L))
+  expect_equal(unname(samples[, 1]), c(10.27, 9.967))
+  expect_equal(rownames(samples), c("10", "20"))
+})
+
+test_that("parse_gibbs_results reads samples of a three-component model", {
+  dir <- samples_dir(c(
+    "      -1       3       4",
+    "    1    3    3    1    1",
+    "    2    4    4    1    1",
+    "    3    0    0    1    1",
+    "      10       3",
+    "  0.5074E-01   2.123       8.635    ",
+    "      20       3",
+    "  0.8970E-01   3.680       8.668    "
+  ), "3c")
+  on.exit(unlink(dir, recursive = TRUE))
+
+  samples <- parse_gibbs_results(dir)$samples
+  expect_equal(dim(samples), c(2L, 3L))
+  expect_equal(unname(samples[1, ]), c(0.5074e-01, 2.123, 8.635))
+  expect_equal(unname(samples[2, 3]), 8.668)
+  expect_equal(rownames(samples), c("10", "20"))
+})
+
+test_that("parse_gibbs_results reads samples of a multi-trait model", {
+  dir <- samples_dir(c(
+    "      -1       6       4",
+    "    1    3    3    1    1",
+    "    2    3    3    1    2",
+    "    3    3    3    2    2",
+    "    4    0    0    1    1",
+    "    5    0    0    1    2",
+    "    6    0    0    2    2",
+    "      10       6",
+    paste("  0.1013     -0.2511       2.442       10.61",
+          "     0.2098       3.751    ")
+  ), "6c")
+  on.exit(unlink(dir, recursive = TRUE))
+
+  samples <- parse_gibbs_results(dir)$samples
+  expect_equal(dim(samples), c(1L, 6L))
+  expect_equal(unname(samples[1, ]),
+               c(0.1013, -0.2511, 2.442, 10.61, 0.2098, 3.751))
+})
+
+test_that("parse_gibbs_results reads samples that start at a round line", {
+  ## The header is found rather than assumed, so a file without one parses
+  ## instead of collapsing to nothing.
+  dir <- samples_dir(c(
+    "      10       1",
+    "   10.27    ",
+    "      20       1",
+    "   9.967    "
+  ), "nohdr")
+  on.exit(unlink(dir, recursive = TRUE))
+
+  samples <- parse_gibbs_results(dir)$samples
+  expect_equal(dim(samples), c(2L, 1L))
+  expect_equal(unname(samples[, 1]), c(10.27, 9.967))
+})
+
 test_that("parse_gibbs_results reads gibbs_samples", {
   dir <- file.path(tempdir(), "test_gibbs_parse2")
   dir.create(dir, showWarnings = FALSE)
   on.exit(unlink(dir, recursive = TRUE))
 
-  # Mock gibbs_samples: 3 header lines, then alternating round/values
+  # Mock gibbs_samples: two components, so 3 header lines, then alternating
+  # round/values
   writeLines(c(
     "      -1       2       4",
     "    1    2    2    1    1",

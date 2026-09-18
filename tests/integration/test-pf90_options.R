@@ -291,3 +291,43 @@ test_that('heterogeneous residual variance coefficients are recovered', {
   expect_true(all(abs(z) < 3), label = paste('z =', toString(round(z, 2))))
   expect_identical(rownames(res$var), 'g')
 })
+
+
+test_that('gibbsf90 estimates a residual variance per class', {
+
+  ## What remlf90() refuses (#39) and points users at instead: GIBBSF90+ does
+  ## estimate class-based residual variances, and needs no initial-variance
+  ## file to do it. Two sites with residual variances 1 and 16.
+  set.seed(1)
+  n <- 2000
+  ng <- 50
+  dat <- data.frame(site = factor(rep(1:2, each = n / 2)),
+                    g = factor(sample(ng, n, replace = TRUE)))
+  u <- rnorm(ng, sd = sqrt(2))
+  dat$y <- 10 + u[dat$g] + rnorm(n, sd = ifelse(dat$site == 1, 1, 4))
+
+  ## data file columns: y, site, g
+  res <- suppressMessages(
+    gibbsf90(y ~ site, random = ~ g, data = dat,
+             n_samples = 5000, burnin = 1000, thin = 10,
+             hetres_int = list(col = 2, n = 2), seed = c(1, 2))
+  )
+
+  ## one column per (co)variance component: g, then one residual per class.
+  ## This is the shape that used to come back as round numbers (#77).
+  expect_equal(dim(res$samples)[2], 3L)
+  expect_identical(rownames(res$samples)[1], '1010')
+
+  ## the parsed columns are the components the backend reports, in its order
+  ave_idx <- grep('^\\s*ave [GR]\\s*$', res$output)
+  ave <- as.numeric(res$output[ave_idx + 1])
+  expect_length(ave, 3L)
+  expect_equal(unname(colMeans(res$samples)), ave, tolerance = 1e-4)
+
+  ## and they recover the simulated variances
+  post <- colMeans(res$samples)
+  expect_true(post[2] > 0.5 && post[2] < 2,
+              label = paste('class 1 residual =', round(post[2], 3)))
+  expect_true(post[3] > 10 && post[3] < 25,
+              label = paste('class 2 residual =', round(post[3], 3)))
+})

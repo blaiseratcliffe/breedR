@@ -412,6 +412,14 @@ remlf90_from_renum <- function(renum,
     stop("RENUMF90 parameter file not found. Run renumf90() first.",
          call. = FALSE)
 
+  # RENUMF90 copies the OPTION lines it is given into the parameter file, so
+  # they are checked along with progsf90.options. par_content is what RENUMF90
+  # wrote, not what is on disk now: every fit from a renum object rewrites
+  # renf90.par in place with its own appended options, so the file also holds
+  # whatever a previous gibbsf90_from_renum() asked for, which is not this
+  # call's to refuse.
+  refuse_hetres_int(c(renum$par_content, progsf90.options))
+
   dir <- renum$dir
   bin_path <- breedR.getOption('breedR.bin')
 
