@@ -90,3 +90,20 @@ test_that("an AR rho grid is refused for a non-local fit", {
   ## cause under "All rho combinations failed".
   expect_error(grid_fit(no_bin), "Binary dependencies missing")
 })
+
+
+test_that("select_best_rho() refuses to pick from an all-NA grid", {
+
+  ## A rho can run to completion without error yet still carry no usable
+  ## log-likelihood (e.g. an unparseable REML log). which.max(c(NA, NA)) is
+  ## integer(0), and ans.rho[[integer(0)]] used to throw "attempt to select
+  ## less than one element in get1index" -- an opaque crash several frames
+  ## away from the real cause (issue #3).
+  expect_error(select_best_rho(c(NA_real_, NA_real_)),
+               "usable log-likelihood")
+  expect_error(select_best_rho(numeric(0)),
+               "usable log-likelihood")
+
+  ## A partially failed grid still picks the best of what succeeded.
+  expect_equal(select_best_rho(c(NA, 3.1, -5, 3.9, NA)), 4)
+})

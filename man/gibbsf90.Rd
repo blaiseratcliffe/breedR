@@ -129,13 +129,8 @@ categorical traits.}
 are stored, or any of 'remote' or 'submit' for remote computing. See 
 'Details'.}
 
-\item{progsf90.options}{character. Passed directly to OPTIONS field in 
-PROGSF90. See available options for 
-\href{http://nce.ads.uga.edu/wiki/doku.php?id=readme.reml#options}{REMLF90}
-and for 
-\href{http://nce.ads.uga.edu/wiki/doku.php?id=readme.aireml#options}{AIREMLF90}.
- Option \code{sol se} is passed always and cannot be removed. No checks are
-performed, handle with care.}
+\item{progsf90.options}{character. Additional options, passed directly to
+the OPTIONS field of GIBBSF90+. No checks are performed, handle with care.}
 
 \item{weights}{numeric. A vector of weights for the residual variance.}
 }

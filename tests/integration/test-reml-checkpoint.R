@@ -24,8 +24,11 @@ wd <- normalizePath(wd, winslash = "/")
 
 ## Load the same copy of breedR in a spawned R process as the one under test:
 ## during development that is the source tree, in CI the installed package.
+## Ask whether breedR came from load_all(): pkg_path() alone finds the checkout
+## whenever the tests run inside it, even when they test the installed package.
 loader <- local({
-  src <- tryCatch(if (requireNamespace("pkgload", quietly = TRUE))
+  src <- tryCatch(if (requireNamespace("pkgload", quietly = TRUE) &&
+                      pkgload::is_dev_package("breedR"))
                     pkgload::pkg_path() else NULL,
                   error = function(e) NULL)
   if (!is.null(src))

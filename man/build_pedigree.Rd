@@ -37,7 +37,8 @@ pedigree by introducing new individuals with unknown parents.
 
 Furthermore, the codes must be sorted in ascending and consecutive order 
 beginning from 1, and the offspring must follow parents. All this is checked, 
-and the pedigree is reordered and recoded if needed.
+and the pedigree is reordered and recoded if needed. Individual codes below 1
+are an error, since 0 marks an unknown parent.
 
 If recoding is needed, the function issues a warning and an attribute 'map' 
 is attached to the pedigree, such that \code{map[i] = j} means that code 

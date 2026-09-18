@@ -34,7 +34,7 @@ check_pedigree(ped_ok)  # passes all checks
 
 # Sometimes founders are missing
 (ped_notfull <- ped_ok[-c(1:2),])
-check_pedigree(ped_notfull)  # fails full_ped
+check_pedigree(ped_notfull)  # fails full_ped, and codes no longer start at 1
 
 # Sometimes codes of parents are greater than their offspring
 sw_23 <- c(1, 3, 2, 4:6)

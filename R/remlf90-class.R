@@ -51,8 +51,10 @@
 #'   \href{http://nce.ads.uga.edu/wiki/doku.php?id=readme.reml#options}{REMLF90}
 #'   and for 
 #'   \href{http://nce.ads.uga.edu/wiki/doku.php?id=readme.aireml#options}{AIREMLF90}.
-#'    Option \code{sol se} is passed always and cannot be removed. No checks are
-#'   performed, handle with care.
+#'    Option \code{sol se} is passed always and cannot be removed. The only
+#'   check performed is that class-based heterogeneous residual variances
+#'   (\code{hetres_int}) are refused (see \code{\link{hetres_options}});
+#'   otherwise, handle with care.
 #' @param weights numeric. A vector of weights for the residual variance.
 #' @param parallel logical or integer. If \code{TRUE}, the AR rho grid search
 #'   runs in parallel using all available cores. If an integer, uses that many
@@ -265,6 +267,9 @@
 #'   The default heritability is not requested for such a fit, because
 #'   BLUPF90+ does not support it with heterogeneous residuals. BLUPF90+ fits
 #'   these models by AI-REML only (\code{method = 'ai'}, the default).
+#'   Class-based heterogeneous residual variances (a variance per level of a
+#'   factor) are refused: BLUPF90+ does not estimate them by REML and would
+#'   fit a homoscedastic model instead. Use \code{\link{gibbsf90}} for those.
 #'   See \code{\link{hetres_options}} for details.}
 #'
 #'   \subsection{Remote computing}{ If \code{breedR.bin = 'remote'}, the REML 
@@ -575,6 +580,7 @@ remlf90 <- function(fixed,
   ## Checked before the binaries so that these guards are reachable without
   ## the backend installed.
   progress_file <- check_progress_args(progress_file, cont, breedR.bin, debug)
+  refuse_hetres_int(progsf90.options)
 
   ### Parse arguments
   method <- tolower(method)
@@ -789,8 +795,10 @@ remlf90 <- function(fixed,
                 coordinates = spatial$coordinates,
                 rho = rho_i,
                 autofill = spatial$autofill)
-              # Write the updated precision matrix file
-              ar_pf90 <- renderpf90(ar_obj)
+              # Overwrite the seed fit's precision matrix file. It is
+              # "ar_spatial", not renderpf90.ar()'s "ar":
+              # renderpf90.breedr_modelframe() suffixes the group name, and
+              # the copied parameter file reads that name.
               sm <- as.triplet(vcov(ar_obj))
               utils::write.table(sm, file = file.path(rd, "ar_spatial"),
                 row.names = FALSE, col.names = FALSE, na = "0")
@@ -855,7 +863,7 @@ remlf90 <- function(fixed,
               loglik = suppressWarnings(vapply(ans.rho, function(x) {
                 if (is.null(x)) NA_real_ else as.numeric(logLik(x))
               }, numeric(1))))
-            rho.idx <- which.max(loglik.rho$loglik)
+            rho.idx <- select_best_rho(loglik.rho$loglik)
             ans <- ans.rho[[rho.idx]]
             unlink(rho_dirs, recursive = TRUE)
             unlink(base_dir, recursive = TRUE)
@@ -939,7 +947,7 @@ remlf90 <- function(fixed,
                                       else as.numeric(logLik(x))
                                     }, numeric(1))
                                   ))
-          rho.idx <- which.max(loglik.rho$loglik)
+          rho.idx <- select_best_rho(loglik.rho$loglik)
           ans <- ans.rho[[rho.idx]]
           ## A grid is N fits, and each now keeps its own working directory.
           ## Only the winner's is ever referenced again, so drop the rest
@@ -1341,6 +1349,20 @@ rho_fit_dirs <- function(fits, keep) {
   dirs[!is.na(dirs)]
 }
 
+# Index of the rho with the highest log-likelihood, refusing to pick from an
+# empty/all-NA column: which.max() on all-NA returns integer(0), and indexing
+# a fit list with that throws an opaque "attempt to select less than one
+# element in get1index" several frames away from the actual cause -- a rho
+# grid where every candidate ran without error but produced no usable
+# log-likelihood (issue #3).
+select_best_rho <- function(loglik) {
+  ok <- which(is.finite(loglik))
+  if (!length(ok))
+    stop("No rho value produced a usable log-likelihood; ",
+         "all fits failed or did not converge.", call. = FALSE)
+  ok[which.max(loglik[ok])]
+}
+
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%#
 #### Interface methods ####
@@ -1689,6 +1711,16 @@ ranef.remlf90 <- function (object, ...) {
   
   ## Additional attributes
   
+  ## Label the levels of an effect, in its values and in their standard
+  ## errors alike: names for one trait, row names for several (#60)
+  label_levels <- function(x, nm) {
+    set_nm <- function(y) {
+      if (is.matrix(y)) rownames(y) <- nm else names(y) <- nm
+      y
+    }
+    structure(set_nm(x), se = set_nm(attr(x, 'se')))
+  }
+
   ## Genetic component: names of individuals
   if( object$components$pedigree ){
     
@@ -1696,7 +1728,7 @@ ranef.remlf90 <- function (object, ...) {
     gen.idx <- grep('genetic', names(ans))
     nm <- get_pedigree(object)@label
     
-    for (k in gen.idx) attr(ans[[k]], 'names') <- nm
+    for (k in gen.idx) ans[[k]] <- label_levels(ans[[k]], nm)
     
   }
   
@@ -1707,8 +1739,8 @@ ranef.remlf90 <- function (object, ...) {
     if("effect_group" %in% class(object$effects[[x]])){
       if("generic" %in% class(object$effects[[x]]$effects[[1]]) &
          ! is.null(rownames(object$effects[[x]]$effects[[1]]$structure.matrix)))
-        attr(ans[[x]], 'names') <- 
-          rownames(object$effects[[x]]$effects[[1]]$structure.matrix)
+        ans[[x]] <- label_levels(
+          ans[[x]], rownames(object$effects[[x]]$effects[[1]]$structure.matrix))
     } else
       attr(ans[[x]], 'names') <- 
         colnames(attr(model.matrix(object)$random[[x]], 'contrasts'))

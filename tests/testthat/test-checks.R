@@ -116,6 +116,49 @@ test_that("check_genetic() accepts double ids that print in scientific notation 
   expect_identical(spec$pedigree@label[spec$id], c('1', '99999', '100000'))
 })
 
+test_that("check_genetic() recodes a pedigree whose codes start above 1 (#50)", {
+  ## The example from #43. Codes 99999..100001 are sorted and consecutive, so
+  ## they went unrecoded and were then taken as positions 1..3.
+  ped_df  <- data.frame(self = c(99999, 1e5, 100001),
+                        dad  = c(0, 0, 99999),
+                        mum  = c(0, 0, 1e5))
+  ped_obj <- pedigreemm::pedigree(sire  = c(NA, NA, 99999L),
+                                  dam   = c(NA, NA, 100000L),
+                                  label = 99999:100001)
+  dat <- data.frame(id = c(100001, 99999), y = c(0.3, -1.2))
+
+  for (p in list(ped_df, ped_obj)) {
+    spec <- suppressWarnings(check_genetic(model = 'add_animal',
+                                           pedigree = p,
+                                           id = 'id',
+                                           data = dat,
+                                           response = dat$y))
+    map <- attr(spec$pedigree, 'map')
+    expect_false(is.null(map))
+
+    ## each observation sits in the column of its own animal
+    aga  <- additive_genetic_animal(spec$pedigree, spec$id)
+    col  <- apply(as.matrix(aga$incidence.matrix), 1, which.max)
+    orig <- match(as.integer(spec$pedigree@label), map)
+    expect_identical(orig[col], c(100001L, 99999L))
+  }
+})
+
+test_that("check_genetic() refuses a pedigree with an animal coded 0 (#50)", {
+  ## Animal 0 has no phenotype. The pedigree used to go unrecoded, and each
+  ## animal's data went to the animal coded one below it, without an error.
+  ped0 <- pedigreemm::pedigree(sire  = c(NA, NA, NA, 1L, 1L),
+                               dam   = c(NA, NA, NA, 2L, 2L),
+                               label = 0:4)
+  dat0 <- data.frame(id = 1:4, y = c(0.3, -1.2, 0.8, 0.1))
+  expect_error(check_genetic(model = 'add_animal',
+                             pedigree = ped0,
+                             id = 'id',
+                             data = dat0,
+                             response = dat0$y),
+               'codes must be 1 or greater')
+})
+
 ## Model competition ##
 coordinates <- matrix(c(1,2,-1,0,0,1,-1,1),4,2)
 var.ini.mat <- matrix(c(1, -.5, -.5, 1), 2, 2)
