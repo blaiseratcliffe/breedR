@@ -25,6 +25,6 @@ neighbours.at.matrix <-function(x, dir) {
 #' @export
 neighbours.at.list <- function(x, dir) {
   # Check that it is a list of matrices
-  stopifnot(all(lapply(x, class) == 'matrix'))
+  stopifnot(all(vapply(x, is.matrix, logical(1))))
   lapply(x, neighbours.at.matrix, dir)
 }

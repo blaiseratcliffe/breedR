@@ -1,3 +1,9 @@
+* `neighbours.at()`'s list method rejected every list of matrices: its guard
+compared `class()` against `'matrix'`, which has included `'array'` since
+R 4.0 and so was never `TRUE`. Unreachable from within the package, which
+only ever calls the matrix method; affected only direct callers and the
+competition integration test's setup (#27)
+
 * `remlf90()` accepts `traits`, a named list selecting the responses on which
 each random-effect group is fitted, so an effect can be dropped from some
 traits of a multi-trait model. Unlisted groups keep every trait; absent
