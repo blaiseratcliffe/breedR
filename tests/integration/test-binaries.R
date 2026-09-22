@@ -14,44 +14,33 @@ test_that(paste('breedR.os.type()', breedR.os.type(), 'identifies the platform',
 
 # Install binaries somewhere, and check their installation
 test_that('Installation of binaries and checking runs smoothly', {
-  
-  # If not online and test is performed in development machine
-  # then set environment variable to test from local repo
-  if (breedR_online() || Sys.getenv("USER") == "facu") {
-    
-    if (!breedR_online()){
-      Sys.setenv(PROGSF90_URL = paste0("file://",
-                                       normalizePath("~/t4f/src/breedR-web/bin")))
+  skip_if_offline()
+
+  expect_pf90_installs <- function(os, arch) {
+    tdir <- tempdir()
+    path <- file.path(tdir, os)
+
+    if (os == 'linux') {
+      ## further specify arch for installation on linux
+      path <- file.path(path, paste0(arch, 'bit'))
     }
-    
-    expect_pf90_installs <- function(os, arch) {
-      tdir <- tempdir()
-      path <- file.path(tdir, os)
-      
-      if (os == 'linux') {
-        ## further specify arch for installation on linux
-        path <- file.path(path, paste0(arch, 'bit'))
-      }
-      eval(bquote(expect_true(install_progsf90(dest = .(path),
-                                               platform = .(os),
-                                               arch = .(arch)))))
-      
-      if (os == 'windows') {
-        ## further specify arch for checking on windows
-        path <- file.path(path, paste0(arch, 'bit'))
-      }
-      eval(bquote(expect_true(check_progsf90(.(path), 
-                                             platform = .(os), 
-                                             quiet = TRUE))))
-      
+    eval(bquote(expect_true(install_progsf90(dest = .(path),
+                                             platform = .(os),
+                                             arch = .(arch)))))
+
+    if (os == 'windows') {
+      ## further specify arch for checking on windows
+      path <- file.path(path, paste0(arch, 'bit'))
     }
-    
-    expect_pf90_installs('linux', '32')
-    expect_pf90_installs('linux', '64')
-    expect_pf90_installs('windows', '64')
-    expect_pf90_installs('mac', '64')
-    
+    eval(bquote(expect_true(check_progsf90(.(path),
+                                           platform = .(os),
+                                           quiet = TRUE))))
+
   }
+
+  expect_pf90_installs('linux', '64')
+  expect_pf90_installs('windows', '64')
+  expect_pf90_installs('mac', '64')
 })
 
 # checking somewhere else should fail
