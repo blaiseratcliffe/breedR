@@ -271,6 +271,12 @@ install_genomic_programs <- function(
 }
 
 
+## Thin wrapper around utils::download.file so tests can mock the
+## download step; utils's namespace is locked and cannot be mocked
+## directly once the package is installed (only under
+## devtools::load_all()).
+download_file_impl <- function(...) utils::download.file(...)
+
 ## Download a raw executable (no decompression needed).
 ## Sets execute permissions on Unix platforms.
 retrieve_bin_direct <- function(f, url, dest, platform = breedR.os.type()) {
@@ -278,8 +284,15 @@ retrieve_bin_direct <- function(f, url, dest, platform = breedR.os.type()) {
   if (!file.exists(dest))
     dir.create(dest, recursive = TRUE)
 
+  # The UGA server is slow enough that R's default 60s download.file()
+  # timeout truncates the larger binaries (issue #69). Raise it for the
+  # duration of this download only, never lowering a user's own higher
+  # setting (R's own download.file docs recommend this exact pattern).
+  op <- options(timeout = max(600, getOption("timeout")))
+  on.exit(options(op))
+
   out <- tryCatch(
-    utils::download.file(
+    download_file_impl(
       url = file.path(url, f),
       destfile = destf,
       mode = 'wb',
