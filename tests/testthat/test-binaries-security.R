@@ -78,14 +78,14 @@ test_that("retrieve_bin_direct raises the download timeout without lowering a hi
 
   observed_timeout <- NULL
   local_mocked_bindings(
-    download_file_impl = function(url, destfile, ...) {
+    download.file = function(url, destfile, ...) {
       observed_timeout <<- getOption("timeout")
       # write a minimal valid ELF header so looks_like_executable() accepts it
       writeBin(c(as.raw(c(0x7F, 0x45, 0x4C, 0x46)), as.raw(rep(0L, 2048))),
                destfile)
       0L
     },
-    .package = "breedR"
+    .package = "utils"
   )
 
   dest <- tempfile()
@@ -104,13 +104,13 @@ test_that("retrieve_bin_direct raises the default timeout to at least 600s", {
 
   observed_timeout <- NULL
   local_mocked_bindings(
-    download_file_impl = function(url, destfile, ...) {
+    download.file = function(url, destfile, ...) {
       observed_timeout <<- getOption("timeout")
       writeBin(c(as.raw(c(0x7F, 0x45, 0x4C, 0x46)), as.raw(rep(0L, 2048))),
                destfile)
       0L
     },
-    .package = "breedR"
+    .package = "utils"
   )
 
   dest <- tempfile()

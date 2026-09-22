@@ -281,12 +281,6 @@ install_genomic_programs <- function(
 }
 
 
-## Thin wrapper around utils::download.file so tests can mock the
-## download step; utils's namespace is locked and cannot be mocked
-## directly once the package is installed (only under
-## devtools::load_all()).
-download_file_impl <- function(...) utils::download.file(...)
-
 ## Download a raw executable (no decompression needed).
 ## Sets execute permissions on Unix platforms.
 retrieve_bin_direct <- function(f, url, dest, platform = breedR.os.type()) {
@@ -302,7 +296,7 @@ retrieve_bin_direct <- function(f, url, dest, platform = breedR.os.type()) {
   on.exit(options(op))
 
   out <- tryCatch(
-    download_file_impl(
+    utils::download.file(
       url = file.path(url, f),
       destfile = destf,
       mode = 'wb',
