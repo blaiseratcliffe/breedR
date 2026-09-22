@@ -1,11 +1,3 @@
-## ----setup, include = FALSE---------------------------------------------------
-# The code in this vignette drives the BLUPF90 backend, which is downloaded at
-# install time and is not available when the vignette is built (e.g. on CRAN).
-# Chunks are therefore shown but not evaluated; illustrative output is described
-# in the text. Run the code in an R session with the binaries installed.
-knitr::opts_chunk$set(eval = FALSE, collapse = TRUE, comment = "#>")
-
-
 ## ----install-binaries---------------------------------------------------------
 library(breedR)
 
