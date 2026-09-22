@@ -1,3 +1,8 @@
+* `build.AR.rho.grid()` now honours the `ar.eval` option instead of a
+hard-coded grid, so a custom grid set with `breedR.setOption("ar.eval", ...)`
+is actually used. `breedR.setOption()` also stopped collapsing a numeric
+vector value (such as `ar.eval`) down to its first element (#6)
+
 * `neighbours.at()`'s list method rejected every list of matrices: its guard
 compared `class()` against `'matrix'`, which has included `'array'` since
 R 4.0 and so was never `TRUE`. Unreachable from within the package, which
