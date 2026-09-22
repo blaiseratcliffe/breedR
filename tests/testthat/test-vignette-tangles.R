@@ -14,6 +14,7 @@ test_that("the shipped Genomic-selection.R tangle has live code", {
 
   expect_gt(length(live), 10)
   expect_true(any(grepl("^\\s*res\\s*<-\\s*remlf90\\(", live)))
+  expect_false(any(grepl("opts_chunk\\$set\\([^)]*eval\\s*=\\s*FALSE", live)))
 })
 
 test_that("breedR.tangle_vignette() purls a vignette without leaking eval = FALSE", {
