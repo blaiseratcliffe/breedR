@@ -1,3 +1,9 @@
+* `install_progsf90()` now defaults its download directory to the same option
+`check_progsf90()` uses. With no `bin/` directory yet (e.g. after installing
+with `BREEDR_SKIP_INSTALL_BINARIES=true`), the old default resolved to an
+empty path, and `install_progsf90()` -- the command the error message itself
+recommends -- failed with "zero-length path argument" (#7)
+
 * `build.AR.rho.grid()` now honours the `ar.eval` option instead of a
 hard-coded grid, so a custom grid set with `breedR.setOption("ar.eval", ...)`
 is actually used. `breedR.setOption()` also stopped collapsing a numeric
