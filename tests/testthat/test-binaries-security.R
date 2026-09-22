@@ -47,17 +47,21 @@ test_that("breedr_progsf90_repo validates the PROGSF90_URL scheme", {
 })
 
 test_that("install_progsf90() defaults to the breedR.bin option, not an empty system.file() lookup", {
+  ## Simulate the post-BREEDR_SKIP_INSTALL_BINARIES state by pointing the
+  ## breedR.bin option at a directory that does not exist yet, without
+  ## mocking system.file() itself (a mock that only resolves under
+  ## pkgload::load_all() would leave the installed package unguarded; see
+  ## check_progsf90()/install_renumf90() for the same option-based idiom).
+  fresh_bin <- file.path(tempdir(), paste0("breedr_bin_", Sys.getpid()))
+  old_bin <- breedR.getOption("breedR.bin")
+  breedR.setOption("breedR.bin", fresh_bin)
+  on.exit(breedR.setOption("breedR.bin", old_bin), add = TRUE)
+
   captured <- NULL
   local_mocked_bindings(
     retrieve_bin_direct = function(f, url, dest, platform = breedR.os.type()) {
       captured <<- dest
       TRUE
-    },
-    system.file = function(..., package = "base") {
-      args <- list(...)
-      if (identical(package, "breedR") && length(args) && identical(args[[1]], "bin"))
-        return("")
-      "/fake/breedR/pkgdir"
     },
     .package = "breedR"
   )
@@ -65,5 +69,5 @@ test_that("install_progsf90() defaults to the breedR.bin option, not an empty sy
   install_progsf90()
 
   expect_false(identical(captured, ""))
-  expect_equal(captured, breedR.getOption("breedR.bin"))
+  expect_equal(captured, fresh_bin)
 })
