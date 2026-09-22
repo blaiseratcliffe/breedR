@@ -6,7 +6,7 @@
 \usage{
 install_progsf90(
   url = breedr_progsf90_repo(),
-  dest = system.file("bin", package = "breedR"),
+  dest = breedR.getOption("breedR.bin"),
   platform = breedR.os.type(),
   arch = breedR.os.32or64bit(),
   quiet = !interactive()
