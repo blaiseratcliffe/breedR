@@ -1,3 +1,11 @@
+* The `Additive Genetic Models in Mixed Populations` vignette builds the
+mixed-population covariance of method 3 by splitting the relationship matrix by
+founder population (`A = A_E + A_J`), instead of scaling its hybrid blocks by
+averages of the two variances. Those factors matched the simulated covariance
+only at `lambda = 1`, and left the offspring block non-positive-definite below
+about 0.63. The fitted models, which use the pure offspring only, are
+unchanged (#36)
+
 * The shipped `inst/doc/Genomic-selection.R` script is now live: every
 illustrative chunk (installing the genomic binaries, fitting ssGBLUP, running
 the GWAS, prediction, Gibbs sampling) is runnable code instead of a comment,
