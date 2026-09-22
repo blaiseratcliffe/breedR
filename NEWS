@@ -1,3 +1,9 @@
+* The shipped `inst/doc/Genomic-selection.R` tangle was all comments except
+the setup call, because its vignette's global `eval = FALSE` (needed since it
+drives BLUPF90, unavailable at build time) leaked into every later chunk when
+tangled via a real render. Added `breedR.tangle_vignette()`, a standalone-purl
+dev helper, and regenerated the file with it so every chunk is live (#30)
+
 * `install_progsf90()`, `install_renumf90()` and `install_genomic_programs()`
 now raise `options(timeout)` to at least 600s for the duration of each
 binary download (never lowering a higher user setting), so the UGA
