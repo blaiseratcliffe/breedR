@@ -60,7 +60,11 @@ Suggests:
     rmarkdown,
     tidyr
 SystemRequirements: BLUPF90 programs will be downloaded from the UGA
-    distribution (nce.ads.uga.edu) at install time.
+    distribution (nce.ads.uga.edu) at install time. On Linux, most of
+    the binaries additionally require the Intel MKL and OpenMP runtime
+    libraries (libmkl_intel_lp64.so.2, libmkl_intel_thread.so.2,
+    libmkl_core.so.2, libiomp5.so), which are not installed
+    automatically; see README.md.
 LazyLoad: yes
 LazyData: yes
 URL: https://github.com/blaiseratcliffe/breedR
