@@ -107,3 +107,14 @@ test_that("select_best_rho() refuses to pick from an all-NA grid", {
   ## A partially failed grid still picks the best of what succeeded.
   expect_equal(select_best_rho(c(NA, 3.1, -5, 3.9, NA)), 4)
 })
+
+
+test_that("build.AR.rho.grid() honours the ar.eval option", {
+  old_ar_eval <- breedR.getOption("ar.eval")
+  on.exit(breedR.setOption("ar.eval", old_ar_eval), add = TRUE)
+  custom <- c(-.5, -.1, .1, .5)
+  breedR.setOption("ar.eval", custom)
+  grid <- build.AR.rho.grid(matrix(c(NA_real_, NA_real_), 1, 2))
+  expect_equal(sort(unique(grid$rho_r)), sort(custom))
+  expect_equal(sort(unique(grid$rho_c)), sort(custom))
+})
