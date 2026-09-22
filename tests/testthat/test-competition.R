@@ -106,4 +106,13 @@ test_that("neighbours.at.list() accepts a list of matrices (R 4.0 class regressi
   res <- neighbours.at(list(a = m1, b = m2), "N")
   expect_equal(res$a, neighbours.at(m1, "N"))
   expect_equal(res$b, neighbours.at(m2, "N"))
+
+  ## Multiple directions (the sapply branch of neighbours.at.matrix())
+  dirs <- c("N", "S", "E", "W")
+  res.dirs <- neighbours.at(list(a = m1, b = m2), dirs)
+  expect_equal(res.dirs$a, neighbours.at(m1, dirs))
+  expect_equal(res.dirs$b, neighbours.at(m2, dirs))
+
+  ## The guard still rejects a non-matrix element
+  expect_error(neighbours.at(list(a = m1, b = 1:4), "N"))
 })
