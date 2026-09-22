@@ -214,7 +214,6 @@ jobs:
 
           # The fix for each of these removes its entry.
           known <- c(
-            "test-binaries.R / Installation of binaries and checking runs smoothly" = "#28",
             "test-reml-interface.R / Simulated values reasonably recovered using one or more traits" = "#29"
           )
           key <- paste(res$file, "/", ifelse(is.na(res$test), "(top level)", res$test))
