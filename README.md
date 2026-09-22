@@ -68,11 +68,14 @@ intermediate that signed it (InCommon RSA Server CA 2), which some
 Linux OpenSSL/libcurl setups reject with "SSL peer certificate ... was
 not OK". This is a fault in the server's configuration, not breedR's,
 and is expected to be temporary; until it is fixed, add the
-intermediate to the system trust store (Debian/Ubuntu):
+intermediate to the system trust store (Debian/Ubuntu). The certificate
+is fetched over plain http, so verify it against the system trust store
+before trusting it: the `openssl verify` line below must print `OK`.
 
 ```sh
 curl -fsSL http://crt.sectigo.com/InCommonRSAServerCA2.crt |
   openssl x509 -inform DER -out InCommonRSAServerCA2.pem
+openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt InCommonRSAServerCA2.pem   # must say OK
 sudo cp InCommonRSAServerCA2.pem /usr/local/share/ca-certificates/InCommonRSAServerCA2.crt
 sudo update-ca-certificates
 ```
