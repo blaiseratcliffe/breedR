@@ -28,10 +28,6 @@ test_that('Installation of binaries and checking runs smoothly', {
                                              platform = .(os),
                                              arch = .(arch)))))
 
-    if (os == 'windows') {
-      ## further specify arch for checking on windows
-      path <- file.path(path, paste0(arch, 'bit'))
-    }
     eval(bquote(expect_true(check_progsf90(.(path),
                                            platform = .(os),
                                            quiet = TRUE))))
