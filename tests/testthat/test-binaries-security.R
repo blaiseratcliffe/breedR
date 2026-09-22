@@ -45,3 +45,25 @@ test_that("breedr_progsf90_repo validates the PROGSF90_URL scheme", {
   Sys.unsetenv("PROGSF90_URL")
   expect_match(breedr_progsf90_repo(), "^https://")
 })
+
+test_that("install_progsf90() defaults to the breedR.bin option, not an empty system.file() lookup", {
+  captured <- NULL
+  local_mocked_bindings(
+    retrieve_bin_direct = function(f, url, dest, platform = breedR.os.type()) {
+      captured <<- dest
+      TRUE
+    },
+    system.file = function(..., package = "base") {
+      args <- list(...)
+      if (identical(package, "breedR") && length(args) && identical(args[[1]], "bin"))
+        return("")
+      "/fake/breedR/pkgdir"
+    },
+    .package = "breedR"
+  )
+
+  install_progsf90()
+
+  expect_false(identical(captured, ""))
+  expect_equal(captured, breedR.getOption("breedR.bin"))
+})
