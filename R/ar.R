@@ -103,7 +103,7 @@ build.AR.rho.grid <- function(rho) {
   # If this function was called, at least one of the parameters is NA (unknown)
   stopifnot( length(rho) == 2)
   # We start with a very rough approximation
-  rho.values <- c(-8, -2, 2, 8)/10
+  rho.values <- breedR.getOption('ar.eval')
   
   set.values <- function(r) if(all(is.na(r))) rho.values else r
   grid <- expand.grid(lapply(rho, set.values))

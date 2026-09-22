@@ -206,8 +206,7 @@ breedR.setOption <- function(...) {
       #            envir = envir)
       envir$breedR.options[[option]] = value
     } else {
-      eval(parse(text = paste("breedR.options$", option, "=", ifelse(is.null(value), "NULL", value), sep="")),
-           envir = envir)
+      envir$breedR.options[[option]] <- value
     }
     return (invisible())
   }
