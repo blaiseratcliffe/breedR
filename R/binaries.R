@@ -120,7 +120,7 @@ check_progsf90 <- function(path = breedR.getOption('breedR.bin'),
 #' @export
 install_progsf90 <- function(
   url      = breedr_progsf90_repo(),
-  dest     = system.file('bin', package = 'breedR'),
+  dest     = breedR.getOption('breedR.bin'),
   platform = breedR.os.type(),
   arch     = breedR.os.32or64bit(),
   quiet    = !interactive()
