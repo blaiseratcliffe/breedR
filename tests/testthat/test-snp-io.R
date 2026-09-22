@@ -146,3 +146,23 @@ test_that("read_snp_file returns correct dimensions", {
   expect_equal(ncol(result$geno), 10)
   expect_length(result$ids, 5)
 })
+
+test_that("write_snp_file() and read_snp_file() round-trip whole-number double ids without scientific notation (#54)", {
+  ## A double 100000 prints as "1e+05" by default (as.character(1e5)),
+  ## which write_xref_from_pedigree() then cannot match against the
+  ## pedigree integer labels. Same R quirk #43 fixed for pedigree codes.
+  geno <- matrix(c(0, 1, 2, 1, 0, 2), nrow = 2, byrow = TRUE)
+  ids <- c(1e5, 123456789)
+  f <- tempfile()
+  on.exit(unlink(f))
+
+  write_snp_file(geno, ids, f)
+  lines <- readLines(f)
+
+  expect_false(any(grepl("e[+-]", lines)))
+  expect_match(lines[1], "^[[:space:]]*100000[[:space:]]")
+  expect_match(lines[2], "^[[:space:]]*123456789[[:space:]]")
+
+  result <- read_snp_file(f)
+  expect_equal(result$ids, c("100000", "123456789"))
+})
