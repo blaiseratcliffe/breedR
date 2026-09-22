@@ -140,6 +140,8 @@ breedR.build_vignettes <- function (vigns) {
 ## source .Rmd does not evaluate the setup chunk, so it never leaks, and
 ## every chunk is tangled live.
 breedR.tangle_vignette <- function(src, out) {
+  op <- knitr::opts_chunk$get()
+  on.exit(knitr::opts_chunk$restore(op), add = TRUE)
   knitr::opts_chunk$set(eval = TRUE)   # clear any leaked session default
   knitr::purl(src, output = out, quiet = TRUE)
   invisible(out)
