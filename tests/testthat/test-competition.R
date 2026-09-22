@@ -96,3 +96,14 @@ test_that("additive_genetic_competition() works as expected", {
   expect_equal(ncol(cov.mat), nrow(as.data.frame(ped)))
   expect_equal(ncol(inc.mat), nrow(cov.mat))
 })
+
+
+
+test_that("neighbours.at.list() accepts a list of matrices (R 4.0 class regression, #27)", {
+  m1 <- matrix(1:4, 2)
+  m2 <- matrix(5:8, 2)
+  expect_error(neighbours.at(list(a = m1, b = m2), "N"), NA)
+  res <- neighbours.at(list(a = m1, b = m2), "N")
+  expect_equal(res$a, neighbours.at(m1, "N"))
+  expect_equal(res$b, neighbours.at(m2, "N"))
+})
