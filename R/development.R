@@ -131,7 +131,21 @@ breedR.build_vignettes <- function (vigns) {
   invisible(outputs)
 }
 
-## Move the compiled vignettes both to breedR wiki 
+## Tangle a vignette that sets a runtime knitr::opts_chunk$set(eval = FALSE)
+## in its setup chunk (needed when the vignette drives code that is not
+## available at build time, e.g. the PROGSF90 backend). Tangling such a
+## vignette via a real knit/render, as breedR.build_vignettes() does, lets
+## that runtime default leak into every later chunk, so hook_purl's tangle
+## mask comments all of them out (#30). A standalone knitr::purl() on the
+## source .Rmd does not evaluate the setup chunk, so it never leaks, and
+## every chunk is tangled live.
+breedR.tangle_vignette <- function(src, out) {
+  knitr::opts_chunk$set(eval = TRUE)   # clear any leaked session default
+  knitr::purl(src, output = out, quiet = TRUE)
+  invisible(out)
+}
+
+## Move the compiled vignettes both to breedR wiki
 ## (md and pdf versions, together with associated _files)
 ## and inst/doc (pdf and R versions)
 breedR.move_vignettes <- function(pkg, vigns, out, wiki_dir) {
