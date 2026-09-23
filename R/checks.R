@@ -141,14 +141,8 @@ check_genetic <- function(model = c('add_animal', 'competition'),
   }
 
   ## The codes in id must correspond to valid codes in the pedigree
-  ## possibly recoded
-  if (!is.null(attr(mc$pedigree, "map")))
-    recoded_id <- attr(mc$pedigree, "map")[mc$id]
-  else recoded_id <- mc$id
-  if (!all(idx <- recoded_id %in% mc$pedigree@label))
-    stop(paste('The following individuals in id are',
-               'not represented in the pedigree:\n',
-               toString(mc$id[which(!idx)])))
+  ## possibly recoded. pedigree_index() stops naming those that do not.
+  pedigree_index(mc$pedigree, mc$id)
 
   ## flag indicating whether the var.ini was taken by default
   ## or specified by the user

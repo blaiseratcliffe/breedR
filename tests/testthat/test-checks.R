@@ -159,6 +159,38 @@ test_that("check_genetic() refuses a pedigree with an animal coded 0 (#50)", {
                'codes must be 1 or greater')
 })
 
+test_that("check_genetic() refuses data ids of 0 or below, or fractional, when the pedigree is recoded (#62)", {
+  ## Codes 10..40 are recoded to 1..4. The ids used to subscript the recode
+  ## map, and `[` drops a 0, takes a negative id as an exclusion and
+  ## truncates a fractional one: the check then ran on other ids than those
+  ## given, and passed.
+  ped <- data.frame(self = c(10, 20, 30, 40),
+                    dad  = c(0, 0, 10, 10),
+                    mum  = c(0, 0, 20, 20))
+  check_ids <- function(id, pedigree = ped)
+    suppressWarnings(check_genetic(model = 'add_animal', pedigree = pedigree,
+                                   id = id, response = seq_along(id)))
+  msg <- 'The following individuals in id are not represented in the pedigree:\n '
+
+  expect_error(check_ids(c(30, 40, 0)),  paste0(msg, '0'),    fixed = TRUE)
+  expect_error(check_ids(c(30, 40, -5)), paste0(msg, '-5'),   fixed = TRUE)
+  expect_error(check_ids(c(30, 40.5)),   paste0(msg, '40.5'), fixed = TRUE)
+
+  ## The same id 0 given as a column of data
+  dat <- data.frame(id = c(30, 40, 0), y = c(1, 2, 3))
+  expect_error(suppressWarnings(check_genetic(model = 'add_animal', pedigree = ped,
+                                              id = 'id', data = dat,
+                                              response = dat$y)),
+               paste0(msg, '0'), fixed = TRUE)
+
+  ## Codes 1 and 3 leave a gap, so the map is c(1, NA, 2). map[c(-2, -2)] is
+  ## c(1, 2): one valid code per id, which used to pass and put the two
+  ## records on animals 1 and 3.
+  gap <- data.frame(self = c(1, 3), dad = 0, mum = 0)
+  expect_error(check_ids(c(-2, -2), pedigree = gap), paste0(msg, '-2, -2'),
+               fixed = TRUE)
+})
+
 ## Model competition ##
 coordinates <- matrix(c(1,2,-1,0,0,1,-1,1),4,2)
 var.ini.mat <- matrix(c(1, -.5, -.5, 1), 2, 2)

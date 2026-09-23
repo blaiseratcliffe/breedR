@@ -1,3 +1,12 @@
+* `check_genetic()` no longer lets a data id of 0, a negative id or a
+fractional id through when the pedigree has been recoded. The ids were used to
+subscript the recode map, which drops a 0, treats a negative number as an
+exclusion and truncates a fraction, so the check could pass on fewer ids than
+records and the fit then failed with an unrelated error, or put a record on
+another animal. Such ids now stop with "The following individuals in id are not
+represented in the pedigree", naming them, as they already did when the
+pedigree was not recoded (#62)
+
 * `build_pedigree()` now stops with a message naming them when a parent code is
 negative. Only 0 or NA mark an unknown parent; a negative parent code used to
 fail with an unrelated error from pedigreemm or from indexing the recoding
