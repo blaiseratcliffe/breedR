@@ -1738,7 +1738,7 @@ ranef.remlf90 <- function (object, ...) {
     
     # Indices (in ranef) of genetic-related effects (direct and/or competition)
     gen.idx <- grep('genetic', names(ans))
-    nm <- get_pedigree(object)@label
+    nm <- pedigree_labels(get_pedigree(object))
     
     for (k in gen.idx) ans[[k]] <- label_levels(ans[[k]], nm)
     
