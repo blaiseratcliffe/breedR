@@ -64,6 +64,39 @@ additive_genetic <- function(pedigree, incidence) {
 }
 
 
+## Internal codes of the individuals with original codes id
+##
+## Returns one integer per element of id, in order: the position of that
+## individual in pedigree@label, which is its row in the pedigree and its
+## column in a genetic incidence matrix. If build_pedigree() recoded the
+## pedigree, id is in the original codes and is translated through
+## attr(pedigree, 'map'). Stops, naming them, if any id is not the code of an
+## individual in the pedigree: absent, 0, negative, fractional, NA or not
+## numeric.
+##
+## Only a whole id within the map's range is used as a subscript. `[` would
+## drop a 0, take a negative id as an exclusion and truncate a fractional
+## one, so map[id] could return fewer codes than ids, or the wrong ones,
+## without an error (#62). The map is not inverted with match(), which would
+## hash a vector as long as the largest original code.
+pedigree_index <- function(pedigree, id) {
+  idx <- rep(NA_integer_, length(id))
+  if (is.numeric(id)) {
+    if (is.null(map <- attr(pedigree, 'map'))) {
+      idx <- match(id, as.integer(pedigree@label))
+    } else {
+      ok <- which(id >= 1 & id <= length(map) & id == trunc(id))
+      idx[ok] <- map[id[ok]]
+    }
+  }
+  if (anyNA(idx))
+    stop(paste('The following individuals in id are',
+               'not represented in the pedigree:\n',
+               toString(id[is.na(idx)])), call. = FALSE)
+  idx
+}
+
+
 #' Build an additive-genetic animal model
 #' 
 #' Given a pedigree, and an index vector of observations, build and 
@@ -96,17 +129,10 @@ additive_genetic_animal <- function(pedigree, idx) {
   
   ## Incidence matrix
   ## It is possible that the pedigree has been recoded/reordered
-  ## In that case, we need to recode the data file id codes as well
-  if (!is.null(attr(pedigree, 'map')))
-    idx <- attr(pedigree, 'map')[idx]
-  
-  ## All the (recoded) codes in idx must be valid indices into pedigree@label
-  ## (= 1, ..., n). A code absent from the pedigree maps to NA; guard against
-  ## that and against out-of-range indices with a clear message rather than an
-  ## opaque failure inside sparseMatrix().
-  if (anyNA(idx))
-    stop("Some data codes are not present in the pedigree.", call. = FALSE)
-  stopifnot(min(idx) >= 1, max(idx) <= length(pedigree@label))
+  ## In that case, we need to recode the data file id codes as well.
+  ## pedigree_index() returns one valid index into pedigree@label per id,
+  ## or stops naming the ids that are not in the pedigree.
+  idx <- pedigree_index(pedigree, idx)
   
   ## The pedigree might potentially have further individuals
   ## to evaluate (either founders, or descendants).
@@ -183,11 +209,7 @@ additive_genetic_competition <- function(pedigree,
   
   ## the internal codes of the observed individuals are the indices
   ## of the corresponding levels of the random effect
-  if ('map' %in% names(attributes(pedigree))) {
-    id.internal  <- attr(pedigree, 'map')[id]
-  } else {
-    id.internal <- id
-  }
+  id.internal <- pedigree_index(pedigree, id)
   ## the incidence matrix has to be exapanded with 0
   ## in the columns corresponding to unobserved individuals (e.g. founders)
   ## furthermore, the order of the columns must fit
