@@ -339,7 +339,7 @@ check_spatial <- function(model = c('splines', 'AR', 'blocks'),
       ## an NA to search that dimension's default grid) -- not two rows of a
       ## single column, which is what as.data.frame() would otherwise make of
       ## it inside build.AR.rho.grid().
-      if (is.null(dim(rho))) {
+      if (is.null(dim(rho)) && is.atomic(rho)) {
         if (length(rho) != 2)
           stop('rho must contain exactly two components')
         rho <- matrix(rho, nrow = 1, ncol = 2)
