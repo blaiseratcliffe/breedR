@@ -1,3 +1,8 @@
+* `breedR.sample.phenotype()` with `check.factorial = FALSE` and no spatial
+effect no longer fails with "incorrect number of dimensions" when some founder
+has no offspring; such founders are now dropped, as they already were with a
+spatial effect (#61)
+
 * `check_spatial()` now converts a fully-specified AR `rho` matrix or
 data.frame to a data.frame before it is used as the candidate grid. Passed
 through uncoerced, it reached `transform()` inside `remlf90()` only after
