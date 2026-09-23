@@ -50,7 +50,14 @@ test_that("Extract random effects", {
 ## They used to keep the row numbers of the solutions file, so a lookup by
 ## animal returned another animal's breeding values (issue #60).
 expect_genetic_rows_by_animal <- function(res) {
-  lab <- as.character(get_pedigree(res)@label)
+  ## Both fixtures have recoded pedigrees (the douglas codes run to 9764), so
+  ## the rows are named by the ids the pedigree was given, which the map takes
+  ## back from the internal codes. They used to be the internal codes, which
+  ## are other animals' ids (#63).
+  ped <- get_pedigree(res)
+  map <- attr(ped, 'map')
+  expect_false(is.null(map))
+  lab <- as.character(match(as.integer(ped@label), map))
   rr <- ranef(res)
   gen.idx <- grep('genetic', names(rr))
   expect_true(length(gen.idx) > 0)

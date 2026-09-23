@@ -107,10 +107,10 @@ test_that("relabelling the animals so the pedigree is recoded changes nothing (#
   expect_equal(fitted(res.rev), fitted(res.gen), tolerance = 1e-6)
 
   ## Each animal's breeding value, matched by its globulus id. The recoded fit
-  ## names them by its own codes, which the map and flip() take back.
+  ## names them by the ids it was given, which flip() takes back.
   bv_rev <- ranef(res.rev)$genetic
   bv_gen <- ranef(res.gen)$genetic
-  orig   <- flip(match(as.integer(names(bv_rev)), map))
+  orig   <- flip(as.integer(names(bv_rev)))
   expect_equal(as.numeric(bv_rev)[match(as.integer(names(bv_gen)), orig)],
                as.numeric(bv_gen), tolerance = 1e-6)
 })
@@ -147,7 +147,7 @@ test_that("codes that start above 1 are recoded and change nothing (#50)", {
   ## Each animal's breeding value, matched by its globulus id
   bv_up  <- ranef(res.up)$genetic
   bv_gen <- ranef(res.gen)$genetic
-  orig   <- match(as.integer(names(bv_up)), map) - 100L
+  orig   <- as.integer(names(bv_up)) - 100L
   expect_equal(as.numeric(bv_up)[match(as.integer(names(bv_gen)), orig)],
                as.numeric(bv_gen), tolerance = 1e-6)
 })

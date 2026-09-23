@@ -241,6 +241,28 @@ as.data.frame.pedigree <- function(x, ...) {
 }
 
 
+## Original codes of the individuals of a pedigree, in pedigree order
+##
+## One element per element of pedigree@label, which is also the order of
+## the levels of a genetic effect in the solutions: element k is the code
+## the user gave to the individual with internal code k. If build_pedigree()
+## recoded the pedigree, its labels are the internal codes 1..n, and are
+## translated back through attr(pedigree, 'map') (map[original] = internal).
+## Otherwise the labels are returned unchanged. Character, as @label is.
+## The inverse is built by position rather than with match(), which would
+## hash a vector as long as the largest original code.
+pedigree_labels <- function(pedigree) {
+  label <- pedigree@label
+  if (is.null(map <- attr(pedigree, 'map'))) return(label)
+  code <- which(!is.na(map))
+  stopifnot(length(code) == length(label),
+            all(sort(map[code]) == seq_along(label)))
+  orig <- integer(length(label))
+  orig[map[code]] <- code
+  as.character(orig[as.integer(label)])
+}
+
+
 # # Tests for sorting as graphs
 # # A pedigree is a Directed Acyclic Graph (DAG)
 # # and as such, it has a topological order, 

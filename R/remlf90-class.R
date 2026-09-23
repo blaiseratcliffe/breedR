@@ -1687,8 +1687,12 @@ print.breedR_estimates <- function(x, ...) {
 #'   or matrices (multitrait case), one for each random effect. The length of
 #'   the vectors are the number of levels of the corresponding random effect.
 #'   
-#'   Each random effect has an attribute called \code{"se"} which is a vector 
+#'   Each random effect has an attribute called \code{"se"} which is a vector
 #'   with the standard errors.
+#'   Genetic effects are named by the individuals' codes as given in the
+#'   pedigree, also when \code{\link{build_pedigree}} had to recode it; their
+#'   order is that of the internal codes (see
+#'   \code{attr(get_pedigree(object), 'map')}).
 #'   For groups restricted by \code{traits}, absent columns contain \code{NA}
 #'   values and standard errors, and a logical \code{trait.active} attribute
 #'   identifies the selected responses. Select a response column explicitly
@@ -1738,7 +1742,7 @@ ranef.remlf90 <- function (object, ...) {
     
     # Indices (in ranef) of genetic-related effects (direct and/or competition)
     gen.idx <- grep('genetic', names(ans))
-    nm <- get_pedigree(object)@label
+    nm <- pedigree_labels(get_pedigree(object))
     
     for (k in gen.idx) ans[[k]] <- label_levels(ans[[k]], nm)
     

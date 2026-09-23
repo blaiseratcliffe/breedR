@@ -1,3 +1,11 @@
+* `ranef()` now names the breeding values of a genetic effect, and their
+standard errors, by the ids given in the pedigree also when `build_pedigree()`
+had to recode it (gaps, codes not starting at 1, offspring coded below a
+parent). They used to be named by breedR's internal codes, which can be other
+animals' ids, so a lookup by id silently returned another animal's value. The
+values and their order are unchanged; code that translated these names back
+through `attr(get_pedigree(fit), 'map')` must drop that step (#63)
+
 * `check_genetic()` no longer lets a data id of 0, a negative id or a
 fractional id through when the pedigree has been recoded. The ids were used to
 subscript the recode map, which drops a 0, treats a negative number as an
