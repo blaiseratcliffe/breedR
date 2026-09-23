@@ -1,3 +1,11 @@
+* `install_progsf90()`, `install_renumf90()` and `install_genomic_programs()`
+now raise `options(timeout)` to at least 600s for the duration of each
+binary download (never lowering a higher user setting), so the UGA
+server's slow connection no longer truncates the larger binaries under
+R's 60s default. README.md, `?install_progsf90` and `DESCRIPTION` now
+document the Linux MKL/OpenMP runtime requirement and the current UGA
+certificate-chain workaround (#69)
+
 * `install_progsf90()` now defaults its download directory to the same option
 `check_progsf90()` uses. With no `bin/` directory yet (e.g. after installing
 with `BREEDR_SKIP_INSTALL_BINARIES=true`), the old default resolved to an

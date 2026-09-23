@@ -45,7 +45,42 @@ git clone https://github.com/blaiseratcliffe/breedR.git
 R CMD INSTALL breedR
 ```
 
-BLUPF90+ binaries are downloaded automatically from UGA at install time. To install additional programs:
+BLUPF90+ binaries are downloaded automatically from UGA at install time.
+
+### Linux requirements
+
+Most of the BLUPF90+ binaries (all but renumf90 and postgibbsf90) are
+linked against Intel MKL and the Intel OpenMP runtime and will not
+start without them (error while loading shared libraries:
+libmkl_intel_lp64.so.2). Intel's PyPI wheels provide the libraries:
+
+```sh
+python3 -m pip download --no-deps --only-binary=:all: --dest wheels \
+  mkl==2024.2.2 intel-openmp==2024.2.1
+mkdir -p ~/mkl && for w in wheels/*.whl; do
+  unzip -q -j -o "$w" '*.data/data/lib/*' -d ~/mkl
+done
+export LD_LIBRARY_PATH=~/mkl${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}   # before starting R
+```
+
+As of 2026, nce.ads.uga.edu also sends a TLS certificate without the
+intermediate that signed it (InCommon RSA Server CA 2), which some
+Linux OpenSSL/libcurl setups reject with "SSL peer certificate ... was
+not OK". This is a fault in the server's configuration, not breedR's,
+and is expected to be temporary; until it is fixed, add the
+intermediate to the system trust store (Debian/Ubuntu). The certificate
+is fetched over plain http, so verify it against the system trust store
+before trusting it: the `openssl verify` line below must print `OK`.
+
+```sh
+curl -fsSL http://crt.sectigo.com/InCommonRSAServerCA2.crt |
+  openssl x509 -inform DER -out InCommonRSAServerCA2.pem
+openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt InCommonRSAServerCA2.pem   # must say OK
+sudo cp InCommonRSAServerCA2.pem /usr/local/share/ca-certificates/InCommonRSAServerCA2.crt
+sudo update-ca-certificates
+```
+
+To install additional programs:
 
 ```r
 library(breedR)

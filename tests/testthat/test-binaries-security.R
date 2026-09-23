@@ -71,3 +71,53 @@ test_that("install_progsf90() defaults to the breedR.bin option, not an empty sy
   expect_false(identical(captured, ""))
   expect_equal(captured, fresh_bin)
 })
+
+test_that("retrieve_bin_direct raises the download timeout without lowering a higher setting", {
+  old_opt <- options(timeout = 900)  # simulate a user who already raised it
+  on.exit(options(old_opt))
+
+  observed_timeout <- NULL
+  local_mocked_bindings(
+    download.file = function(url, destfile, ...) {
+      observed_timeout <<- getOption("timeout")
+      # write a minimal valid ELF header so looks_like_executable() accepts it
+      writeBin(c(as.raw(c(0x7F, 0x45, 0x4C, 0x46)), as.raw(rep(0L, 2048))),
+               destfile)
+      0L
+    },
+    .package = "utils"
+  )
+
+  dest <- tempfile()
+  on.exit(unlink(dest, recursive = TRUE), add = TRUE)
+  res <- retrieve_bin_direct("blupf90+", url = "https://example.org",
+                              dest = dest, platform = "linux")
+
+  expect_true(res)
+  expect_gte(observed_timeout, 900)          # never lowered below the user's 900
+  expect_equal(getOption("timeout"), 900)    # restored on exit
+})
+
+test_that("retrieve_bin_direct raises the default timeout to at least 600s", {
+  old_opt <- options(timeout = 60)  # R's own default
+  on.exit(options(old_opt))
+
+  observed_timeout <- NULL
+  local_mocked_bindings(
+    download.file = function(url, destfile, ...) {
+      observed_timeout <<- getOption("timeout")
+      writeBin(c(as.raw(c(0x7F, 0x45, 0x4C, 0x46)), as.raw(rep(0L, 2048))),
+               destfile)
+      0L
+    },
+    .package = "utils"
+  )
+
+  dest <- tempfile()
+  on.exit(unlink(dest, recursive = TRUE), add = TRUE)
+  retrieve_bin_direct("blupf90+", url = "https://example.org",
+                       dest = dest, platform = "linux")
+
+  expect_gte(observed_timeout, 600)
+  expect_equal(getOption("timeout"), 60)     # restored on exit
+})
