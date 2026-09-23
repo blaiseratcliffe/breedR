@@ -109,3 +109,42 @@ test_that('build_pedigree() refuses individual codes below 1 (#50)', {
   expect_error(build_pedigree(1:3, data = ped_neg), 'codes must be 1 or greater')
 })
 
+
+test_that('build_pedigree() refuses negative parent codes, and names them (#66)', {
+
+  ## 0 or NA marks an unknown parent. A negative code is neither: with
+  ## consecutive codes pedigreemm refused it with an unrelated message, and
+  ## when the pedigree was recoded it became a negative subscript of the map.
+  msg <- 'Negative parent codes: -1$'
+  expect_error(build_pedigree(1:3, data = data.frame(self = 1:4,
+                                                     dad = c(0, -1, 1, 1),
+                                                     mum = c(0, 0, 2, 2))), msg)
+  expect_error(build_pedigree(1:3, data = data.frame(self = c(1, 2, 3, 5),
+                                                     dad = c(0, -1, 1, 1),
+                                                     mum = c(0, 0, 2, 2))), msg)
+
+  ## A negative subscript drops map entries. Dropping as many as the map has
+  ## gaps gave a sire column of the right length, and animal 7 was silently
+  ## given animal 5 as its sire.
+  expect_error(build_pedigree(1:3, data = data.frame(self = c(1, 5, 6, 7),
+                                                     dad = c(-1, -6, -7, -1),
+                                                     mum = NA_real_)),
+               'Negative parent codes: -7, -6, -1$')
+})
+
+
+test_that('build_pedigree() refuses codes above the integer range (#67)', {
+
+  ## Codes are stored as integers, and the recoding map is indexed by code:
+  ## a 10-digit id would need a map of billions of entries. Stop before that.
+  big <- data.frame(self = 3e9 + 1:4,
+                    dad  = c(0, 0, 3e9 + 1, 3e9 + 1),
+                    mum  = c(0, 0, 3e9 + 2, 3e9 + 2))
+  expect_error(build_pedigree(1:3, data = big),
+               'Codes out of range: 3000000001, 3000000002, 3000000003, 3000000004$')
+
+  ## The parent columns are checked too
+  expect_error(build_pedigree(1:3, data = data.frame(self = 1:2, dad = c(0, 3e9),
+                                                     mum = 0)),
+               'Codes out of range: 3000000000$')
+})
