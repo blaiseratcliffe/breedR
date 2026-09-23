@@ -147,7 +147,7 @@ test_that("codes that start above 1 are recoded and change nothing (#50)", {
   ## Each animal's breeding value, matched by its globulus id
   bv_up  <- ranef(res.up)$genetic
   bv_gen <- ranef(res.gen)$genetic
-  orig   <- match(as.integer(names(bv_up)), map) - 100L
+  orig   <- as.integer(names(bv_up)) - 100L
   expect_equal(as.numeric(bv_up)[match(as.integer(names(bv_gen)), orig)],
                as.numeric(bv_gen), tolerance = 1e-6)
 })
