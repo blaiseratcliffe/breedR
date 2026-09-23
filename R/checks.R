@@ -335,12 +335,24 @@ check_spatial <- function(model = c('splines', 'AR', 'blocks'),
     if (missing(rho) || is.null(rho)) rho <- matrix(c(NA, NA), 1, 2)
     
     if (any(is.na(rho))) {
-      ## any NA: build grid
+      ## A bare length-two vector is one row (one candidate pair, possibly with
+      ## an NA to search that dimension's default grid) -- not two rows of a
+      ## single column, which is what as.data.frame() would otherwise make of
+      ## it inside build.AR.rho.grid().
+      if (is.null(dim(rho)) && is.atomic(rho)) {
+        if (length(rho) != 2)
+          stop('rho must contain exactly two components')
+        rho <- matrix(rho, nrow = 1, ncol = 2)
+      }
       rho.grid <- build.AR.rho.grid(rho)
     } else {
-      ## fully specified: keep it as is
-      ## can be a grid, or a vector
-      rho.grid <- rho
+      ## Fully specified: keep a plain vector as-is (a single fit, not a grid --
+      ## downstream code tests is.null(nrow(spatial$rho)) to tell the two apart).
+      ## A matrix/data.frame is an actual grid; convert it to a data.frame so
+      ## transform(spatial$rho, ...) in remlf90() dispatches on
+      ## transform.data.frame rather than falling through to transform.default,
+      ## which evaluates in the wrong frame.
+      rho.grid <- if (is.null(dim(rho))) rho else as.data.frame(rho)
     }
     
 

@@ -525,6 +525,63 @@ test_that("check_spatial() errors if 'rho' is incorrectly specified",{
 
 })
 
+test_that("check_spatial() coerces a fully-specified rho matrix so transform() works (#4)", {
+  ar_check <- check_spatial(model = 'AR',
+                             coordinates = coordinates,
+                             rho = cbind(seq(.7, .9, .05), seq(.7, .9, .05)),
+                             response = dat$y)
+
+  ## The shape transform(spatial$rho, loglik = ...) in remlf90() needs.
+  expect_true(is.data.frame(ar_check$rho))
+
+  ## transform.default (what a bare matrix falls through to) evaluates its
+  ## expression in the caller's frame and can't see a local like ans.rho;
+  ## transform.data.frame evaluates it against the data itself. Reproduce
+  ## remlf90()'s exact shape to prove the fix actually prevents issue #4's
+  ## "object 'ans.rho' not found", not just that a class changed.
+  reproduce_transform_call <- function(rho_grid) {
+    ans.rho <- lapply(seq_len(nrow(rho_grid)), function(i) i * 10)
+    transform(rho_grid,
+              loglik = vapply(ans.rho, as.numeric, numeric(1)))
+  }
+  expect_error(reproduce_transform_call(ar_check$rho), NA)
+})
+
+test_that("check_spatial() accepts a bare rho vector containing NA (#42)", {
+  ## Documented as exactly equivalent to omitting rho.
+  full_na <- check_spatial(model = 'AR', coordinates = coordinates,
+                            rho = c(NA, NA), response = dat$y)
+  expect_true(is.data.frame(full_na$rho))
+  expect_identical(full_na$rho,
+                    build.AR.rho.grid(matrix(c(NA, NA), 1, 2)))
+
+  ## Fixing one dimension and searching the other.
+  partial_na <- check_spatial(model = 'AR', coordinates = coordinates,
+                               rho = c(NA, .8), response = dat$y)
+  expect_true(is.data.frame(partial_na$rho))
+  expect_true(all(partial_na$rho[[2]] == .8))
+  expect_setequal(unique(partial_na$rho[[1]]), breedR.getOption('ar.eval'))
+})
+
+test_that("check_spatial() keeps a fully-specified rho vector as a plain vector", {
+  ## Guard, not a regression test: this already passes on main. It pins the
+  ## risk that the #4/#42 fix could be simplified to always convert rho to a
+  ## data.frame -- remlf90() decides between the single-fit path and the grid
+  ## search path with is.null(nrow(spatial$rho)), so a plain, fully-specified
+  ## rho like c(.3, .4) must come out of check_spatial() as a bare numeric
+  ## vector, not a 1-row data.frame, or every ordinary AR fit would be
+  ## silently rerouted through the grid-of-one path and lose cont/
+  ## progress_file/remote support.
+  ar_check <- check_spatial(model = 'AR',
+                             coordinates = coordinates,
+                             rho = c(.3, .4),
+                             response = dat$y)
+
+  expect_true(is.numeric(ar_check$rho))
+  expect_null(nrow(ar_check$rho))
+  expect_identical(ar_check$rho, c(.3, .4))
+})
+
 test_that("check_spatial() errors if var.ini is inconsistent",{
   
   ## Single trait

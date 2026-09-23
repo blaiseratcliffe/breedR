@@ -1,3 +1,14 @@
+* `check_spatial()` now converts a fully-specified AR `rho` matrix or
+data.frame to a data.frame before it is used as the candidate grid. Passed
+through uncoerced, it reached `transform()` inside `remlf90()` only after
+every candidate had already been fitted, and failed there with the
+misleading error "object 'ans.rho' not found" (#4)
+
+* `check_spatial()` now accepts a bare AR `rho` vector containing `NA`,
+including `rho = c(NA, NA)`, documented as the exact equivalent of omitting
+`rho`. It previously failed immediately with "length(rho) == 2 is not
+TRUE" (#42)
+
 * The `Additive Genetic Models in Mixed Populations` vignette builds the
 mixed-population covariance of method 3 by splitting the relationship matrix by
 founder population (`A = A_E + A_J`), instead of scaling its hybrid blocks by
