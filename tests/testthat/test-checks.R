@@ -563,6 +563,25 @@ test_that("check_spatial() accepts a bare rho vector containing NA (#42)", {
   expect_setequal(unique(partial_na$rho[[1]]), breedR.getOption('ar.eval'))
 })
 
+test_that("check_spatial() keeps a fully-specified rho vector as a plain vector", {
+  ## Guard, not a regression test: this already passes on main. It pins the
+  ## risk that the #4/#42 fix could be simplified to always convert rho to a
+  ## data.frame -- remlf90() decides between the single-fit path and the grid
+  ## search path with is.null(nrow(spatial$rho)), so a plain, fully-specified
+  ## rho like c(.3, .4) must come out of check_spatial() as a bare numeric
+  ## vector, not a 1-row data.frame, or every ordinary AR fit would be
+  ## silently rerouted through the grid-of-one path and lose cont/
+  ## progress_file/remote support.
+  ar_check <- check_spatial(model = 'AR',
+                             coordinates = coordinates,
+                             rho = c(.3, .4),
+                             response = dat$y)
+
+  expect_true(is.numeric(ar_check$rho))
+  expect_null(nrow(ar_check$rho))
+  expect_identical(ar_check$rho, c(.3, .4))
+})
+
 test_that("check_spatial() errors if var.ini is inconsistent",{
   
   ## Single trait
