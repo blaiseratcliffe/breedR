@@ -1,3 +1,13 @@
+* `build_pedigree()` now stops with a message naming them when a parent code is
+negative. Only 0 or NA mark an unknown parent; a negative parent code used to
+fail with an unrelated error from pedigreemm or from indexing the recoding
+map, and in a rare case the pedigree was returned with wrong parents (#66)
+
+* `build_pedigree()` now stops with a message naming them when a code exceeds
+`.Machine$integer.max`. Codes are stored as integers and the recoding map is
+as long as the largest code, so such a pedigree needed a map of billions of
+entries: it failed to allocate it, or took tens of GB (#67)
+
 * `remlf90(cont = TRUE)` no longer stops with "infinite or missing values in
 'x'" when resuming a multi-trait fit in which no record observes every trait,
 such as site-as-trait data. The progress file supplies every initial
