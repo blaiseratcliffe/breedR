@@ -197,6 +197,7 @@ breedR.sample.phenotype <- function(fixed = NULL,
     if( exists('map', attributes(ped)) ) {
       if ( !cf ) {
         rm.idx <- which(is.na(attr(ped, 'map')))
+        if (!is.data.frame(components)) components <- do.call('data.frame', components)
         components <- components[-rm.idx,,drop=FALSE]
         phenotype  <- phenotype[-rm.idx]
         Nfull <- nrow(components)
