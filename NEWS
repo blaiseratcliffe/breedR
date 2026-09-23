@@ -1,3 +1,11 @@
+* An AR `rho` grid search in `remlf90()`, which is also what an unset `rho`
+runs, now works when `spatial` is a variable or is forwarded through `...` from
+a wrapper function. Each candidate fit rewrote the `spatial = list(...)`
+expression typed in the call, and otherwise failed with "object of type
+'symbol' is not subsettable". Calls that type `spatial = list(...)` are
+unchanged; for the others, the call stored in the result holds the evaluated
+`spatial` list with the chosen `rho` (#5)
+
 * `ranef()` now names the breeding values of a genetic effect, and their
 standard errors, by the ids given in the pedigree also when `build_pedigree()`
 had to recode it (gaps, codes not starting at 1, offspring coded below a
