@@ -4,7 +4,7 @@
 \alias{check_var.ini}
 \title{Check initial variances specification}
 \usage{
-check_var.ini(x, random, response, traits = NULL)
+check_var.ini(x, random, response, traits = NULL, from_checkpoint = FALSE)
 }
 \arguments{
 \item{x}{list. user specification of var.ini (or NULL)}
@@ -14,6 +14,10 @@ check_var.ini(x, random, response, traits = NULL)
 \item{response}{numeric vector or matrix.}
 
 \item{traits}{internal named list of logical trait-presence masks.}
+
+\item{from_checkpoint}{logical. Whether \code{remlf90()} is resuming from a
+progress file, which replaces every initial variance: defaults are then
+placeholders.}
 }
 \value{
 A list with initial covariance matrices for all random effects in the
