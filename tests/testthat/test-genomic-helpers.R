@@ -295,6 +295,25 @@ test_that("write_xref_from_pedigree() finds genotyped ids of 1e5 and above (#43)
                    c('100000 100000', '5 5'))
 })
 
+test_that("write_xref_from_pedigree() finds ids written by write_snp_file() from double ids of 1e5 and above (#54)", {
+
+  ## write_snp_file() used to write ids = 1e5 (a double) as "1e+05"
+  ## (as.character() on a double), and no genotyped animal matched the
+  ## pedigree integer-formatted labels. Same quirk as #43, in the SNP
+  ## writer rather than build_pedigree().
+  ped <- build_pedigree(1:3, data = data.frame(self = as.numeric(seq_len(1e5)),
+                                               dad = 0, mum = 0))
+  wd  <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  snp <- file.path(wd, 'geno.txt')
+  write_snp_file(matrix(c(0L, 1L, 2L), nrow = 1), ids = 1e5, file = snp)
+
+  write_xref_from_pedigree(snp, ped, wd)
+
+  expect_identical(readLines(file.path(wd, 'geno.txt_XrefID')),
+                   '100000 100000')
+})
+
 test_that("write_xref_from_pedigree() translates ids of a recoded pedigree (#49)", {
 
   ## Animal 1 precedes its parents 2 and 3, so the pedigree is recoded with

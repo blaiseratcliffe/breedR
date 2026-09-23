@@ -1,3 +1,9 @@
+* `write_snp_file()` no longer writes some whole-number double animal ids
+in scientific notation (100000 became "1e+05"), which made
+`remlf90(genomic = ...)` stop with "Genotyped animals not found in the
+pedigree" even though the pedigree was fine. Same R quirk as #43, in the
+SNP writer rather than `build_pedigree()` (#54)
+
 * `breedR.qget()` now reports the backend's own diagnostic when a submitted
 fit failed during setup. BLUPF90+ can exit 0 on a fatal setup error (missing
 data file, malformed parameter file); `parse_results()` used to crash on

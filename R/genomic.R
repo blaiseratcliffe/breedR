@@ -494,6 +494,16 @@ write_snp_file <- function(geno, ids, file,
          call. = FALSE)
 
   ids_char <- as.character(ids)
+  if (is.double(ids)) {
+    # A whole-number double prints in scientific notation when that is
+    # shorter (100000 -> "1e+05"), and write_xref_from_pedigree() then
+    # cannot match it against the pedigree integer labels. Same quirk #43
+    # fixed for pedigree codes (R/pedigree.R). Leave non-whole numbers and
+    # ids beyond the integer range untouched rather than truncating or
+    # NA-ing them silently.
+    whole <- is.finite(ids) & ids == trunc(ids) & abs(ids) <= .Machine$integer.max
+    ids_char[whole] <- as.character(as.integer(ids[whole]))
+  }
 
   if (fractional) {
     # Fractional format: each value as X.XX (exactly 4 chars), no separators
