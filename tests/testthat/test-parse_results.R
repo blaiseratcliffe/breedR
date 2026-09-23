@@ -259,6 +259,36 @@ test_that("hetres coefficients of a multi-trait fit keep their trait order", {
 })
 
 
+test_that("parse_results() surfaces the backend's own diagnostic when the run never starts (issue #14)", {
+
+  ## BLUPF90+ can exit 0 after a fatal, setup-time error -- a missing data
+  ## file, a malformed NUMBER_OF_EFFECTS, a truncated parameter file -- see
+  ## #14. None of those reach the REML loop, so unlike a run that merely
+  ## fails to converge (tested above), the log has no 'In round' line at all.
+  ## Before the fix, parse_results() read past this straight into
+  ## last.round.idx <- tail(grep('In round', reml.out), 1), which comes back
+  ## integer(0), and died several lines later on reml.out[last.round.idx]
+  ## with an opaque "subscript out of bounds" instead of the diagnostic that
+  ## was sitting in reml.out the whole time.
+  data <- data.frame(x = seq(0, 2, length.out = 100),
+                     g = factor(rep(1:50, 2)),
+                     y = rep(c(9, 11), 50))
+  mc <- call('remlf90', fixed = quote(y ~ x), random = quote(~ g), data = quote(data))
+  mf <- build.mf(mc)
+  effects <- build.effects(mf, NULL, NULL, NULL, list(g = 3.4))
+
+  real_log <- readLines(file.path(testdata, 'airemlf90_log_hetres_1.txt'))
+  no_rounds <- c(real_log[!grepl('In round', real_log)],
+                "There is no such data file: no_such_file")
+
+  expect_error(
+    parse_results(file.path(testdata, 'airemlf90_sol_hetres_1.txt'),
+                  effects, mf, no_rounds, 'ai', quote(remlf90())),
+    "no such data file", fixed = TRUE
+  )
+})
+
+
 test_that("homoscedastic logs are not taken for hetres output", {
 
   ## Detection relies on lines that only hetres output contains, so the

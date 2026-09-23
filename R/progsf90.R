@@ -494,6 +494,22 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
   }
 
   
+  ## The backend can exit 0 after a fatal, setup-time error (#14): a missing
+  ## data file, a malformed NUMBER_OF_EFFECTS, or a truncated parameter file
+  ## all abort before the REML loop ever starts. Every run that reaches the
+  ## loop prints at least one 'In round' line, so its absence is a clean,
+  ## version-agnostic signal that this run never got that far -- unlike a
+  ## run that merely exhausts MAX_REML_ITERATIONS without converging, which
+  ## still has 'In round' lines and is handled as a warning further down.
+  ## Checked here, ahead of the solutions-file read below, so both
+  ## remlf90()'s synchronous call and breedR.qget()'s recovery call share
+  ## the same diagnostic instead of "cannot open the connection" or
+  ## "subscript out of bounds".
+  if (!any(grepl('In round', reml.out)))
+    stop("The REML backend produced no solutions.\n",
+         "Output:\n", paste(utils::tail(reml.out, 20), collapse = "\n"),
+         call. = FALSE)
+
   ## Number and names of traits
   ntraits <- as.numeric(tail(unlist(strsplit(
     grep("Number of Traits", reml.out, value = TRUE),
