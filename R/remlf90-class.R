@@ -608,6 +608,7 @@ remlf90 <- function(fixed,
   
   
   ## Spatial specification
+  spatial_arg <- spatial
   if (!is.null(spatial)) {
     ## TODO: Ideally, I should pass the model frame only, containing the
     ## necessary variables (also for special effects and response)
@@ -757,7 +758,8 @@ remlf90 <- function(fixed,
 
           # Run the first rho fully to establish the base model files
           mc_first <- mc
-          mc_first$spatial$rho <- as.numeric(spatial$rho[1, ])
+          mc_first <- ar_rho_call(mc_first, spatial_arg,
+                                  as.numeric(spatial$rho[1, ]))
           mc_first$parallel <- FALSE
           first_result <- tryCatch(
             suppressMessages(eval(mc_first, envir = caller_env)),
@@ -851,7 +853,7 @@ remlf90 <- function(fixed,
           if (is.null(binary_results)) {
             caller_env <- parent.frame()
             eval.rho.fallback <- function(rho, mc, envir) {
-              mc$spatial$rho <- rho
+              mc <- ar_rho_call(mc, spatial_arg, rho)
               mc$parallel <- FALSE
               tryCatch(suppressMessages(eval(mc, envir = envir)),
                        error = function(e) NULL)
@@ -915,14 +917,15 @@ remlf90 <- function(fixed,
           # Full fit of winning rho for complete R result object
           rho.idx <- which.max(loglik.rho$loglik)
           mc_best <- mc
-          mc_best$spatial$rho <- as.numeric(spatial$rho[rho.idx, ])
+          mc_best <- ar_rho_call(mc_best, spatial_arg,
+                                 as.numeric(spatial$rho[rho.idx, ]))
           mc_best$parallel <- FALSE
           ans <- suppressMessages(eval(mc_best, envir = caller_env))
 
         } else {
           ## Sequential grid search (default)
           eval.rho <- function(rho, mc, envir) {
-            mc$spatial$rho <- rho
+            mc <- ar_rho_call(mc, spatial_arg, rho)
             tryCatch(
               suppressMessages(eval(mc, envir = envir)),
               error = function(e) {
@@ -1351,6 +1354,26 @@ rho_fit_dirs <- function(fits, keep) {
                  character(1))
   dirs <- dirs[-keep]
   dirs[!is.na(dirs)]
+}
+
+# The call that fits one rho of an AR grid: the matched call `mc` with its
+# spatial rho fixed to `rho`.
+#
+# When spatial was typed as list(...) in the call, its rho element is set in
+# that expression, as it always was, so these calls are unchanged. Otherwise
+# the expression is a symbol (a variable, or ..1 when forwarded through a
+# wrapper's ...), which cannot be subset, or another call, which would get a
+# stray rho argument: use the user's evaluated spatial list, `spatial_arg`,
+# with its rho set (issue #5). It is taken before check_spatial(), whose
+# result would pass on filled-in defaults such as var.ini as if user-given.
+ar_rho_call <- function(mc, spatial_arg, rho) {
+  if (is.call(mc$spatial) && identical(mc$spatial[[1]], as.name("list"))) {
+    mc$spatial$rho <- rho
+  } else {
+    spatial_arg$rho <- rho
+    mc$spatial <- spatial_arg
+  }
+  mc
 }
 
 # Index of the rho with the highest log-likelihood, refusing to pick from an
