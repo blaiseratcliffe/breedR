@@ -92,6 +92,122 @@ test_that("an AR rho grid is refused for a non-local fit", {
 })
 
 
+test_that("an AR rho grid works when spatial is a variable or forwarded through ... (#5)", {
+
+  ## Each rho of a grid is fitted by re-invoking remlf90(). That used to
+  ## rewrite the spatial expression of the matched call, mc$spatial$rho <- rho,
+  ## which only works when spatial = list(...) is typed in the call itself: a
+  ## variable is a symbol there, and an argument forwarded through ... is ..1,
+  ## and neither can be subset. Stop each per-rho fit once its arguments are
+  ## checked, and record the rho it was given and its matched call, which is
+  ## the call a winning fit stores. No binaries are needed.
+  seen <- list()
+  calls <- list()
+  local_mocked_bindings(
+    check_progsf90 = function(...) TRUE,
+    build.effects = function(mf, genetic, spatial, ...) {
+      seen[[length(seen) + 1]] <<- spatial$rho
+      calls[[length(calls) + 1]] <<- get("mcout", envir = parent.frame())
+      stop("per-rho fit reached")
+    },
+    .package = "breedR")
+
+  dat <- expand.grid(x = 1:6, y = 1:5)
+  dat$z <- sin(seq_len(nrow(dat)))
+  grid <- rbind(c(.2, .5), c(.7, .3))
+  rows <- list(c(.2, .5), c(.7, .3))
+  sp <- list(model = "AR", coordinates = dat[, c("x", "y")], rho = grid)
+  fit_ar <- function(...) remlf90(fixed = z ~ 1, data = dat, ...)
+  quietly <- function(x) suppressWarnings(suppressMessages(x))
+
+  ## spatial given as a variable
+  expect_error(quietly(remlf90(fixed = z ~ 1, data = dat, spatial = sp)),
+               "All rho combinations failed")
+  expect_equal(seen, rows)
+  ## Each per-rho call carries the evaluated spatial list with its rho set
+  expect_identical(lapply(calls, function(cl) cl$spatial),
+                   lapply(rows, function(r)
+                     list(model = "AR", coordinates = dat[, c("x", "y")],
+                          rho = r)))
+
+  ## spatial = list(...) forwarded through a wrapper's ... (the reported case)
+  seen <- list()
+  expect_error(quietly(fit_ar(spatial = list(model = "AR",
+                                             coordinates = dat[, c("x", "y")],
+                                             rho = grid))),
+               "All rho combinations failed")
+  expect_equal(seen, rows)
+
+  ## rho left unset, the default grid, forwarded
+  old_ar_eval <- breedR.getOption("ar.eval")
+  on.exit(breedR.setOption("ar.eval", old_ar_eval), add = TRUE)
+  breedR.setOption("ar.eval", c(-.4, .6))
+  seen <- list()
+  expect_error(quietly(fit_ar(spatial = sp[c("model", "coordinates")])),
+               "All rho combinations failed")
+  expect_equal(seen, list(c(-.4, -.4), c(.6, -.4), c(-.4, .6), c(.6, .6)))
+
+  ## The parallel search seeds from its first rho through the same
+  ## re-invocation. The mocked seed fit leaves no directory, so this stops at
+  ## the seed-directory guard, before makeCluster(): no cluster is started. If
+  ## that guard ever moves after makeCluster(), this would start one.
+  seen <- list()
+  expect_error(quietly(fit_ar(spatial = sp, parallel = 2)),
+               "produced no fit directory")
+  expect_equal(seen, rows[1])
+})
+
+
+test_that("a literal spatial = list(...) grid builds the same per-rho calls as before (#5)", {
+
+  ## Guard for the fix to #5: when spatial is typed as list(...) in the call,
+  ## each per-rho call is still the typed call with its rho element replaced,
+  ## so the call a winning fit stores is unchanged. Record the matched call of
+  ## each per-rho fit and stop it there. No binaries are needed.
+  calls <- list()
+  local_mocked_bindings(
+    check_progsf90 = function(...) TRUE,
+    build.effects = function(mf, genetic, spatial, ...) {
+      calls[[length(calls) + 1]] <<- get("mcout", envir = parent.frame())
+      stop("per-rho fit reached")
+    },
+    .package = "breedR")
+
+  dat <- expand.grid(x = 1:6, y = 1:5)
+  dat$z <- sin(seq_len(nrow(dat)))
+  grid <- rbind(c(.2, .5), c(.7, .3))
+  quietly <- function(x) suppressWarnings(suppressMessages(x))
+
+  expect_error(quietly(remlf90(fixed = z ~ 1, data = dat,
+                               spatial = list(model = "AR",
+                                              coordinates = dat[, c("x", "y")],
+                                              rho = grid))),
+               "All rho combinations failed")
+  expected <- lapply(list(c(.2, .5), c(.7, .3)), function(r)
+    bquote(remlf90(fixed = z ~ 1,
+                   spatial = list(model = "AR",
+                                  coordinates = dat[, c("x", "y")],
+                                  rho = .(r)),
+                   data = dat)))
+  expect_identical(calls, expected)
+
+  ## The parallel seed call, likewise; it stops before any cluster is started
+  calls <- list()
+  expect_error(quietly(remlf90(fixed = z ~ 1, data = dat,
+                               spatial = list(model = "AR",
+                                              coordinates = dat[, c("x", "y")],
+                                              rho = grid),
+                               parallel = 2)),
+               "produced no fit directory")
+  expect_identical(calls, list(
+    bquote(remlf90(fixed = z ~ 1,
+                   spatial = list(model = "AR",
+                                  coordinates = dat[, c("x", "y")],
+                                  rho = .(c(.2, .5))),
+                   data = dat, parallel = FALSE))))
+})
+
+
 test_that("select_best_rho() refuses to pick from an all-NA grid", {
 
   ## A rho can run to completion without error yet still carry no usable
