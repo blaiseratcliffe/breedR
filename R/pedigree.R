@@ -11,6 +11,9 @@
 #' beginning from 1, and the offspring must follow parents. All this is checked, 
 #' and the pedigree is reordered and recoded if needed. Individual codes below 1
 #' are an error, since 0 marks an unknown parent.
+#' Negative parent codes are an error too (only 0 or NA mark an unknown
+#' parent), and so are codes above \code{.Machine$integer.max}, since codes
+#' are stored as integers.
 #' 
 #' If recoding is needed, the function issues a warning and an attribute 'map' 
 #' is attached to the pedigree, such that \code{map[i] = j} means that code 
@@ -58,6 +61,26 @@ build_pedigree <- function(x, self = x[[1]], sire = x[[2]], dam = x[[3]], data) 
   # The recoding map is indexed by code, and 0 marks an unknown parent
   if( any(ped$self < 1, na.rm = TRUE) )
     stop("Individual codes must be 1 or greater (0 marks an unknown parent)")
+
+  # A parent code is 0 or NA (unknown parent) or the code of an individual.
+  # A negative code is neither, and as a subscript of the recoding map it
+  # would drop entries instead of looking one up (#66)
+  parents <- c(ped$sire, ped$dam)
+  neg_codes <- unique(parents[which(parents < 0)])
+  if( length(neg_codes) )
+    stop("Parent codes must be 0 or NA (unknown parent), or 1 or greater. ",
+         "Negative parent codes: ", toString(utils::head(sort(neg_codes), 10L)),
+         if( length(neg_codes) > 10L ) ", ...")
+
+  # Codes are stored as integers, and the recoding map is indexed by code (#67)
+  codes <- c(ped$self, parents)
+  big_codes <- unique(codes[which(codes > .Machine$integer.max)])
+  if( length(big_codes) )
+    stop("Pedigree codes must not exceed .Machine$integer.max (",
+         .Machine$integer.max, "). Codes out of range: ",
+         toString(format(utils::head(sort(big_codes), 10L),
+                         scientific = FALSE, trim = TRUE)),
+         if( length(big_codes) > 10L ) ", ...")
 
   # 0 is to be interpreted as unknown parent, not as an individual code
   # recode it as NA
