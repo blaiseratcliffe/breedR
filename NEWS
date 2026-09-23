@@ -1,3 +1,12 @@
+* The shipped `inst/doc/Genomic-selection.R` script is now live: every
+illustrative chunk (installing the genomic binaries, fitting ssGBLUP, running
+the GWAS, prediction, Gibbs sampling) is runnable code instead of a comment,
+and sourcing it no longer disables chunk evaluation for the rest of the
+session. Both defects came from how the tangle was generated (a real
+`rmarkdown::render()` let the vignette's build-time `eval = FALSE` default
+leak into the tangled script) rather than from anything in the vignette's own
+text (#30)
+
 * `install_progsf90()`, `install_renumf90()` and `install_genomic_programs()`
 now raise `options(timeout)` to at least 600s for the duration of each
 binary download (never lowering a higher user setting), so the UGA
