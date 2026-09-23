@@ -325,6 +325,137 @@ test_that("resuming is refused under debug", {
 })
 
 
+## -- resuming without a data-based default (#71) ---------------------------
+
+test_that("cont = TRUE resumes a fit where no record observes every trait (#71)", {
+
+  ## Site-as-trait layout: each record is observed at one site only. The
+  ## data-based default initial variance is then all NA, but under cont every
+  ## initial variance comes from the checkpoint, so the default must be neither
+  ## needed nor validated. Stop at the parameter file: no binaries involved.
+  n <- 12
+  d <- data.frame(y1 = c(3.1, 2.4, 4.0, 3.6, 2.9, 3.3, rep(NA, 6)),
+                  y2 = c(rep(NA, 6), 7.2, 8.1, 6.5, 7.7, 9.0, 6.9),
+                  rep = factor(rep(1:3, 4)), id = 1:n,
+                  x = rep(1:3, 4), y = rep(1:4, each = 3))
+  ped <- data.frame(self = 1:n, sire = 0, dam = 0)
+  expect_true(all(is.na(default_initial_variance(d[, c('y1', 'y2')]))))
+
+  mat_lines <- function(m)
+    apply(m, 1L, function(z) paste0(" ", paste(sprintf("%13.5G", z), collapse = " ")))
+  write_log <- function(G, R, f) {
+    writeLines(c(" In round 1 convergence= 0.1", " new R", mat_lines(R),
+                 unlist(lapply(unname(G), function(m) c(" new G", mat_lines(m)))),
+                 " solutions stored"), f)
+    f
+  }
+  m2 <- function(a) matrix(c(a, a / 10, a / 10, a + .1), 2)
+
+  captured <- new.env()
+  local_mocked_bindings(
+    check_progsf90 = function(...) TRUE,
+    write.progsf90 = function(pf90, dir) {
+      assign('pf90', pf90, envir = captured)
+      stop('parameter file reached')
+    },
+    .package = 'breedR')
+
+  resume <- function(log, ...)
+    suppressMessages(remlf90(cbind(y1, y2) ~ 1, data = d, progress_file = log,
+                             cont = TRUE, ...))
+
+  ## Every component whose default is computed before the checkpoint is read:
+  ## a random term and the residual (check_var.ini), genetic, spatial, generic.
+  ## Distinct blocks, so a value landing in the wrong group would show.
+  G <- list(rep = m2(1), genetic = m2(2), spatial = m2(3), sp = m2(4))
+  R <- diag(c(5.1, 5.2))
+  f <- write_log(G, R, tempfile(fileext = '.log'))
+  on.exit(unlink(f), add = TRUE)
+  args <- list(random = ~ rep,
+               genetic = list(model = 'add_animal', pedigree = ped, id = 'id'),
+               spatial = list(model = 'AR', coordinates = d[, c('x', 'y')],
+                              rho = c(.5, .5)),
+               generic = list(sp = list(incidence = diag(n), precision = diag(n))))
+  expect_error(do.call(resume, c(list(f), args)), 'parameter file reached')
+
+  par <- captured$pf90$parameter
+  expect_equal(unname(par$residvar), R)
+  expect_length(par$rangroup, length(G))
+  for (i in seq_along(G))
+    expect_equal(unname(as.matrix(par$rangroup[[i]]$cov)), G[[i]])
+
+  ## Competition with pec: both group defaults are placeholders too.
+  rm('pf90', envir = captured)
+  Gc <- list(genetic = diag(c(2, 2.5, 3, 3.5)) + .1, pec = m2(6))
+  fc <- write_log(Gc, R, tempfile(fileext = '.log'))
+  on.exit(unlink(fc), add = TRUE)
+  expect_error(resume(fc, genetic = list(model = 'competition', pedigree = ped,
+                                         id = 'id', coordinates = d[, c('x', 'y')],
+                                         pec = TRUE)),
+               'parameter file reached')
+  par <- captured$pf90$parameter
+  expect_equal(unname(par$residvar), R)
+  for (i in seq_along(Gc))
+    expect_equal(unname(as.matrix(par$rangroup[[i]]$cov)), Gc[[i]])
+
+  ## A checkpoint that does not match the model still fails loudly, rather
+  ## than fitting from a placeholder: wrong dimensions, a missing group, or no
+  ## progress file at all.
+  rm('pf90', envir = captured)
+  bad <- write_log(lapply(G, function(m) m[1, 1, drop = FALSE]), R,
+                   tempfile(fileext = '.log'))
+  on.exit(unlink(bad), add = TRUE)
+  expect_error(do.call(resume, c(list(bad), args)), 'different model')
+  short <- write_log(G[-length(G)], R, tempfile(fileext = '.log'))
+  on.exit(unlink(short), add = TRUE)
+  expect_error(do.call(resume, c(list(short), args)), 'different model')
+  absent <- tempfile(fileext = '.log')
+  expect_error(do.call(resume, c(list(absent), args)), 'does not exist')
+  expect_false(exists('pf90', envir = captured))
+})
+
+
+test_that("without cont the data-based default initial variances are used", {
+
+  ## The placeholder of #71 is for resuming only: a fresh fit still starts from
+  ## default_initial_variance() for every component.
+  n <- 12
+  d <- data.frame(y1 = c(3.1, 2.4, 4.0, 3.6, 2.9, 3.3, 3.8, 2.2, 3.0, 4.1, 2.7, 3.5),
+                  y2 = c(7.0, 6.1, 8.3, 7.4, 6.6, 7.9, 7.2, 8.1, 6.5, 7.7, 9.0, 6.9),
+                  rep = factor(rep(1:3, 4)), id = 1:n,
+                  x = rep(1:3, 4), y = rep(1:4, each = 3))
+  ped <- data.frame(self = 1:n, sire = 0, dam = 0)
+  default <- default_initial_variance(d[, c('y1', 'y2')], cor.effect = 0.1,
+                                      digits = 2)
+
+  captured <- new.env()
+  local_mocked_bindings(
+    check_progsf90 = function(...) TRUE,
+    write.progsf90 = function(pf90, dir) {
+      assign('pf90', pf90, envir = captured)
+      stop('parameter file reached')
+    },
+    .package = 'breedR')
+
+  expect_error(
+    suppressMessages(remlf90(cbind(y1, y2) ~ 1, data = d, random = ~ rep,
+                             genetic = list(model = 'add_animal', pedigree = ped,
+                                            id = 'id'),
+                             spatial = list(model = 'AR',
+                                            coordinates = d[, c('x', 'y')],
+                                            rho = c(.5, .5)),
+                             generic = list(sp = list(incidence = diag(n),
+                                                      precision = diag(n))))),
+    'parameter file reached')
+
+  par <- captured$pf90$parameter
+  expect_equal(unname(par$residvar), unname(default))
+  expect_length(par$rangroup, 4L)
+  for (i in 1:4)
+    expect_equal(unname(as.matrix(par$rangroup[[i]]$cov)), unname(default))
+})
+
+
 ## -- the line index -------------------------------------------------------
 
 test_that("a supplied line index gives identical results", {

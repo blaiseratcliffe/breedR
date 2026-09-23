@@ -602,7 +602,8 @@ remlf90 <- function(fixed,
                        c(genetic, list(data = data, 
                                        response = responsem,
                                        trait.active = trait_masks[['genetic']],
-                                       pec.trait.active = trait_masks[['pec']])))
+                                       pec.trait.active = trait_masks[['pec']],
+                                       from_checkpoint = cont)))
   }
   
   
@@ -613,7 +614,8 @@ remlf90 <- function(fixed,
     spatial <- do.call('check_spatial', 
                        c(spatial, list(data = data,
                                        response = responsem,
-                                       trait.active = trait_masks[['spatial']])))
+                                       trait.active = trait_masks[['spatial']],
+                                       from_checkpoint = cont)))
   }
 
   ## An AR model with rho unspecified, or given as a grid, is fitted once per
@@ -645,7 +647,8 @@ remlf90 <- function(fixed,
   ## Validate the complete model before an AR grid can catch per-fit errors.
   ## Generic specification
   if (!is.null(generic)) {
-    generic <- check_generic(generic, response = responsem, traits = trait_masks)
+    generic <- check_generic(generic, response = responsem, traits = trait_masks,
+                             from_checkpoint = cont)
   }
 
   ## Genomic specification
@@ -663,7 +666,8 @@ remlf90 <- function(fixed,
   ## We check even the NULL case, where the function returns the
   ## default initial variances for all random effects + residuals
   trait_masks <- check_trait_groups(trait_masks, mf, genetic, spatial, generic)
-  var.ini <- check_var.ini(var.ini, random, responsem, traits = trait_masks)
+  var.ini <- check_var.ini(var.ini, random, responsem, traits = trait_masks,
+                           from_checkpoint = cont)
 
   ## Whether the initial variances for each component are defaults
   has_var.ini <-

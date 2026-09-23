@@ -16,8 +16,12 @@
 #' @param random formula. user specification of random effects.
 #' @param response numeric vector or matrix.
 #' @param traits internal named list of logical trait-presence masks.
+#' @param from_checkpoint logical. Whether \code{remlf90()} is resuming from a
+#'   progress file, which replaces every initial variance: defaults are then
+#'   placeholders.
 #' @return  matrix of observation values.
-check_var.ini <- function (x, random, response, traits = NULL) {
+check_var.ini <- function (x, random, response, traits = NULL,
+                           from_checkpoint = FALSE) {
   
   
   ## terms in the random component + 'residual'
@@ -44,8 +48,9 @@ check_var.ini <- function (x, random, response, traits = NULL) {
     
     ## set default values and flag
     div_fun <- breedR.getOption('default.initial.variance')
-    default_ini <- 
-      eval(div_fun)(response, dim = 1, cor.effect = 0.1, digits = 2)
+    default_ini <- if (isTRUE(from_checkpoint))
+      resume_placeholder_variance(response)
+      else eval(div_fun)(response, dim = 1, cor.effect = 0.1, digits = 2)
     x <- lapply(random.terms, function(x) default_ini)
     names(x) <- random.terms
     attr(x, 'var.ini.default') <- TRUE
@@ -83,13 +88,15 @@ check_genetic <- function(model = c('add_animal', 'competition'),
                           response,
                           trait.active = NULL,
                           pec.trait.active = NULL,
-                          ...) {
+                          ...,
+                          from_checkpoint = FALSE) {
   
   ## do not include data in the call
   ## data is an auxiliar for checking and substituting id
   ## but it is not part of the genetic component specification
   mc <- match.call()
-  mc <- mc[!names(mc) %in% c('data', 'response', 'trait.active', 'pec.trait.active')]
+  mc <- mc[!names(mc) %in% c('data', 'response', 'trait.active',
+                             'pec.trait.active', 'from_checkpoint')]
   
   ## Mandatory arguments
   for (arg in c('model', 'pedigree', 'id')) {
@@ -157,8 +164,9 @@ check_genetic <- function(model = c('add_animal', 'competition'),
   if (missing(var.ini) || is.null(var.ini)) {
 
     ## default initial covariance matrix
-    var.ini <- 
-      eval(div_fun)(response, dim = dim, cor.effect = 0.1, digits = 2)
+    var.ini <- if (isTRUE(from_checkpoint))
+      resume_placeholder_variance(response, dim)
+      else eval(div_fun)(response, dim = dim, cor.effect = 0.1, digits = 2)
     
     ## set flag indicating a default initial value
     attr(mc, 'var.ini.default') <- TRUE
@@ -226,8 +234,9 @@ check_genetic <- function(model = c('add_animal', 'competition'),
       }
       
       ## default initial covariance matrix
-      pec$var.ini <-
-        eval(div_fun)(response, dim = 1, cor.effect = 0.1, digits = 2)
+      pec$var.ini <- if (isTRUE(from_checkpoint))
+        resume_placeholder_variance(response)
+        else eval(div_fun)(response, dim = 1, cor.effect = 0.1, digits = 2)
     }
     
     ## Validate initial variance in pec
@@ -278,13 +287,15 @@ check_spatial <- function(model = c('splines', 'AR', 'blocks'),
                           var.ini,
                           data,
                           response,
-                          trait.active = NULL) {
+                          trait.active = NULL,
+                          from_checkpoint = FALSE) {
 
   ## do not include data in the call
   ## data is an auxiliar for checking and substituting id
   ## but it is not part of the genetic component specification
   mc <- match.call()
-  mc <- mc[!names(mc) %in% c('data', 'response', 'trait.active')]
+  mc <- mc[!names(mc) %in% c('data', 'response', 'trait.active',
+                             'from_checkpoint')]
   
   for (arg in c('model', 'coordinates')) {
     if (eval(call('missing', as.name(arg))))
@@ -393,7 +404,9 @@ check_spatial <- function(model = c('splines', 'AR', 'blocks'),
   if (missing(var.ini) || is.null(var.ini)) {
     
     ## default initial covariance matrix
-    var.ini <- eval(div_fun)(response, dim, cor.effect = 0.1, digits = 2)
+    var.ini <- if (isTRUE(from_checkpoint))
+      resume_placeholder_variance(response, dim)
+      else eval(div_fun)(response, dim, cor.effect = 0.1, digits = 2)
     
     ## set flag indicating a default initial value
     attr(mc, 'var.ini.default') <- TRUE
@@ -417,7 +430,7 @@ check_spatial <- function(model = c('splines', 'AR', 'blocks'),
 
 
 
-check_generic <- function(x, response, traits = NULL){
+check_generic <- function(x, response, traits = NULL, from_checkpoint = FALSE){
   
   mc <- match.call()
   
@@ -449,7 +462,8 @@ check_generic <- function(x, response, traits = NULL){
       c(x[[arg.idx]],
         response = list(response),
         where = id,
-        trait.active = list(traits[[generic_effect_names(x)[arg.idx]]]))
+        trait.active = list(traits[[generic_effect_names(x)[arg.idx]]]),
+        from_checkpoint = from_checkpoint)
     )
     ## If valid, the original spec might have been completed
     ## with a default initial variance
@@ -478,10 +492,12 @@ validate_generic_element <- function(incidence,
                                      var.ini, 
                                      response,
                                      where,
-                                     trait.active = NULL) {
+                                     trait.active = NULL,
+                                     from_checkpoint = FALSE) {
   
   mc <- match.call()
-  mc <- mc[!names(mc) %in% c('response', 'where', 'trait.active')]
+  mc <- mc[!names(mc) %in% c('response', 'where', 'trait.active',
+                             'from_checkpoint')]
   
   for (arg in c('incidence')) {
     if (eval(call('missing', as.name(arg))))
@@ -521,7 +537,9 @@ validate_generic_element <- function(incidence,
   if (missing(var.ini) || is.null(var.ini)) {
     ## If not specified, return function that gives the value
     ## in order to check later whether the value is default or specified
-    var.ini <- eval(div_fun)(response, dim, cor.effect = 0.1, digits = 2)
+    var.ini <- if (isTRUE(from_checkpoint))
+      resume_placeholder_variance(response, dim)
+      else eval(div_fun)(response, dim, cor.effect = 0.1, digits = 2)
     
     ## set flag indicating a default initial value
     attr(mc, 'var.ini.default') <- TRUE
@@ -617,6 +635,17 @@ validate_variance <- function (x, dimension = dim(as.matrix(x)),
     stop(paste(what, "must be a SPD matrix in the", where), call. = FALSE)
   
   return(TRUE)
+}
+
+
+## Default initial variance under remlf90(cont = TRUE). The checkpoint
+## replaces every initial variance after build.effects(), so the
+## data-based default would be discarded, and it is undefined (all NA)
+## when no record observes every trait (#71). Any SPD matrix of the right
+## dimension passes the validations it meets first, and the checkpoint's
+## dimension check is keyed on it.
+resume_placeholder_variance <- function(response, dim = 1) {
+  diag(dim * ncol(as.matrix(response)))
 }
 
 

@@ -1,3 +1,10 @@
+* `remlf90(cont = TRUE)` no longer stops with "infinite or missing values in
+'x'" when resuming a multi-trait fit in which no record observes every trait,
+such as site-as-trait data. The progress file supplies every initial
+variance, so breedR's data-based default, which is undefined for such data,
+is no longer computed and validated first. Fits with `cont = FALSE` are
+unchanged (#71)
+
 * `write_snp_file()` no longer writes some whole-number double animal ids
 in scientific notation (100000 became "1e+05"), which made
 `remlf90(genomic = ...)` stop with "Genotyped animals not found in the
