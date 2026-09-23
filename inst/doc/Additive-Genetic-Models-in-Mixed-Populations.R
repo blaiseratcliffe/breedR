@@ -50,6 +50,7 @@ dat <- transform(dat,
 print(table(dat[, c('mum', 'dad')]), zero.print = "")
 str(dat)
 
+
 ## ----overall-genetic-structure------------------------------------------------
 
 ## Build a pedigree for the whole mixed population
@@ -68,6 +69,7 @@ idx_pop <- function(x) {
   else
     match(dat$id[dat$sp == x], as.data.frame(ped)$self)
 }
+
 
 ## ----fit1---------------------------------------------------------------------
 ## Avoid estimating BLUPS for which we don't have information
@@ -96,8 +98,10 @@ res1 <- remlf90(y ~ sp,
                 data = dat
 )
 
+
 ## ----fit1-summary-------------------------------------------------------------
 summary(res1)
+
 
 ## ----fit1-predicted-breeding-values-------------------------------------------
 PBV <- as.matrix(cbind(Z_EE, Z_JJ, Z_EJ)) %*%
@@ -106,6 +110,7 @@ PBV <- as.matrix(cbind(Z_EE, Z_JJ, Z_EJ)) %*%
 ggplot(cbind(dat, PBV), aes(bv, PBV)) +
   geom_point() +
   geom_abline(intercept = 0, slope = 1, col = 'darkgray')
+
 
 ## ----fit2---------------------------------------------------------------------
 ## We only want to apply 'dad', 'mum' and 'sca' effects to hybrids,
@@ -136,8 +141,10 @@ res2 <- remlf90(y ~ sp,
                 data = transform(dat)
 )
 
+
 ## ----fit2-summary-------------------------------------------------------------
 summary(res2)
+
 
 ## ----fit2-predicted-breeding-values-------------------------------------------
 PBV <- as.matrix(cbind(Z_EE, Z_JJ, Z_dad, Z_mum, Z_sca)) %*%
@@ -147,6 +154,7 @@ ggplot(cbind(dat, PBV), aes(bv, PBV)) +
   geom_point() +
   geom_abline(intercept = 0, slope = 1, col = 'darkgray')
 
+
 ## ----likelihood-profiling-----------------------------------------------------
 ## Setup parallel computing
 # library(doParallel)
@@ -154,30 +162,39 @@ ggplot(cbind(dat, PBV), aes(bv, PBV)) +
 # registerDoParallel()
 # on.exit(stopCluster(cl))
 
-## Introduce the corresponding scaling factors 
-## in the relationship matrix
+## Introduce the corresponding scaling factors
+## in the relationship matrix.
+## A = A_E + A_J splits each relationship according to the population it
+## passes through, so that Sigma = sigma2_E (A_E + lambda A_J).
+## A single factor per block would not do: two hybrids that share one parent
+## are related through E or through J, depending on which parent it is.
 scale_A <- function(x) {
 
-    ## The pure E subpopulations remains the same
-  S <- A
-  E.idx <- c(idx_pop('E'), idx_pop('EE'))
-  
-  ## The pure J subpopulations get multiplied by lambda
-  J.idx <- c(idx_pop('J'), idx_pop('JJ'))
-  S[J.idx, J.idx] <- A[J.idx, J.idx] * x
-  
-  ## The hybrids related wuth pure E get a factor of (3+lambda)/4
-  S[idx_pop('EJ'), E.idx] <- A[idx_pop('EJ'), E.idx] * (3+x)/4
-  S[E.idx, idx_pop('EJ')] <- A[E.idx, idx_pop('EJ')] * (3+x)/4
-  
-  ## The hybrids related wuth pure J get a factor of (1+3*lambda)/4
-  S[idx_pop('EJ'), J.idx] <- A[idx_pop('EJ'), J.idx] * (1+3*x)/4
-  S[J.idx, idx_pop('EJ')] <- A[J.idx, idx_pop('EJ')] * (1+3*x)/4
+  ped.df <- as.data.frame(ped)
+  fnd <- match(seq_len(nrow(founders)), ped.df$self)   ## founder rows
+  off <- match(dat$id, ped.df$self)                    ## offspring rows
 
-  ## Finally, the hybrids related with other hybrids get a factor of (1+lambda)/2
-  S[idx_pop('EJ'), idx_pop('EJ')] <- A[idx_pop('EJ'), idx_pop('EJ')] * (1+x)/2
+  ## Contribution of each founder to each individual of the pedigree
+  P <- Matrix::sparseMatrix(
+    i = c(fnd, off, off),
+    j = c(seq_len(nrow(founders)), dat$dad, dat$mum),
+    x = c(rep(1, nrow(founders)), rep(1/2, 2*nrow(dat))),
+    dims = c(nrow(A), nrow(founders)))
 
-  return(S)
+  ## Relationships passing through the founders of one population only.
+  ## Each parent passes on half of its contribution through the Mendelian
+  ## sampling term; here every parent is a founder.
+  partial_A <- function(pop) {
+    Q <- P[, idx_pop(pop), drop = FALSE]
+    v <- numeric(nrow(A))
+    v[off] <- Matrix::rowSums(Q[off, , drop = FALSE])/2
+    Matrix::tcrossprod(Q) + Matrix::Diagonal(x = v)
+  }
+
+  ## The J part is scaled by lambda = sigma2_J / sigma2_E
+  S <- partial_A('E') + x * partial_A('J')
+  dimnames(S) <- dimnames(A)
+  S
 }
 
 ## Condicional likelihood given lambda
@@ -208,6 +225,7 @@ lik <- sapply(lambda, cond_lik)  # (sequential)
 ggplot(data.frame(lambda, lik), aes(lambda, lik)) + 
   geom_line()
 
+
 ## ----fit3---------------------------------------------------------------------
 
 ## Take lambda maximizing the likelihood
@@ -228,8 +246,10 @@ res3 <- remlf90(y ~ sp,
                 data = dat[dat$sp != 'EJ', ])
 
 
+
 ## ----fit3-summary-------------------------------------------------------------
 summary(res3)
+
 
 ## ----fit3-predicted-breeding-values-------------------------------------------
 PBV <- as.matrix(Z[dat$sp != 'EJ', idx]) %*%

@@ -232,29 +232,37 @@ May be there is some misspecification in the model.
 
 ## Method 3: grid search
 
-The difficulty of the problem resides that we cannot estimate two variance parameters at the same time.
-If we split the matrix $A$ in blocks corresponding to each subpopulation, we can write the covariance matrix for the mixture as
+The two variances enter the covariance of the mixture linearly, once the relationships are split
+by the population they come through.
+Following García-Cortés and Toro (2006), write $A = A_E + A_J$, where $A_E$ ($A_J$) accumulates
+only the relationships passing through founders of population E (J), together with that
+population's share of each Mendelian sampling term.
+Splitting the matrix in blocks corresponding to each subpopulation, the covariance matrix for the
+mixture is
 \begin{equation}
   \begin{split}
     \Sigma & =
     \begin{bmatrix}
-      \sigma^2_E A_{E}    & \mathbf{0}        & \sigma^2_E A_{E:EE} & \frac{3\sigma^2_E + \sigma^2_J}{4} A_{E:H} & \mathbf{0} \\
-      \mathbf{0}          & \sigma^2_J A_{J}  & \mathbf{0} & \frac{\sigma^2_E + 3\sigma^2_J}{4} A_{J:H} & \sigma^2_J A_{J:JJ} \\
-      \sigma^2_E A_{E:EE} & \mathbf{0}        & \sigma^2_E A_{EE} & \frac{3\sigma^2_E + \sigma^2_J}{4} A_{EH} & \mathbf{0} \\
-      \frac{3\sigma^2_E + \sigma^2_J}{4} A_{E:H} & \frac{\sigma^2_E + 3\sigma^2_J}{4} A_{J:H} & \frac{3\sigma^2_E + \sigma^2_J}{4} A_{HE} & \frac{\sigma^2_E + \sigma^2_J}{2} A_{HH} & \frac{\sigma^2_E + 3\sigma^2_J}{4} A_{HJ} \\
-      \mathbf{0}          & \sigma^2_J A_{J:JJ} & \mathbf{0} & \frac{\sigma^2_E + 3\sigma^2_J}{4} A_{JH} & \sigma^2_J A_{JJ} \\
+      \sigma^2_E A_{E}    & \mathbf{0}        & \sigma^2_E A_{E:EE} & \sigma^2_E A_{E:H} & \mathbf{0} \\
+      \mathbf{0}          & \sigma^2_J A_{J}  & \mathbf{0} & \sigma^2_J A_{J:H} & \sigma^2_J A_{J:JJ} \\
+      \sigma^2_E A_{E:EE} & \mathbf{0}        & \sigma^2_E A_{EE} & \sigma^2_E A_{EH} & \mathbf{0} \\
+      \sigma^2_E A_{E:H}  & \sigma^2_J A_{J:H} & \sigma^2_E A_{HE} & \sigma^2_E A^E_{HH} + \sigma^2_J A^J_{HH} & \sigma^2_J A_{HJ} \\
+      \mathbf{0}          & \sigma^2_J A_{J:JJ} & \mathbf{0} & \sigma^2_J A_{JH} & \sigma^2_J A_{JJ} \\
     \end{bmatrix} \\
-    & = \sigma^2_E
-    \begin{bmatrix}
-       A_{E}      & \mathbf{0}  &  A_{E:EE}   & \frac{3 + \lambda}{4} A_{E:H}  & \mathbf{0} \\
-      \mathbf{0}  &  \lambda A_{J}      & \mathbf{0}  & \frac{1 + 3\lambda}{4} A_{J:H}  & \lambda A_{J:JJ} \\
-       A_{E:EE} & \mathbf{0}        & A_{EE} & \frac{3 + \lambda}{4} A_{EH} & \mathbf{0} \\
-      \frac{3 + \lambda}{4} A_{E:H} & \frac{1 + 3\lambda}{4} A_{J:H} & \frac{3 + \lambda}{4} A_{HE} & \frac{1 + \lambda}{2} A_{HH} & \frac{1 + 3\lambda}{4} A_{HJ} \\
-      \mathbf{0}          & \lambda A_{J:JJ} & \mathbf{0} & \frac{1 + 3\lambda}{4} A_{JH} & \lambda A_{JJ} \\
-    \end{bmatrix},
+    & = \sigma^2_E \left( A_{E} + \lambda A_{J} \right),
   \end{split}
 \end{equation}
-where $\lambda = \frac{\sigma^2_J}{\sigma^2_E}$.
+where $\lambda = \frac{\sigma^2_J}{\sigma^2_E}$, and $A^E_{HH}$, $A^J_{HH}$ are the parts of the
+hybrid-hybrid relationships passing through E and through J founders.
+Every relationship between a hybrid and a pure E individual passes through E founders, so those
+blocks keep the factor one, and the pure J ones carry $\lambda$.
+Within the hybrids no single factor will do: full sibs give $\frac{1 + \lambda}{2} A_{HH}$, but
+half sibs are related through E or through J, depending on which parent they share.
+
+$\Sigma$ is linear in $\sigma^2_E$ and $\sigma^2_J$, so both could be estimated at once with two
+effects having covariance matrices $A_E$ and $A_J$.
+Here we take the simpler route of profiling the ratio $\lambda$, which needs a single variance
+component per fit.
 
 However, if we are not interested in evaluating the parents, we can disregard the first two block rows and columns from the matrix.
 
@@ -267,30 +275,39 @@ Now, fit the model for several values of $\lambda$ and maximize the likelihood.
 # registerDoParallel()
 # on.exit(stopCluster(cl))
 
-## Introduce the corresponding scaling factors 
-## in the relationship matrix
+## Introduce the corresponding scaling factors
+## in the relationship matrix.
+## A = A_E + A_J splits each relationship according to the population it
+## passes through, so that Sigma = sigma2_E (A_E + lambda A_J).
+## A single factor per block would not do: two hybrids that share one parent
+## are related through E or through J, depending on which parent it is.
 scale_A <- function(x) {
 
-    ## The pure E subpopulations remains the same
-  S <- A
-  E.idx <- c(idx_pop('E'), idx_pop('EE'))
-  
-  ## The pure J subpopulations get multiplied by lambda
-  J.idx <- c(idx_pop('J'), idx_pop('JJ'))
-  S[J.idx, J.idx] <- A[J.idx, J.idx] * x
-  
-  ## The hybrids related wuth pure E get a factor of (3+lambda)/4
-  S[idx_pop('EJ'), E.idx] <- A[idx_pop('EJ'), E.idx] * (3+x)/4
-  S[E.idx, idx_pop('EJ')] <- A[E.idx, idx_pop('EJ')] * (3+x)/4
-  
-  ## The hybrids related wuth pure J get a factor of (1+3*lambda)/4
-  S[idx_pop('EJ'), J.idx] <- A[idx_pop('EJ'), J.idx] * (1+3*x)/4
-  S[J.idx, idx_pop('EJ')] <- A[J.idx, idx_pop('EJ')] * (1+3*x)/4
+  ped.df <- as.data.frame(ped)
+  fnd <- match(seq_len(nrow(founders)), ped.df$self)   ## founder rows
+  off <- match(dat$id, ped.df$self)                    ## offspring rows
 
-  ## Finally, the hybrids related with other hybrids get a factor of (1+lambda)/2
-  S[idx_pop('EJ'), idx_pop('EJ')] <- A[idx_pop('EJ'), idx_pop('EJ')] * (1+x)/2
+  ## Contribution of each founder to each individual of the pedigree
+  P <- Matrix::sparseMatrix(
+    i = c(fnd, off, off),
+    j = c(seq_len(nrow(founders)), dat$dad, dat$mum),
+    x = c(rep(1, nrow(founders)), rep(1/2, 2*nrow(dat))),
+    dims = c(nrow(A), nrow(founders)))
 
-  return(S)
+  ## Relationships passing through the founders of one population only.
+  ## Each parent passes on half of its contribution through the Mendelian
+  ## sampling term; here every parent is a founder.
+  partial_A <- function(pop) {
+    Q <- P[, idx_pop(pop), drop = FALSE]
+    v <- numeric(nrow(A))
+    v[off] <- Matrix::rowSums(Q[off, , drop = FALSE])/2
+    Matrix::tcrossprod(Q) + Matrix::Diagonal(x = v)
+  }
+
+  ## The J part is scaled by lambda = sigma2_J / sigma2_E
+  S <- partial_A('E') + x * partial_A('J')
+  dimnames(S) <- dimnames(A)
+  S
 }
 
 ## Condicional likelihood given lambda
@@ -328,12 +345,13 @@ With nine founders per population $\lambda$ is estimated imprecisely.
 The same simulation run under R's pre-3.6 sampler (`RNGkind(sample.kind = "Rounding")`) puts the best grid point at 0.6 rather than `r lambda[which.max(lik)]`.
 The simulated value is $\lambda = 2/3$.
 
-The profile uses only the pure offspring.
-For them, the scaled matrix at the simulated $\lambda$ matches the covariance of the simulated breeding values exactly.
-The scaling does not extend to the hybrids: for $\lambda$ below about 0.63 the offspring block of the scaled matrix is not positive definite, so it is not a valid covariance matrix.
+The profile uses only the pure offspring, whose blocks reduce to $A_{EE}$ and $\lambda A_{JJ}$.
+At the simulated $\lambda$ the scaled matrix matches the covariance of the simulated breeding
+values exactly, hybrids included.
 
-Fitting the hybrids alone estimates their additive-genetic variance, $(\sigma^2_E + \sigma^2_J)/2$, but cannot separate the two components.
-Every hybrid-hybrid factor is $(1 + \lambda)/2$, so the hybrids inform only $\sigma^2_E (1 + \lambda)/2$.
+The hybrids are left out of the fits, but they do carry information on both variances: hybrids
+that share their E parent are related through $\sigma^2_E$, and those that share their J parent
+through $\sigma^2_J$.
 
 
 ```{r fit3}
