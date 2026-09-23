@@ -97,6 +97,57 @@ test_that("additive_genetic_competition() works as expected", {
   expect_equal(ncol(inc.mat), nrow(cov.mat))
 })
 
+test_that("the competition incidence follows the recode map (#65), and an id of 0 is refused (#62)", {
+  ## 4 founders (1-4) and 12 trees (5-16) on a regular 4 x 3 grid, coded
+  ## 1..16 in order: this pedigree is not recoded.
+  ped1  <- data.frame(self = 1:16,
+                      dad  = c(0, 0, 0, 0, rep(1:2, 6)),
+                      mum  = c(0, 0, 0, 0, rep(3:4, each = 6)))
+  trees <- data.frame(id = 5:16, x = rep(1:4, 3), y = rep(1:3, each = 4))
+
+  ## The same trial relabelled: gaps, and most trees coded below their
+  ## parents, so build_pedigree() recodes and reorders it.
+  new_code <- c(900, 850, 870, 999, 20, 5, 710, 33, 150, 1, 64, 400, 12, 300, 77, 2)
+  relabel  <- function(x) c(0, new_code)[x + 1]    # 0 (unknown parent) stays 0
+  ped2 <- as.data.frame(lapply(ped1, relabel))
+
+  spec <- function(pedigree, id)
+    suppressWarnings(check_genetic(model = 'competition', pedigree = pedigree,
+                                   id = id, coordinates = trees[, c('x', 'y')],
+                                   var.ini = var.ini.mat,
+                                   response = seq_len(nrow(trees))))
+  comp_inc <- function(s)
+    as.matrix(additive_genetic_competition(s$pedigree, s$coordinates, s$id,
+                                           s$competition_decay,
+                                           s$autofill)$incidence.matrix)
+  s1 <- spec(ped1, trees$id)
+  s2 <- spec(ped2, relabel(trees$id))
+  expect_null(attr(s1$pedigree, 'map'))
+  expect_false(is.null(map2 <- attr(s2$pedigree, 'map')))
+
+  ## Original ids of the columns of the recoded fit, in ped1's coding
+  col_id <- match(match(as.integer(s2$pedigree@label), map2), new_code)
+  expect_setequal(col_id, 1:16)
+
+  ## Each record, and each of its neighbours, sits on the same animal in both
+  inc1 <- comp_inc(s1)
+  inc2 <- comp_inc(s2)
+  expect_identical(dim(inc2), c(12L, 16L))
+  expect_identical(inc2[, order(col_id)], inc1)
+  dir1 <- as.matrix(additive_genetic_animal(s1$pedigree, s1$id)$incidence.matrix)
+  dir2 <- as.matrix(additive_genetic_animal(s2$pedigree, s2$id)$incidence.matrix)
+  expect_identical(dir2[, order(col_id)], dir1)
+
+  ## An id of 0 used to pass check_genetic() and then shrink the lookup, which
+  ## failed here with "number of items to replace ..."
+  bad <- replace(relabel(trees$id), 12, 0)
+  msg <- 'not represented in the pedigree:\n 0'
+  expect_error(spec(ped2, bad), msg, fixed = TRUE)
+  expect_error(additive_genetic_competition(s2$pedigree, s2$coordinates, bad,
+                                            s2$competition_decay, s2$autofill),
+               msg, fixed = TRUE)
+})
+
 
 
 test_that("neighbours.at.list() accepts a list of matrices (R 4.0 class regression, #27)", {
