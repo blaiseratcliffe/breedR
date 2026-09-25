@@ -343,6 +343,13 @@ test_that("cont = TRUE resumes a fit where no record observes every trait (#71)"
   expect_false(any(stats::complete.cases(d[, c('y1', 'y2')])))
   expect_true(all(is.na(stats::var(d[, c('y1', 'y2')], na.rm = TRUE))))
 
+  ## The data-based default is defined for this data since #71 (b), so make
+  ## any evaluation of the default fail: a resume must never compute it
+  old_div <- breedR.getOption('default.initial.variance')
+  on.exit(breedR.setOption('default.initial.variance', old_div), add = TRUE)
+  breedR.setOption('default.initial.variance',
+                   quote(function(x, ...) stop('default computed under cont')))
+
   mat_lines <- function(m)
     apply(m, 1L, function(z) paste0(" ", paste(sprintf("%13.5G", z), collapse = " ")))
   write_log <- function(G, R, f) {
