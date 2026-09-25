@@ -21,6 +21,16 @@
 #' original codes, \code{map[x]} gives the new codes. Conversely, \code{match(y,
 #' map)} back-transforms to original codes.
 #' 
+#' The map is an integer vector as long as the largest code, with \code{NA}
+#' for the codes not in the pedigree, so its size follows the largest code and
+#' not the number of individuals: about 4 bytes per unit of the largest code.
+#' Codes near \code{1e8} make a map of about 400 MB, and building it needs
+#' working memory on top of that. Registry-scale ids are better recoded to
+#' consecutive integers before building the pedigree, e.g. with
+#' \code{match(x, ids)} where \code{ids} holds each id once (without 0, so
+#' that unknown parents become \code{NA}). Recode the ids in the data with the
+#' same \code{ids}; \code{ids[k]} gives back the id recoded as \code{k}.
+#' 
 #' @param x if given, a vector of length 3 with indices or names of columns in 
 #'   \code{data} corresponding to \code{self}, \code{sire} and \code{dam} codes
 #' @param self index or column name in \code{data} with codes of individuals

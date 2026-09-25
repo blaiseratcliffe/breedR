@@ -48,6 +48,16 @@ is attached to the pedigree, such that \code{map[i] = j} means that code
 \code{i} was renumbered as \code{j}. Therefore, if \code{x} is a vector with 
 original codes, \code{map[x]} gives the new codes. Conversely, \code{match(y,
 map)} back-transforms to original codes.
+
+The map is an integer vector as long as the largest code, with \code{NA}
+for the codes not in the pedigree, so its size follows the largest code and
+not the number of individuals: about 4 bytes per unit of the largest code.
+Codes near \code{1e8} make a map of about 400 MB, and building it needs
+working memory on top of that. Registry-scale ids are better recoded to
+consecutive integers before building the pedigree, e.g. with
+\code{match(x, ids)} where \code{ids} holds each id once (without 0, so
+that unknown parents become \code{NA}). Recode the ids in the data with the
+same \code{ids}; \code{ids[k]} gives back the id recoded as \code{k}.
 }
 \section{Functions}{
 \itemize{

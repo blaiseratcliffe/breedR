@@ -1,3 +1,10 @@
+* `build_pedigree()` needs less memory to recode a pedigree. The recoding map
+(`attr(ped, 'map')`) is as long as the largest code; it is now built as an
+integer vector directly instead of being converted from a logical one, so with
+a largest code of 5e6 the peak fell from 47 MB to 28 MB. The map itself is
+unchanged. `?build_pedigree` now says how much memory the map takes and
+advises recoding registry-scale ids to consecutive integers first (#67)
+
 * A `remlf90()` fit that stops at its iteration cap (`OPTION maxrounds`, or
 BLUPF90+'s default of 10000 rounds) instead of converging now warns "The
 algorithm did not converge" and returns `NA` variance components, standard
