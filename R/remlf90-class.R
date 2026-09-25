@@ -1708,10 +1708,12 @@ print.breedR_estimates <- function(x, ...) {
 #' @param object a fitted models with random effects of class 
 #'   \code{\link{remlf90}}.
 #' @param ... not used
-#' @return An object of class \code{ranef.breedR} composed of a list of vectors 
+#' @return An object of class \code{ranef.breedR} composed of a list of vectors
 #'   or matrices (multitrait case), one for each random effect. The length of
 #'   the vectors are the number of levels of the corresponding random effect.
-#'   
+#'   A multitrait effect with a single level is a vector rather than a
+#'   one-row matrix, and that vector is named by trait rather than by level.
+#'
 #'   Each random effect has an attribute called \code{"se"} which is a vector
 #'   with the standard errors.
 #'   Genetic effects are named by the individuals' codes as given in the
@@ -1756,7 +1758,8 @@ ranef.remlf90 <- function (object, ...) {
   ## errors alike: names for one trait, row names for several (#60)
   label_levels <- function(x, nm) {
     set_nm <- function(y) {
-      if (is.matrix(y)) rownames(y) <- nm else names(y) <- nm
+      if (is.matrix(y)) rownames(y) <- nm
+      else if (length(y) == length(nm)) names(y) <- nm
       y
     }
     structure(set_nm(x), se = set_nm(attr(x, 'se')))
