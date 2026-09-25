@@ -4,10 +4,17 @@
 \alias{parse_pregsf90_qc}
 \title{Parse PREGSF90 QC output files}
 \usage{
-parse_pregsf90_qc(dir)
+parse_pregsf90_qc(dir, pedigree = NULL)
 }
 \arguments{
 \item{dir}{directory containing PREGSF90 output files.}
+
+\item{pedigree}{the pedigree of the fit, as returned by
+\code{get_pedigree()}, or \code{NULL}. PREGSF90 names animals by the
+codes of the pedigree file breedR wrote for it. When
+\code{build_pedigree()} recoded the pedigree, those codes are translated
+back so that excluded_animals and conflicts name animals by the ids given
+in the pedigree. Otherwise the reports are returned as written.}
 }
 \value{
 A list with components: freq, excluded_snp, excluded_animals,

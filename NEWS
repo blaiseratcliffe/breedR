@@ -1,3 +1,8 @@
+* The genomic QC report of `remlf90()` and `gibbsf90()`
+(`fit$genomic$excluded_animals` and `fit$genomic$conflicts`) now names animals
+by the ids given in the pedigree also when `build_pedigree()` had to recode it.
+It used to show breedR's internal codes, which can be other animals' ids (#58)
+
 * An AR `rho` grid search in `remlf90()`, which is also what an unset `rho`
 runs, now works when `spatial` is a variable or is forwarded through `...` from
 a wrapper function. Each candidate fit rewrote the `spatial = list(...)`
