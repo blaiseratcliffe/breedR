@@ -1,3 +1,8 @@
+* The shipped PDF of the `Additive Genetic Models in Mixed Populations` vignette is rebuilt from
+the source corrected by #86, so it now shows the method 3 covariance split by founder population
+(`A = A_E + A_J`) instead of the old scaling factors, which were only right at `lambda = 1`. No
+package code, fitted numbers or estimates change (#36)
+
 * Multi-trait `remlf90()` and `gibbsf90()` fits without `var.ini` no longer
 stop with "infinite or missing values in 'x'" when fewer than two records
 observe every trait, as in site-as-trait data. The default initial variances
