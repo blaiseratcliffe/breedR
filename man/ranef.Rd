@@ -15,10 +15,12 @@
 \item{...}{not used}
 }
 \value{
-An object of class \code{ranef.breedR} composed of a list of vectors 
+An object of class \code{ranef.breedR} composed of a list of vectors
   or matrices (multitrait case), one for each random effect. The length of
   the vectors are the number of levels of the corresponding random effect.
-  
+  A multitrait effect with a single level is a vector rather than a
+  one-row matrix, and that vector is named by trait rather than by level.
+
   Each random effect has an attribute called \code{"se"} which is a vector
   with the standard errors.
   Genetic effects are named by the individuals' codes as given in the

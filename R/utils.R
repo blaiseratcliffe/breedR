@@ -146,9 +146,11 @@ splat <- function (flat) {
 # trait-wise predictions of effects
 ldf2matrix <- function(x, vname, drop = TRUE) {
   ## All dataframes (ntraits) are of the same size (nlevels x (value, s.e.))
-  ## ensure a matrix, even if nlevels = 1
   ans <- do.call(cbind, lapply(x, `[[`, vname))
   rownames(ans) <- rownames(x[[1]])
+  ## drop() collapses a dimension of length 1 to a plain vector, keeping the
+  ## surviving dimension's names: level names when nlevels > 1 (ntraits == 1),
+  ## or trait names when ntraits > 1 (nlevels == 1)
   if (drop) ans <- drop(ans)
   return(ans)
 }
