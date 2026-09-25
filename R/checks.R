@@ -8,6 +8,9 @@
 #' included. Otherwise, set default values. In any case, validate all initial
 #' values.
 #' 
+#' With the package's default initial variance, the default residual
+#' covariance of two traits that no record observes together is an exact 0.
+#' 
 #' @return A list with initial covariance matrices for all random effects in the
 #'   model. A logical attribute `var.ini.default` is TRUE if values were set by
 #'   default.

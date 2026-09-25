@@ -46,8 +46,18 @@ except if \code{cor.trait} is not \code{NULL}.
 \eqn{\psi(dim)} is intended to model correlated random effects within
 traits, and only has an effect when \code{dim} > 1.
 
+When fewer than two records observe every trait (e.g. sites in a
+site-as-trait model), the empirical covariance is not defined. Each variance
+is then taken from the trait's own records, and each correlation from the
+records observing both traits. Pairs of traits never observed together get
+a correlation of 0.1, and if the resulting matrix is not positive definite
+all correlations are shrunk toward zero by a common factor until it is. This
+is a starting value, which REML estimates. To hold a covariance at zero, pass
+\code{var.ini} with an exact zero in that cell.
+
 If any column in \code{x} is constant (i.e. empirical variance of 0) then the
-function stops. It is better to remove this trait from the analysis.
+function stops. It is better to remove this trait from the analysis. It also
+stops if a trait has fewer than two observations.
 }
 \examples{
    ## Initial covariance matrix for a bidimensional random effect
