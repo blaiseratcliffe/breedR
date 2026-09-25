@@ -163,6 +163,40 @@ test_that("the log-likelihood is found when the backend bends the AI matrix", {
 })
 
 
+test_that("parse_logl() reads a negative -2logL, and the older binaries' format", {
+
+  ## The parallel AR grid search read each candidate's -2logL with its own
+  ## regex, which could not match a sign: every rho with logL > 0 came back
+  ## NA and was silently dropped from the search (issue #73). Nor did its
+  ## '^-2logL' anchor match the leading space the older binaries print. Both
+  ## searches read the value with parse_logl() now.
+  neg <- c(paste("-2logL =    -2.74168519576608     : AIC =",
+                 "    1.25831480423392    logL convergence   0.447195951380763E-07"),
+           "  In round            8  convergence=  7.570171989063684E-010")
+  expect_equal(parse_logl(neg), c(-2.74168519576608, 1.25831480423392))
+
+  neg.e <- sub("-2.74168519576608", "-0.274168519576608E+01", neg, fixed = TRUE)
+  expect_equal(parse_logl(neg.e), c(-2.74168519576608, 1.25831480423392))
+
+  plain <- c("-2logL =     39.7649 : AIC =     43.7649  logL convergence 0.1E-06",
+             "  In round          183  convergence=  2.9E-005",
+             "  delta convergence=  9.9E-007")
+  bent  <- append(plain,
+                  "Corrections made:    1 , final bending proportions of AI and EM",
+                  after = 1)
+  expect_equal(parse_logl(plain)[1], 39.7649)
+  expect_equal(parse_logl(bent)[1],  39.7649)
+
+  ## ' -2logL =' with a leading space, as airemlf90 printed it
+  old.log <- readLines(file.path(testdata, 'airemlf90_log_1.txt'))
+  expect_equal(parse_logl(old.log)[1], 5175.78300206193)
+
+  ## no round to belong to, or no output at all: nothing to read
+  expect_identical(parse_logl(neg[1]), c(NA_real_, NA_real_))
+  expect_identical(parse_logl(character(0)), c(NA_real_, NA_real_))
+})
+
+
 ## Parse a heterogeneous-residual fixture pair (see inst/testdata/index.json).
 ## parse_results() takes the effect structure, the factor levels and the trait
 ## names from mf and effects, never the data values, so a small deterministic
