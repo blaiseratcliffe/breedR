@@ -271,6 +271,8 @@ default_initial_variance <-
   
   ## Empirical half-variances of each trait
   halfvar <- stats::var(x, na.rm = TRUE)/2
+  ## Undefined with fewer than two records observing every trait (#71)
+  if (anyNA(halfvar)) halfvar <- pairwise_halfvar(x, digits)
   
   ## Check for degenerate variances
   if (any(idx <- which(diag(halfvar) == 0))) {
@@ -301,4 +303,43 @@ default_initial_variance <-
   if (!is.null(digits)) sigma <- signif(sigma, digits)
   
   return(sigma)
+}
+
+## Half the covariance matrix of the traits in the columns of x, from the
+## records observing each trait or pair of traits: the default initial variance
+## when fewer than two records observe every trait (#71). Internal.
+##
+## Each variance is the trait's own sample variance, halved as in
+## default_initial_variance(). Covariances are built in correlation form,
+## D R D, with R the pairwise correlations: covariances and variances taken
+## from different subsets of records could give correlations beyond +-1. A pair
+## observed together on fewer than two records (or with a zero correlation)
+## gets rho0, and the cells where the logical matrix `zero` is TRUE an exact 0.
+## Then R is shrunk toward the identity, (1 - lambda) R + lambda I, just enough
+## for a smallest eigenvalue of eps ("bending", Hayes and Hill, 1981): the
+## variances and the zeros stay, and every correlation shrinks by the same
+## factor. Positive definiteness is checked after rounding to `digits`, which
+## can break it near the margin, and eps grows until it holds.
+pairwise_halfvar <- function(x, digits = NULL, rho0 = 0.1, zero = NULL) {
+  s2 <- apply(x, 2L, stats::var, na.rm = TRUE)/2
+  if (anyNA(s2))
+    stop(paste0('Trait ', paste(which(is.na(s2)), collapse = ', '),
+                ' has fewer than two observations.'))
+  ## A constant trait is reported by default_initial_variance()
+  if (any(s2 == 0)) return(diag(s2, length(s2)))
+
+  R <- unname(suppressWarnings(stats::cor(x, use = 'pairwise.complete.obs')))
+  R[is.na(R) | R == 0] <- rho0
+  if (!is.null(zero)) R[zero] <- 0
+  diag(R) <- 1
+  DD <- tcrossprod(unname(sqrt(s2)))
+  mu <- min(eigen(R, symmetric = TRUE, only.values = TRUE)$values)
+  for (eps in c(0.05, 0.1, 0.2, 0.4, 0.8)) {
+    lambda <- if (mu >= eps) 0 else (eps - mu)/(1 - mu)
+    S <- ((1 - lambda)*R + diag(lambda, nrow(R))) * DD
+    if (!is.null(digits)) S <- signif(S, digits)
+    if (all(eigen(S, symmetric = TRUE, only.values = TRUE)$values > 0))
+      return(S)
+  }
+  stop('Could not build a positive-definite default initial variance.')
 }
