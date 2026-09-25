@@ -26,10 +26,21 @@
 #' not the number of individuals: about 4 bytes per unit of the largest code.
 #' Codes near \code{1e8} make a map of about 400 MB, and building it needs
 #' working memory on top of that. Registry-scale ids are better recoded to
-#' consecutive integers before building the pedigree, e.g. with
-#' \code{match(x, ids)} where \code{ids} holds each id once (without 0, so
-#' that unknown parents become \code{NA}). Recode the ids in the data with the
-#' same \code{ids}; \code{ids[k]} gives back the id recoded as \code{k}.
+#' consecutive integers before building the pedigree. List each id once,
+#' leaving out both 0 and \code{NA}: either may mark an unknown parent, and
+#' \code{match()} would give \code{NA} a code of its own, making that code
+#' the parent of every animal with an unknown parent, without an error.
+#' With both left out, unknown parents become \code{NA}. For a data frame
+#' \code{ped} with columns \code{self}, \code{sire} and \code{dam}:
+#' \preformatted{
+#' ids <- unique(c(ped$self, ped$sire, ped$dam))
+#' ids <- ids[!is.na(ids) & ids != 0]
+#' ped$self <- match(ped$self, ids)
+#' ped$sire <- match(ped$sire, ids)
+#' ped$dam  <- match(ped$dam, ids)
+#' }
+#' Recode the ids in the data, and in a genotype file, with the same
+#' \code{ids}; \code{ids[k]} gives back the id recoded as \code{k}.
 #' 
 #' @param x if given, a vector of length 3 with indices or names of columns in 
 #'   \code{data} corresponding to \code{self}, \code{sire} and \code{dam} codes
