@@ -361,6 +361,31 @@ parse_logl <- function(reml.out) {
 }
 
 
+# Whether a REML run stopped at its iteration cap rather than converging.
+#
+# BLUPF90+ marks neither: a capped run goes from its last 'In round' to
+# 'Final Estimates' exactly as a converged one does (#40). It stops a
+# converging run once convergence= falls below its criterion, and echoes
+# OPTION conv_crit and OPTION maxrounds when they are set,
+#   * convergence criterion (default=1e-12):  1.0000000E-12
+#   * maximum number of iterations (default=10000):          80
+# applying its defaults otherwise. Read from the output rather than the
+# options, so that breedR.qget(), which has only the log, is covered too.
+# A run at its cap whose last round met the criterion did converge.
+reml_stopped_at_cap <- function(reml.out, round, convergence) {
+  echoed <- function(pattern, default) {
+    at <- grep(pattern, reml.out)
+    x <- if (length(at))
+      first_number(sub('^.*[)]:', '', reml.out[at[1]])) else NA
+    if (is.na(x)) default else x
+  }
+  cap  <- echoed('^ *[*] maximum number of iterations [(]default=',
+                 MAX_REML_ITERATIONS)
+  crit <- echoed('^ *[*] convergence criterion [(]default=', REML_CONV_CRIT)
+  isTRUE(round >= cap) && !isTRUE(convergence < crit)
+}
+
+
 # Read the backend's fixed-width solution fields, including touching trait and
 # effect columns when a virtual effect has four digits (issue #24).
 read_pf90_solutions <- function(solfile, restricted = FALSE) {
@@ -525,7 +550,7 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
   ## all abort before the REML loop ever starts. Every run that reaches the
   ## loop prints at least one 'In round' line, so its absence is a clean,
   ## version-agnostic signal that this run never got that far -- unlike a
-  ## run that merely exhausts MAX_REML_ITERATIONS without converging, which
+  ## run that merely exhausts its iteration cap without converging, which
   ## still has 'In round' lines and is handled as a warning further down.
   ## Checked here, ahead of the solutions-file read below, so both
   ## remlf90()'s synchronous call and breedR.qget()'s recovery call share
@@ -614,7 +639,8 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
                                              split='In round')[[1]][2],
                                     split='convergence=')[[1]])
   
-  max.it <- MAX_REML_ITERATIONS
+  converged <- !reml_stopped_at_cap(reml.out, last.round[1], last.round[2])
+  if (!converged) warning('The algorithm did not converge')
 
   ## Dimension of random effects
   rangroup.sizes <- c(effect.size[effect.type == 'random'],
@@ -625,15 +651,9 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
   
   # Variance components
   if (restricted) {
-    converged <- !isTRUE(last.round[1] == max.it)
-    if (!converged) warning('The algorithm did not converge')
     varcomp <- parse_trait_variances(reml.out, effects, rangroup.sizes,
                                      vc_names, trait_names, method,
                                      converged, is_hetres)
-  } else if (identical(last.round[1], max.it)) {
-    warning('The algorithm did not converge')
-    varcomp <- cbind('Estimated variances' = rep(NA, length(vc_names)))
-    rownames(varcomp) <- vc_names
   } else {
     # Variance components
     sd.label <- 'SE'
@@ -789,9 +809,17 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
     }
   }
 
-  ## as for the variance components, a fit that did not converge gives no
-  ## estimates, and hence no S.E. either
-  if (is_hetres && identical(last.round[1], max.it)) hetres[] <- NA
+  ## A fit stopped by its iteration cap has no estimates (#40): its
+  ## variance components and their S.E., the functions of them and the
+  ## hetres coefficients are NA, in the structure of a converged fit.
+  funvars <- parse_functions(reml.out)
+  if (!converged) {
+    if (is.list(varcomp))
+      varcomp[] <- lapply(varcomp, function(m) { m[] <- NA_real_; m })
+    else varcomp[] <- NA_real_
+    if (is_hetres) hetres[] <- NA
+    if (length(funvars)) funvars[] <- NA_real_
+  }
 
   # Fit info
   last.fit <- parse_logl(reml.out)
@@ -810,7 +838,7 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
     fixed = result[result_effect.map %in% which(effect.type == 'fixed')],
     ranef = ranef,
     var = varcomp,
-    funvars = parse_functions(reml.out),
+    funvars = funvars,
     fit = fit,
     reml = reml
   )
