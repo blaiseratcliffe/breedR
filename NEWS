@@ -1,3 +1,10 @@
+* An AR `rho` grid search with `parallel = TRUE` (or a number of cores) in
+`remlf90()` no longer drops every `rho` whose log-likelihood is positive. It
+read those as `NA` and chose the most likely of the remaining candidates, so it
+could silently return a different `rho` and fit than `parallel = FALSE`, or stop
+with "All rho combinations failed" when every log-likelihood was positive. It
+now reads the log-likelihood exactly as the sequential search does (#73)
+
 * `gibbsf90()` now returns the pedigree of a genetic effect as `$pedigree`, as
 `get_pedigree()` gives it for a `remlf90()` fit. When `build_pedigree()` had to
 recode the pedigree, the levels of the genetic effect in `$solutions` are
