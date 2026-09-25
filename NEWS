@@ -1,3 +1,14 @@
+* `gibbsf90()` now returns the pedigree of a genetic effect as `$pedigree`, as
+`get_pedigree()` gives it for a `remlf90()` fit. When `build_pedigree()` had to
+recode the pedigree, the levels of the genetic effect in `$solutions` are
+breedR's internal codes, which can be other animals' ids, and nothing in the
+result translated them; the id of level `k` is
+`match(k, attr(res$pedigree, 'map'))` (#64)
+
+* `gibbsf90(genomic = ...)` now derives the genomic XrefID from the model's
+pedigree, as `remlf90()` does. It used to stop with "Cannot build the genomic
+XrefID" unless the user supplied one (#55)
+
 * The genomic QC report of `remlf90()` and `gibbsf90()`
 (`fit$genomic$excluded_animals` and `fit$genomic$conflicts`) now names animals
 by the ids given in the pedigree also when `build_pedigree()` had to recode it.

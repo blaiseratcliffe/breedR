@@ -219,6 +219,42 @@ test_that("a genotyped animal absent from the pedigree is an error", {
     "not found in the pedigree")
 })
 
+test_that("gibbsf90(genomic=) builds the XrefID from a recoded pedigree (#55)", {
+
+  ## Reversed codes put offspring before their parents, so the pedigree is
+  ## recoded. gibbsf90() used to stop because it never passed the pedigree on.
+  N   <- max(globulus[, c('self', 'dad', 'mum')])
+  flip <- function(x) ifelse(x == 0, 0L, as.integer(N + 1L - x))
+  glob_rev <- globulus
+  glob_rev[, c('self', 'dad', 'mum')] <-
+    lapply(globulus[, c('self', 'dad', 'mum')], flip)
+  map <- attr(suppressWarnings(build_pedigree(1:3, data = glob_rev[, 1:3])),
+              'map')
+  expect_false(is.null(map))
+
+  gdir <- breedR_workdir('gibbs_genomic_')
+  on.exit(unlink(gdir, recursive = TRUE), add = TRUE)
+  f <- file.path(gdir, "test_gibbs_genomic.txt")
+  write_snp_file(Gmat, ids = flip(gen_ids), file = f)
+
+  gb <- suppressWarnings(suppressMessages(
+    gibbsf90(phe_X ~ gg,
+             genetic = list(model = 'add_animal',
+                            pedigree = glob_rev[, 1:3], id = 'self'),
+             genomic = list(snp_file = f, verify_parentage = 0L),
+             data = glob_rev, n_samples = 100L, burnin = 10L, thin = 1L)))
+  on.exit(unlink(gb$dir, recursive = TRUE), add = TRUE)
+
+  ## each genotyped animal gets the code breedR wrote for its own id
+  xref <- utils::read.table(file.path(gb$dir, paste0(basename(f), "_XrefID")))
+  expect_equal(xref[[2]], flip(gen_ids))
+  expect_equal(xref[[1]], map[flip(gen_ids)])
+
+  expect_equal(gb$genomic$n_snp_total, nsnp)
+  expect_true(any(grepl("Number of Genotyped Animals: 60", gb$output)))
+  expect_gt(nrow(gb$solutions), 0)
+})
+
 
 context("Standalone genotype QC (qcf90)")
 

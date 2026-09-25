@@ -374,6 +374,43 @@ test_that("write_xref_from_pedigree() finds ids of 1e5 and above in a recoded pe
                    c('3 300001', '1 100000'))
 })
 
+test_that("gibbsf90(genomic=) derives the XrefID from its pedigree (#55)", {
+
+  ## 1..3 come before their parents 4..6, so the pedigree is recoded with
+  ## map 3 4 6 5 1 2; each code is also another animal's id
+  ped <- data.frame(self = 1:6, dad = c(5L, 5L, 5L, 0L, 0L, 0L),
+                    mum = c(6L, 6L, 4L, 0L, 0L, 0L))
+  dat <- data.frame(ped[1:4, ], y = c(1.2, 0.3, 2.1, 1.7))
+  expect_identical(
+    attr(suppressWarnings(build_pedigree(1:3, data = ped)), 'map'),
+    c(3L, 4L, 6L, 5L, 1L, 2L))
+  wd <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  bin <- file.path(wd, 'bin')
+  dir.create(bin)
+  file.create(file.path(bin, grep('gibbsf90+', genomic_program_files(),
+                                  value = TRUE, fixed = TRUE)))
+  snp <- file.path(wd, 'geno.txt')
+  write_snp_file(matrix(c(0L,1L,2L,1L, 2L,1L,0L,1L, 1L,1L,1L,0L), 3),
+                 ids = c(1L, 3L, 5L), file = snp)
+  captured <- new.env()
+  local_mocked_bindings(
+    check_genomic_programs = function(...) TRUE,
+    run_pregsf90 = function(dir, bin_path) {
+      captured$dir  <- dir
+      captured$xref <- readLines(file.path(dir, 'geno.txt_XrefID'))
+      stop('preGSf90 reached')
+    }, .package = 'breedR')
+  expect_error(suppressWarnings(
+    gibbsf90(y ~ 1,
+             genetic = list(model = 'add_animal', pedigree = ped, id = 'self'),
+             genomic = list(snp_file = snp), data = dat, breedR.bin = bin,
+             n_samples = 10L)),
+    'preGSf90 reached')
+  if (!is.null(captured$dir)) unlink(captured$dir, recursive = TRUE)
+  expect_identical(captured$xref, c('3 1', '6 3', '1 5'))
+})
+
 test_that("write_xref_from_pedigree() translates ids of a pedigree coded from 2 (#50)", {
 
   ## Codes 2..4 are recoded to 1..3, so the map starts with NA. The genotyped

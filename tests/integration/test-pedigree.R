@@ -77,3 +77,34 @@ test_that('remlf90 handles recoded pedigrees correctly', {
   omit.idx <- match(c('call', 'effects', 'reml', 'ranef'), names(res_ok))
   expect_that(res_ok[-omit.idx], equals(res_shuffled[-omit.idx]))
 })
+
+test_that("gibbsf90() returns the pedigree that translates its genetic levels (#64)", {
+  ## reversed codes put offspring before parents: the pedigree is recoded
+  N <- max(globulus[, c('self', 'dad', 'mum')])
+  flip <- function(x) ifelse(x == 0, 0L, as.integer(N + 1L - x))
+  gr <- globulus
+  gr[, c('self', 'dad', 'mum')] <-
+    lapply(globulus[, c('self', 'dad', 'mum')], flip)
+  dat <- gr[1:300, ]
+  gen <- list(model = 'add_animal', pedigree = gr[, 1:3], id = 'self')
+  gb <- suppressWarnings(suppressMessages(
+    gibbsf90(phe_X ~ 1, genetic = gen, data = dat, n_samples = 2000L,
+             burnin = 500L, thin = 10L, seed = c(11, 22))))
+  on.exit(unlink(gb$dir, recursive = TRUE), add = TRUE)
+  ped <- suppressWarnings(build_pedigree(1:3, data = gr[, 1:3]))
+  expect_false(is.null(attr(ped, 'map')))
+  expect_identical(gb$pedigree, ped)
+
+  ## level k of the genetic effect is the animal coded k
+  sol <- gb$solutions[gb$solutions$effect == 2, ]
+  expect_identical(as.integer(sol$level), seq_along(ped@label))
+  id <- match(sol$level, attr(gb$pedigree, 'map'))
+
+  ## read through the map, the posterior means belong to the animals of
+  ## the REML BLUPs: cor 0.98 here, 0.01 with the level taken as the id
+  reml <- suppressWarnings(suppressMessages(
+    remlf90(phe_X ~ 1, genetic = gen, data = dat)))
+  bv <- ranef(reml)$genetic
+  expect_gt(cor(sol$solution[match(as.integer(names(bv)), id)],
+                as.numeric(bv)), 0.9)
+})

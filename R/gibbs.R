@@ -52,6 +52,13 @@
 #'     \item{n_samples}{total samples requested}
 #'     \item{burnin}{burn-in used}
 #'     \item{thin}{thinning interval used}
+#'     \item{pedigree}{only when the model has a genetic effect: the pedigree
+#'       used, as \code{\link{get_pedigree}} returns it for a
+#'       \code{\link{remlf90}} fit. The levels of a genetic (or competition)
+#'       effect in \code{solutions} are its internal codes. When
+#'       \code{\link{build_pedigree}} recoded the pedigree, the id of level
+#'       \code{k} is \code{match(k, attr(pedigree, 'map'))}; otherwise the
+#'       level is the id.}
 #'   }
 #' @examples
 #' \dontrun{
@@ -141,6 +148,10 @@ gibbsf90 <- function(fixed,
 
   # Build effects
   effects <- build.effects(mf, genetic, spatial, generic, var.ini)
+  ## The pedigree of the genetic effect, as remlf90() keeps it: the genomic
+  ## XrefID is built from it, and the result carries it so that the levels of
+  ## a recoded pedigree can be translated back to its ids (#55, #64)
+  ped <- get_pedigree.breedr_modelframe(effects)
 
   ## --- Gibbs-specific options ---
 
@@ -171,7 +182,7 @@ gibbsf90 <- function(fixed,
   pregs_out <- NULL
   if (!is.null(genomic)) {
     pipeline <- run_pregsf90_pipeline(genomic, genomic_opts, pf90,
-                                      tmpdir, breedR.bin)
+                                      tmpdir, breedR.bin, pedigree = ped)
     pf90 <- pipeline$pf90
     pregs_out <- pipeline$pregs_out
     write.progsf90(pf90, dir = tmpdir)
@@ -221,6 +232,7 @@ gibbsf90 <- function(fixed,
     result$genomic <- parse_pregsf90_qc(
       tmpdir, pedigree = get_pedigree.breedr_modelframe(effects))
   }
+  result$pedigree <- ped
 
   return(result)
 }

@@ -163,6 +163,55 @@ test_that("parse_gibbs_results handles missing files gracefully", {
   expect_null(result$deviance)
 })
 
+## -- the gibbsf90() result --
+
+test_that("gibbsf90() returns the pedigree that translates its genetic levels (#64)", {
+
+  ## Animal 1 precedes its parents 2 and 3, so the pedigree is recoded with
+  ## map 3 1 2: each code is also another animal's id
+  ped <- data.frame(self = 1:3, dad = c(2L, 0L, 0L), mum = c(3L, 0L, 0L))
+  dat <- data.frame(ped, y = c(1.2, 0.3, 2.1))
+  recoded <- suppressWarnings(build_pedigree(1:3, data = ped))
+  expect_identical(attr(recoded, 'map'), c(3L, 1L, 2L))
+
+  bin <- breedR_workdir()
+  on.exit(unlink(bin, recursive = TRUE), add = TRUE)
+  gibbs_name <- if (breedR.os.type() == 'windows') 'gibbsf90+.exe' else 'gibbsf90+'
+  file.create(file.path(bin, gibbs_name))
+
+  ## A stand-in for gibbsf90+. gibbsf90() runs it with base::system2(), which
+  ## can only be mocked in base; every other command goes to the real one.
+  ## Like the binary, it reports the genetic effect (effect 2) by the codes
+  ## breedR wrote in the data file (column 3), giving each level the phenotype
+  ## (column 1) of the animal it read under that code.
+  real_system2 <- base::system2
+  local_mocked_bindings(
+    system2 = function(command, ...) {
+      if (basename(command) != gibbs_name) return(real_system2(command, ...))
+      d <- utils::read.table('data')
+      writeLines(c('trait/effect level  solution        SD',
+                   paste(1L, 2L, d[[3]], d[[1]], 0)),
+                 'final_solutions')
+      character(0)
+    }, .package = 'base')
+
+  res <- suppressWarnings(
+    gibbsf90(y ~ 1,
+             genetic = list(model = 'add_animal', pedigree = ped, id = 'self'),
+             data = dat, breedR.bin = bin, n_samples = 10L))
+  on.exit(unlink(res$dir, recursive = TRUE), add = TRUE)
+
+  expect_identical(res$pedigree, recoded)
+
+  ## through the map, each animal gets its own value back
+  sol <- res$solutions[res$solutions$effect == 2, ]
+  id  <- match(sol$level, attr(res$pedigree, 'map'))
+  expect_equal(sol$solution[match(dat$self, id)], dat$y)
+  ## with the level read as the id, each animal gets another animal's value
+  expect_false(isTRUE(all.equal(sol$solution[match(dat$self, sol$level)],
+                                dat$y)))
+})
+
 ## -- parse_postout_tables() --
 
 test_that("parse_postout_tables extracts MCE table", {
