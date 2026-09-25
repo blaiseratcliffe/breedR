@@ -118,7 +118,7 @@ build_pedigree <- function(x, self = x[[1]], sire = x[[2]], dam = x[[3]], data) 
   # Build a map from position to code
   if( !all(checks) ) {
     ord <- pedigree::orderPed(pedx)
-    map <- rep(NA, max(pedx[, 1]))
+    map <- rep(NA_integer_, max(pedx[, 1]))
     map[pedx[order(ord), 1]] <- 1:nrow(pedx)
     pedx <- as.data.frame(sapply(pedx, function(x) map[x]))
     pedx <- pedx[order(pedx$self), ]
