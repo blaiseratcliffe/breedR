@@ -145,6 +145,13 @@ A list with components:
     \item{n_samples}{total samples requested}
     \item{burnin}{burn-in used}
     \item{thin}{thinning interval used}
+    \item{pedigree}{only when the model has a genetic effect: the pedigree
+      used, as \code{\link{get_pedigree}} returns it for a
+      \code{\link{remlf90}} fit. The levels of a genetic (or competition)
+      effect in \code{solutions} are its internal codes. When
+      \code{\link{build_pedigree}} recoded the pedigree, the id of level
+      \code{k} is \code{match(k, attr(pedigree, 'map'))}; otherwise the
+      level is the id.}
   }
 }
 \description{
