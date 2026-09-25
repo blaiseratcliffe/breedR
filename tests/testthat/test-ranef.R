@@ -131,3 +131,25 @@ test_that("a single-level, multi-trait generic effect keeps its trait names (#78
   expect_equal(g[["y2"]], 0.2)
   expect_equal(attr(g, "se")[["y2"]], 2)
 })
+
+test_that("a single-trait level/label mismatch with the pedigree still errors (#78)", {
+  ## label_levels()'s guard against relabelling a trait-collapsed vector must
+  ## not also swallow a genuine level/label length mismatch in the
+  ## single-trait case: that must still error, exactly as on unmodified
+  ## label_levels() (names(y) <- nm with mismatched lengths), rather than
+  ## silently keep the solutions-file row numbers as level names -- which, in
+  ## a numeric pedigree, read as other animals' ids (the #60 failure class).
+  ped <- suppressWarnings(build_pedigree(1:3, data = data.frame(
+    self = c(3, 4, 1, 2), dad = c(0, 0, 3, 3), mum = c(0, 0, 4, 4))))
+  id  <- c(2, 1, 2)
+  res <- structure(
+    list(components = list(pedigree = TRUE),
+         effects = list(genetic = effect_group(
+           list(direct = additive_genetic_animal(ped, id)),
+           cov.ini = 1, ntraits = 1)),
+         ranef = list(genetic = list(data.frame(
+           value = c(0.1, 0.2, 0.3), s.e. = c(1, 2, 3), row.names = 1:3)))),
+    class = 'remlf90')
+
+  expect_error(ranef(res), "must be the same length")
+})

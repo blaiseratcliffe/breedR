@@ -149,8 +149,10 @@ ldf2matrix <- function(x, vname, drop = TRUE) {
   ans <- do.call(cbind, lapply(x, `[[`, vname))
   rownames(ans) <- rownames(x[[1]])
   ## drop() collapses a dimension of length 1 to a plain vector, keeping the
-  ## surviving dimension's names: level names when nlevels > 1 (ntraits == 1),
-  ## or trait names when ntraits > 1 (nlevels == 1)
+  ## surviving dimension's names: level names whenever ntraits == 1, whether
+  ## or not nlevels == 1 too (a single trait's column is never named, so a
+  ## 1 x 1 matrix keeps only its row name), or trait names when nlevels == 1
+  ## and ntraits > 1
   if (drop) ans <- drop(ans)
   return(ans)
 }

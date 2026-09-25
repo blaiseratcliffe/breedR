@@ -9,8 +9,9 @@ used as before (#53)
 * `ranef()` now names a multi-trait random effect with a single level by
 trait, instead of silently replacing every trait past the first with `NA`.
 The value and its standard error were both affected; only a multi-trait
-generic effect (or, in principle, a one-individual pedigree) could hit this,
-since `fixef()` and other random effects were already named correctly (#78)
+generic effect whose structure matrix has row names (or, in principle, a
+one-individual pedigree) could hit this, since `fixef()` and other random
+effects were already named correctly (#78)
 
 * An AR `rho` grid search with `parallel = TRUE` (or a number of cores) in
 `remlf90()` no longer drops every `rho` whose log-likelihood is positive. It
