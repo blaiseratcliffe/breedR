@@ -346,7 +346,9 @@ If either \code{genetic} or \code{spatial} are not \code{NULL}, the
   residual variance. Furthermore if there are \code{genetic} or 
   \code{spatial} effects, they must as well include a numeric element 
   \code{var.ini} with the initial variance component specification for the 
-  corresponding effect. }
+  corresponding effect. By default, the residual covariance between two
+  traits that no record observes together (e.g. sites in a site-as-trait
+  model) starts, and stays, at zero, since it cannot be estimated. }
   
   
   \subsection{Inference method}{ AI-REML is usually faster than EM-REML, and 

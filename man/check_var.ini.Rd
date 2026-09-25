@@ -31,3 +31,7 @@ If the user specified initial values, verify that all random effects were
 included. Otherwise, set default values. In any case, validate all initial
 values.
 }
+\details{
+With the package's default initial variance, the default residual
+covariance of two traits that no record observes together is an exact 0.
+}

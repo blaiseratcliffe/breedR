@@ -8,6 +8,9 @@
 #' included. Otherwise, set default values. In any case, validate all initial
 #' values.
 #' 
+#' With the package's default initial variance, the default residual
+#' covariance of two traits that no record observes together is an exact 0.
+#' 
 #' @return A list with initial covariance matrices for all random effects in the
 #'   model. A logical attribute `var.ini.default` is TRUE if values were set by
 #'   default.
@@ -53,6 +56,15 @@ check_var.ini <- function (x, random, response, traits = NULL,
       else eval(div_fun)(response, dim = 1, cor.effect = 0.1, digits = 2)
     x <- lapply(random.terms, function(x) default_ini)
     names(x) <- random.terms
+    ## Residual covariances of traits that no record observes together do not
+    ## enter the likelihood. Start them at an exact 0: BLUPF90+ holds them
+    ## there anyway, and a zero keeps them out of its parameter count, and so
+    ## out of logLik()'s df (#71, #8). Other effects keep the non-zero seed.
+    never <- crossprod(!is.na(as.matrix(response))) == 0
+    if (!isTRUE(from_checkpoint) && any(never) &&
+        identical(div_fun, quote(default_initial_variance)))
+      x$residuals <- pairwise_halfvar(as.matrix(response), digits = 2,
+                                      zero = never)
     attr(x, 'var.ini.default') <- TRUE
   }
   
