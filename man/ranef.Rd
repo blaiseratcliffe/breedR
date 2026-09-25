@@ -17,7 +17,9 @@
 \value{
 An object of class \code{ranef.breedR} composed of a list of vectors 
   or matrices (multitrait case), one for each random effect. The length of
-  the vectors are the number of levels of the corresponding random effect.
+  the vectors are the number of levels of the corresponding random effect,
+  except a multitrait effect with a single level, whose vector instead has
+  one element per trait and is named by trait rather than by level.
   
   Each random effect has an attribute called \code{"se"} which is a vector
   with the standard errors.

@@ -106,3 +106,28 @@ test_that("Direct and competition values and their s.e. are labelled by animal",
 
 
 
+
+test_that("a single-level, multi-trait fixed effect is already named by trait (#78)", {
+  coefficients <- function(value, labels) data.frame(value = value, s.e. = 1, row.names = labels)
+  fit <- structure(
+    list(fixed = list(Intercept = list(y1 = coefficients(10, "1"),
+                                        y2 = coefficients(20, "1")))),
+    class = "remlf90")
+  fe <- fixef(fit)
+  expect_null(dim(fe$Intercept))
+  expect_identical(names(fe$Intercept), c("y1", "y2"))
+  expect_identical(names(attr(fe$Intercept, "se")), c("y1", "y2"))
+  expect_equal(fe$Intercept[["y2"]], 20)
+})
+
+test_that("a single-level, single-trait fixed effect keeps today's row-label name (#78)", {
+  ## unclass() alone does not strip the 'se' attribute fixef() attaches, so
+  ## the value and its name are checked directly rather than via a single
+  ## identical() on the whole object.
+  coefficients <- function(value, labels) data.frame(value = value, s.e. = 1, row.names = labels)
+  fit <- structure(list(fixed = list(Intercept = list(coefficients(10, "1")))),
+                    class = "remlf90")
+  ic <- fixef(fit)$Intercept
+  expect_identical(names(ic), "1")
+  expect_identical(as.numeric(ic), 10)
+})

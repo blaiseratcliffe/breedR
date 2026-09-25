@@ -1710,7 +1710,9 @@ print.breedR_estimates <- function(x, ...) {
 #' @param ... not used
 #' @return An object of class \code{ranef.breedR} composed of a list of vectors 
 #'   or matrices (multitrait case), one for each random effect. The length of
-#'   the vectors are the number of levels of the corresponding random effect.
+#'   the vectors are the number of levels of the corresponding random effect,
+#'   except a multitrait effect with a single level, whose vector instead has
+#'   one element per trait and is named by trait rather than by level.
 #'   
 #'   Each random effect has an attribute called \code{"se"} which is a vector
 #'   with the standard errors.
@@ -1753,10 +1755,17 @@ ranef.remlf90 <- function (object, ...) {
   ## Additional attributes
   
   ## Label the levels of an effect, in its values and in their standard
-  ## errors alike: names for one trait, row names for several (#60)
-  label_levels <- function(x, nm) {
+  ## errors alike: names for one trait, row names for several (#60). ntraits
+  ## (the number of per-trait solutions ldf2matrix()/drop() collapsed) tells
+  ## a trait-collapsed vector (one level, several traits, already named by
+  ## trait via drop()) apart from a level-collapsed one (one trait, any
+  ## number of levels): only the latter is relabelled by nm, so a level/label
+  ## length mismatch in the single-trait case still errors as before (#78)
+  label_levels <- function(x, nm, ntraits) {
     set_nm <- function(y) {
-      if (is.matrix(y)) rownames(y) <- nm else names(y) <- nm
+      if (is.matrix(y)) rownames(y) <- nm
+      else if (ntraits == 1L) names(y) <- nm
+      else stopifnot(length(nm) == 1L)   # one level, already named by trait
       y
     }
     structure(set_nm(x), se = set_nm(attr(x, 'se')))
@@ -1769,7 +1778,8 @@ ranef.remlf90 <- function (object, ...) {
     gen.idx <- grep('genetic', names(ans))
     nm <- pedigree_labels(get_pedigree(object))
     
-    for (k in gen.idx) ans[[k]] <- label_levels(ans[[k]], nm)
+    for (k in gen.idx)
+      ans[[k]] <- label_levels(ans[[k]], nm, length(object$ranef[[k]]))
     
   }
   
@@ -1781,7 +1791,8 @@ ranef.remlf90 <- function (object, ...) {
       if("generic" %in% class(object$effects[[x]]$effects[[1]]) &
          ! is.null(rownames(object$effects[[x]]$effects[[1]]$structure.matrix)))
         ans[[x]] <- label_levels(
-          ans[[x]], rownames(object$effects[[x]]$effects[[1]]$structure.matrix))
+          ans[[x]], rownames(object$effects[[x]]$effects[[1]]$structure.matrix),
+          length(object$ranef[[x]]))
     } else
       attr(ans[[x]], 'names') <- 
         colnames(attr(model.matrix(object)$random[[x]], 'contrasts'))
