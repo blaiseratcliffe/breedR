@@ -334,9 +334,12 @@
 #'   \code{res$reml$resumed_from}.
 #'
 #'   The most valuable case is not a crash but a fit that exhausted its
-#'   iterations: that returns \code{NA} variance components with a warning,
-#'   while the log holds every round intact, so \code{cont = TRUE} picks up
-#'   exactly where an otherwise useless result object left off.
+#'   iterations (\code{OPTION maxrounds}, or BLUPF90+'s default of 10000
+#'   rounds): that returns \code{NA} variance components, standard errors,
+#'   \code{funvars} and \code{hetres} with a warning, keeping the fixed effects
+#'   and BLUPs of its last round, while the log holds every round intact, so
+#'   \code{cont = TRUE} picks up exactly where an otherwise useless result
+#'   object left off.
 #'
 #'   Both arguments are for local fits. They are rejected for
 #'   \code{breedR.bin = 'remote'} or \code{'submit'}, and for an AR \code{rho}

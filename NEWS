@@ -1,3 +1,12 @@
+* A `remlf90()` fit that stops at its iteration cap (`OPTION maxrounds`, or
+BLUPF90+'s default of 10000 rounds) instead of converging now warns "The
+algorithm did not converge" and returns `NA` variance components, standard
+errors, `funvars` and `hetres` coefficients, as documented. It used to return
+the last round's values as if they were estimates: the check compared a double
+with an integer, and assumed a cap of 5000 whatever `maxrounds` said. Fixed
+effects, BLUPs and the log-likelihood are those of the last round, as before,
+and a fit that converges on its last permitted round is not affected (#40)
+
 * The shipped PDF of the `Additive Genetic Models in Mixed Populations` vignette is rebuilt from
 the source corrected by #86, so it now shows the method 3 covariance split by founder population
 (`A = A_E + A_J`) instead of the old scaling factors, which were only right at `lambda = 1`. No
