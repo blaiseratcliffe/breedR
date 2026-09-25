@@ -329,17 +329,19 @@ test_that("resuming is refused under debug", {
 
 test_that("cont = TRUE resumes a fit where no record observes every trait (#71)", {
 
-  ## Site-as-trait layout: each record is observed at one site only. The
-  ## data-based default initial variance is then all NA, but under cont every
-  ## initial variance comes from the checkpoint, so the default must be neither
-  ## needed nor validated. Stop at the parameter file: no binaries involved.
+  ## Site-as-trait layout: each record is observed at one site only. No
+  ## record observes both traits, so the listwise estimate is undefined; under
+  ## cont every initial variance comes from the checkpoint regardless, so the
+  ## default must be neither needed nor validated. Stop at the parameter file:
+  ## no binaries involved.
   n <- 12
   d <- data.frame(y1 = c(3.1, 2.4, 4.0, 3.6, 2.9, 3.3, rep(NA, 6)),
                   y2 = c(rep(NA, 6), 7.2, 8.1, 6.5, 7.7, 9.0, 6.9),
                   rep = factor(rep(1:3, 4)), id = 1:n,
                   x = rep(1:3, 4), y = rep(1:4, each = 3))
   ped <- data.frame(self = 1:n, sire = 0, dam = 0)
-  expect_true(all(is.na(default_initial_variance(d[, c('y1', 'y2')]))))
+  expect_false(any(stats::complete.cases(d[, c('y1', 'y2')])))
+  expect_true(all(is.na(stats::var(d[, c('y1', 'y2')], na.rm = TRUE))))
 
   mat_lines <- function(m)
     apply(m, 1L, function(z) paste0(" ", paste(sprintf("%13.5G", z), collapse = " ")))
