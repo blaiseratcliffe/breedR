@@ -57,3 +57,38 @@ test_that("breedR.qget() surfaces the backend's own diagnostic when a submitted 
 
   expect_error(breedR.qget(fake_id), "no such data file", fixed = TRUE)
 })
+
+
+test_that("breedR.qget() applies the same non-convergence check to a retrieved log (issue #40)", {
+
+  ## A remote fit stopped by its iteration cap (#40) is as unmarked in the
+  ## retrieved LOG as in a local one. breedR.qget() has only that log, not
+  ## the options of the fit, and must still warn and give no estimates.
+  fake_dir <- file.path(tempdir(), "breedR_qget_test_40")
+  dir.create(fake_dir, showWarnings = FALSE)
+  withr::defer(unlink(fake_dir, recursive = TRUE))
+  file.copy(file.path(testdata, "issue40_capped_ai.log"),
+            file.path(fake_dir, "LOG"))
+  file.copy(file.path(testdata, "issue40_capped_ai.sol"),
+            file.path(fake_dir, "solutions"))
+
+  data <- issue40_data()
+  mc <- call('remlf90', fixed = quote(y ~ x), random = quote(~ g), data = quote(data))
+  mf <- build.mf(mc)
+  effects <- build.effects(mf, NULL, NULL, NULL, list(g = 3.4))
+
+  local_mocked_bindings(
+    breedR.qstat = function(id) list(list(id = "1", status = "Finished", pid = "123")),
+    retrieve_remote = function(rdir, dest) fake_dir,
+    breedR.qdel = function(id) invisible(NULL),
+    .package = 'breedR'
+  )
+
+  fake_id <- structure(list(id = "1", effects = effects, mf = mf,
+                            method = 'ai', mcout = quote(remlf90())),
+                       class = c('breedR', 'remlf90'))
+
+  expect_warning(res <- suppressMessages(breedR.qget(fake_id)),
+                 "did not converge")
+  expect_true(all(is.na(res$var)))
+})

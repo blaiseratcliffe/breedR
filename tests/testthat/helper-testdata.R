@@ -9,6 +9,19 @@ skip_if_no_progsf90 <- function() {
                         "PROGSF90 binaries not installed")
 }
 
+## Data of the issue #40 fixtures inst/testdata/issue40_capped_*.{log,sol}
+## (see inst/testdata/index.json), regenerated deterministically so that
+## parse_results() gets the model frame of the captured fits.
+issue40_data <- function() {
+  set.seed(40)
+  data <- data.frame(g = factor(rep(1:30, each = 10)), x = rnorm(300))
+  data$y <- 10 + 0.5 * data$x + rnorm(30, sd = 1.5)[data$g] +
+    rnorm(300, sd = 2)
+  set.seed(41)
+  data$y2 <- 5 + 0.3 * data$y + rnorm(300)
+  data
+}
+
 # Quick convenience function to fit a test model on globulus data
 breedR.result <- function(...) {
   dat <- breedR::globulus

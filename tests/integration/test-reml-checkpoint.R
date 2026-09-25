@@ -196,8 +196,11 @@ test_that("cont works after a non-converged run", {
   ## The best case for resuming: hitting the iteration cap returns all-NA
   ## variance components, while the log holds every round intact.
   f <- file.path(wd, "em.log")
-  cold <- fit_globulus(progress_file = f, method = 'em',
-                       progsf90.options = 'maxrounds 12')
+  expect_warning(
+    cold <- fit_globulus(progress_file = f, method = 'em',
+                         progsf90.options = 'maxrounds 12'),
+    'did not converge')
+  expect_true(all(is.na(unlist(cold$var))))
 
   expect_message(
     warm <- remlf90(fixed = phe_X ~ gg, random = ~ bl, genetic = ped,
@@ -485,10 +488,12 @@ test_that("trait-restricted checkpoints support continuation and manual restart"
 
   ## EM's last round is also reusable when the initial run hits its cap.
   em_file <- file.path(wd, "restricted-em.log")
-  partial <- fit_restricted(method = 'em', progress_file = em_file,
-                            var.ini = list(rep = diag(c(5, 2)),
-                                           residuals = diag(c(1, 4))),
-                            progsf90.options = "maxrounds 2")
+  expect_warning(
+    partial <- fit_restricted(method = 'em', progress_file = em_file,
+                              var.ini = list(rep = diag(c(5, 2)),
+                                             residuals = diag(c(1, 4))),
+                              progsf90.options = "maxrounds 2"),
+    'did not converge')
   em_checkpoint <- reml_checkpoint(em_file, model = partial)
   expect_equal(attr(em_checkpoint, "round"), 2L)
   expect_identical(unname(em_checkpoint$rep[2, ]), c(0, 0))

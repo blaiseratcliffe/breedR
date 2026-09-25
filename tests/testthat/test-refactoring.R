@@ -79,7 +79,8 @@ test_that("build_grid indices match column-major ordering", {
 
 test_that("package constants have expected values", {
   expect_identical(MAX_COMPETITORS, 8L)
-  expect_identical(MAX_REML_ITERATIONS, 5000L)
+  expect_identical(MAX_REML_ITERATIONS, 10000L)
+  expect_identical(REML_CONV_CRIT, 1e-12)
   expect_identical(SPLINE_BOUNDARY_KNOTS, 3L)
   expect_equal(REGULAR_GRID_QUANTILE_RANGE, c(.1, .6))
 })
