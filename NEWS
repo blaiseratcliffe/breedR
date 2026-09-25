@@ -1,3 +1,11 @@
+* `remlf90()` and `gibbsf90()` now check a genomic XrefID supplied as
+`<snp_file>_XrefID` before using it, and stop naming the first row that
+disagrees with the genotype file or the pedigree. preGSf90 pairs its rows with
+the genotype file's by position, so a file with its rows out of order, a
+different row count, or original ids where a recoded pedigree needs breedR's
+codes put genotypes on the wrong animals without an error. A correct file is
+used as before (#53)
+
 * An AR `rho` grid search with `parallel = TRUE` (or a number of cores) in
 `remlf90()` no longer drops every `rho` whose log-likelihood is positive. It
 read those as `NA` and chose the most likely of the remaining candidates, so it

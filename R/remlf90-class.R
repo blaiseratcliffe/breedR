@@ -18,7 +18,15 @@
 #'   for single-step GBLUP. Requires a \code{genetic} component. Elements:
 #'   \describe{
 #'     \item{snp_file}{(required) path to genotype file in PREGSF90 format
-#'       (animal ID + fixed-width genotype string with 0/1/2/5)}
+#'       (animal ID + fixed-width genotype string with 0/1/2/5). breedR
+#'       derives the cross-reference file preGSf90 needs from the pedigree,
+#'       unless a file named \code{<snp_file>_XrefID} sits next to it: that
+#'       file is then used instead. preGSf90 pairs its rows with the genotype
+#'       file's by position, so it must have one row per genotype row, in the
+#'       same order, each giving breedR's code for the animal (its id, or
+#'       \code{attr(pedigree, 'map')[id]} for a pedigree that
+#'       \code{\link{build_pedigree}} recoded) and then its id as written in
+#'       the genotype file. breedR stops at the first row that does not.}
 #'     \item{map_file}{path to SNP map file (header: SNP_ID, CHR, POS)}
 #'     \item{whichG}{G matrix method: 1 = VanRaden 2008 (default), 2 = Amin
 #'       2007, 3 = Yang 2010}
