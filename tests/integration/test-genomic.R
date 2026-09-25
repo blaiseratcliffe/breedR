@@ -152,6 +152,57 @@ test_that("codes that start above 1 are recoded and change nothing (#50)", {
                as.numeric(bv_gen), tolerance = 1e-6)
 })
 
+test_that("the QC report of a recoded pedigree names animals by their ids (#58)", {
+
+  ## preGSf90 reports animals by the codes of the pedigree breedR wrote, which
+  ## are recoded here. The report used to show those codes, and the code
+  ## of an excluded animal was another animal's id.
+  N   <- max(globulus[, c('self', 'dad', 'mum')])
+  flip <- function(x) ifelse(x == 0, 0L, as.integer(N + 1L - x))
+  glob_rev <- globulus
+  glob_rev[, c('self', 'dad', 'mum')] <-
+    lapply(globulus[, c('self', 'dad', 'mum')], flip)
+
+  ## Genotype some founders too, so that a genotyped animal has a genotyped
+  ## parent. A local copy of the genotypes: the animal in row 3 fails the call
+  ## rate, and the animal in row `kid` conflicts with its genotyped sire.
+  founders <- setdiff(unique(c(globulus$dad, globulus$mum)),
+                      c(0, globulus$self))
+  ids <- c(globulus$self[1:50], founders[1:10])
+  G   <- Gmat
+  G[3, 1:150] <- 5L
+  kid <- which(globulus$dad[1:50] %in% founders[1:10])[1]
+  sire <- match(globulus$dad[kid], ids)
+  G[kid, 151:200] <- 2L
+  G[sire, 151:200] <- 0L
+
+  qc_dir  <- breedR_workdir('qc_recoded_')
+  on.exit(unlink(qc_dir, recursive = TRUE), add = TRUE)
+  qc_file <- file.path(qc_dir, "test_ssgblup_qc_recoded.txt")
+  write_snp_file(G, ids = flip(ids), file = qc_file)
+
+  res.qc <- suppressWarnings(suppressMessages(
+    remlf90(fixed = phe_X ~ gg,
+            genetic = list(model = 'add_animal',
+                           pedigree = glob_rev[, 1:3], id = 'self'),
+            genomic = list(snp_file = qc_file, verify_parentage = 1L,
+                           extra_options = 'thrStopCorAG -1'),
+            data = glob_rev)))
+  expect_false(is.null(attr(get_pedigree(res.qc), 'map')))
+
+  ## the call-rate report names the animal of row 3 by its id
+  qc <- res.qc$genomic
+  expect_identical(qc$n_animals_excluded, 1L)
+  expect_identical(qc$excluded_animals[[ncol(qc$excluded_animals) - 1L]],
+                   flip(ids[3]))
+
+  ## and the conflict names the progeny and its sire by their ids
+  sire_line <- grep("Animal - Sire Conflict", qc$conflicts, value = TRUE)
+  expect_length(sire_line, 1L)
+  expect_identical(strsplit(trimws(sire_line), "\\s+")[[1]][5:6],
+                   as.character(flip(ids[c(kid, sire)])))
+})
+
 test_that("a genotyped animal absent from the pedigree is an error", {
   bad_file <- file.path(tempdir(), "test_ssgblup_bad.txt")
   write_snp_file(Gmat[1:3, , drop = FALSE],

@@ -1319,7 +1319,7 @@ remlf90 <- function(fixed,
 
     ## Attach genomic QC results if PREGSF90 was run
     if (!is.null(genomic) && !is.null(pregs_out)) {
-      ans$genomic <- parse_pregsf90_qc(tmpdir)
+      ans$genomic <- parse_pregsf90_qc(tmpdir, pedigree = ped_for_xref)
       ans$genomic$pregsf90_output <- pregs_out
       # Record whether the plain G-inverse was saved, so postgsf90() can tell
       # whether this fit is GWAS-ready.

@@ -357,12 +357,22 @@ run_pregsf90 <- function(dir, bin_path) {
 #' them as a structured R list.
 #'
 #' @param dir directory containing PREGSF90 output files.
+#' @param pedigree the pedigree of the fit, as returned by
+#'   \code{get_pedigree()}, or \code{NULL}. PREGSF90 names animals by the
+#'   codes of the pedigree file breedR wrote for it. When
+#'   \code{build_pedigree()} recoded the pedigree, those codes are translated
+#'   back so that excluded_animals and conflicts name animals by the ids given
+#'   in the pedigree. Otherwise the reports are returned as written.
 #' @return A list with components: freq, excluded_snp, excluded_animals,
 #'   conflicts, freq_raw, n_snp_total, n_snp_passed, n_snp_excluded,
 #'   n_animals_excluded.
-parse_pregsf90_qc <- function(dir) {
+parse_pregsf90_qc <- function(dir, pedigree = NULL) {
 
   result <- list()
+
+  ## element k is the user's id of the animal coded k; NULL when the codes
+  ## already are the user's ids
+  lab <- if (!is.null(attr(pedigree, 'map'))) pedigree_labels(pedigree)
 
   # Allele frequencies after QC. preGSf90 writes two columns (snp index,
   # frequency); some versions/options add a third exclusion-code column. Handle
@@ -393,12 +403,20 @@ parse_pregsf90_qc <- function(dir) {
   callrate_file <- file.path(dir, "Gen_call_rate")
   if (file.exists(callrate_file) && file.info(callrate_file)$size > 0) {
     result$excluded_animals <- utils::read.table(callrate_file)
+    ## the animal's code is the field before the call rate, which is last
+    if (!is.null(lab)) {
+      k <- ncol(result$excluded_animals) - 1L
+      result$excluded_animals[[k]] <-
+        as.integer(lab[result$excluded_animals[[k]]])
+    }
   }
 
   # Mendelian conflicts
   conflict_file <- file.path(dir, "Gen_conflicts")
   if (file.exists(conflict_file) && file.info(conflict_file)$size > 0) {
     result$conflicts <- readLines(conflict_file)
+    if (!is.null(lab))
+      result$conflicts <- translate_qc_conflicts(result$conflicts, lab)
   }
 
   # Raw allele frequencies (before QC)
@@ -430,6 +448,40 @@ parse_pregsf90_qc <- function(dir) {
     nrow(result$excluded_animals) else 0L
 
   return(result)
+}
+
+## Rewrite the pedigree codes in the lines of preGSf90's Gen_conflicts report
+## with the ids lab gives them (element k = id of code k). These are the
+## progeny and parent of each "Animal - Sire|Dam Conflict" line, and the second
+## column (Renf90_Id) of the table after its header; the first column there is
+## the row of the SNP file and is left alone, as is every line of another form.
+## Each id is right-justified in the width its code took, with at least one
+## blank before it.
+translate_qc_conflicts <- function(lines, lab) {
+
+  field <- function(blank, code) {
+    id <- lab[as.integer(code)]
+    width <- nchar(blank) + nchar(code)
+    if (nchar(id) < width) formatC(id, width = width) else paste0(' ', id)
+  }
+
+  pair <- '^(\\s*Animal - (Sire|Dam) Conflict)(\\s+)([0-9]+)(\\s+)([0-9]+)(\\s.*)$'
+  for (i in grep(pair, lines)) {
+    g <- regmatches(lines[i], regexec(pair, lines[i]))[[1]]
+    lines[i] <- paste0(g[2], field(g[4], g[5]), field(g[6], g[7]), g[8])
+  }
+
+  header <- grep('Renf90_Id', lines, fixed = TRUE)
+  if (length(header)) {
+    row <- '^(\\s*[0-9]+)(\\s+)([0-9]+)((\\s+[0-9]+){6}\\s*)$'
+    after <- seq_along(lines)[-seq_len(header[1])]
+    for (i in after[grepl(row, lines[after])]) {
+      g <- regmatches(lines[i], regexec(row, lines[i]))[[1]]
+      lines[i] <- paste0(g[2], field(g[3], g[4]), g[5])
+    }
+  }
+
+  lines
 }
 
 

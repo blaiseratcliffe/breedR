@@ -218,7 +218,8 @@ gibbsf90 <- function(fixed,
   result$dir <- tmpdir
 
   if (!is.null(genomic)) {
-    result$genomic <- parse_pregsf90_qc(tmpdir)
+    result$genomic <- parse_pregsf90_qc(
+      tmpdir, pedigree = get_pedigree.breedr_modelframe(effects))
   }
 
   return(result)
