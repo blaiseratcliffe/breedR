@@ -431,6 +431,161 @@ test_that("write_xref_from_pedigree() translates ids of a pedigree coded from 2 
 })
 
 
+## -- a supplied <snp_file>_XrefID --
+
+## preGSf90 pairs XrefID row i with SNP-file row i and takes the animal's code
+## from column 1; it never reads column 2. Runs the genomic pipeline on the
+## SNP file with animal ids `snp_ids` (default '1 / 2 / 3') and the given
+## XrefID lines next to it, preGSf90 mocked. Returns the pipeline's error, the bytes of the XrefID staged for
+## preGSf90 (NULL if it was never reached) and the bytes supplied.
+run_with_supplied_xref <- function(xref_lines, pedigree,
+                                   snp_ids = c('1', '2', '3')) {
+  src <- breedR_workdir()
+  wd  <- breedR_workdir()
+  on.exit(unlink(c(src, wd), recursive = TRUE), add = TRUE)
+  snp <- file.path(src, 'geno.txt')
+  writeLines(paste(snp_ids, c('0120', '1111', '2222')), snp)
+  xref <- paste0(snp, '_XrefID')
+  writeLines(xref_lines, xref)
+  staged <- NULL
+  local_mocked_bindings(
+    write.progsf90 = function(...) invisible(NULL),
+    check_genomic_programs = function(...) TRUE,
+    run_pregsf90 = function(dir, bin_path) {
+      f <- file.path(dir, 'geno.txt_XrefID')
+      staged <<- readBin(f, 'raw', file.size(f))
+      stop('preGSf90 reached')
+    }, .package = 'breedR')
+  err <- tryCatch(
+    run_pregsf90_pipeline(list(snp_file = snp), character(0),
+                          list(parameter = list(options = NULL)), wd, wd,
+                          pedigree = pedigree),
+    error = conditionMessage)
+  list(error = err, staged = staged,
+       supplied = readBin(xref, 'raw', file.size(xref)))
+}
+
+## Animal 1 precedes its parents 2 and 3, so the pedigree is recoded with map
+## 3 1 2: the XrefID breedR derives for the SNP file above is '3 1 / 1 2 / 2 3'.
+recoded_ped_1to3 <- function()
+  suppressWarnings(
+    build_pedigree(1:3, data = data.frame(self = 1:3, dad = c(2L, 0L, 0L),
+                                          mum = c(3L, 0L, 0L))))
+
+test_that("a supplied XrefID with its rows out of order is refused (#53)", {
+  ped <- recoded_ped_1to3()
+  expect_identical(attr(ped, 'map'), c(3L, 1L, 2L))
+
+  res <- run_with_supplied_xref(c('1 2', '3 1', '2 3'), ped)
+  expect_match(res$error, "Row 1 of 'geno.txt_XrefID'", fixed = TRUE)
+  expect_null(res$staged)
+})
+
+test_that("a supplied XrefID with codes other than breedR's is refused (#53)", {
+  ped <- recoded_ped_1to3()
+
+  ## original ids in column 1, the #49 mistake on a recoded pedigree
+  res <- run_with_supplied_xref(c('1 1', '2 2', '3 3'), ped)
+  expect_match(res$error,
+               "Row 1 of 'geno.txt_XrefID' codes animal '1' as 1, but breedR codes it 3",
+               fixed = TRUE)
+  expect_null(res$staged)
+
+  ## the right ids in column 2, the codes in reverse order
+  res <- run_with_supplied_xref(c('2 1', '1 2', '3 3'), ped)
+  expect_match(res$error,
+               "Row 1 of 'geno.txt_XrefID' codes animal '1' as 2, but breedR codes it 3",
+               fixed = TRUE)
+  expect_null(res$staged)
+})
+
+test_that("a supplied XrefID with fewer rows than the SNP file is refused (#53)", {
+  res <- run_with_supplied_xref(c('3 1', '1 2'), recoded_ped_1to3())
+  expect_match(res$error, "'geno.txt_XrefID' has 2 rows", fixed = TRUE)
+  expect_match(res$error, "genotype file 3", fixed = TRUE)
+  expect_null(res$staged)
+})
+
+test_that("a supplied XrefID out of order is refused without a pedigree (#53)", {
+  res <- run_with_supplied_xref(c('1 2', '3 1', '2 3'), NULL)
+  expect_match(res$error, "Row 1 of 'geno.txt_XrefID'", fixed = TRUE)
+  expect_null(res$staged)
+})
+
+test_that("a correct supplied XrefID reaches preGSf90 byte for byte (#53)", {
+  ped <- recoded_ped_1to3()
+
+  res <- run_with_supplied_xref(c('3 1', '1 2', '2 3'), ped)
+  expect_identical(res$error, 'preGSf90 reached')
+  expect_identical(res$staged, res$supplied)
+
+  res <- run_with_supplied_xref(c('  3   1', '1\t2 ', '2 3'), ped)
+  expect_identical(res$error, 'preGSf90 reached')
+  expect_identical(res$staged, res$supplied)
+})
+
+test_that("a supplied XrefID for genotype ids that are not pedigree ids is used (#53)", {
+
+  ## Genotypes named by lab ids: only the XrefID says which animal each row
+  ## is, so its codes cannot be checked against the ids, and a correct file
+  ## must reach preGSf90 unchanged.
+  ped <- recoded_ped_1to3()
+
+  res <- run_with_supplied_xref(c('3 S1', '1 S2', '2 S3'), ped,
+                                snp_ids = c('S1', 'S2', 'S3'))
+  expect_identical(res$error, 'preGSf90 reached')
+  expect_identical(res$staged, res$supplied)
+
+  res <- run_with_supplied_xref(c('3 5001', '1 5002', '2 5003'), ped,
+                                snp_ids = c('5001', '5002', '5003'))
+  expect_identical(res$error, 'preGSf90 reached')
+  expect_identical(res$staged, res$supplied)
+})
+
+test_that("a supplied XrefID for lab ids must give codes of the pedigree (#53)", {
+  ped <- recoded_ped_1to3()
+
+  res <- run_with_supplied_xref(c('3 S1', '4 S2', '2 S3'), ped,
+                                snp_ids = c('S1', 'S2', 'S3'))
+  expect_match(res$error,
+               "Row 2 of 'geno.txt_XrefID' codes animal 'S2' as 4, but the pedigree codes its animals 1 to 3",
+               fixed = TRUE)
+  expect_null(res$staged)
+})
+
+test_that("a genotype file with only some ids in the pedigree is refused (#53)", {
+
+  ## Either the genotype file names animals by pedigree ids and 'S2' is not
+  ## in the pedigree, or it uses other ids and '1' and '3' collide with
+  ## pedigree ids. breedR cannot tell which animal each row is.
+  res <- run_with_supplied_xref(c('3 1', '1 S2', '2 3'), recoded_ped_1to3(),
+                                snp_ids = c('1', 'S2', '3'))
+  expect_match(res$error, "animal 'S2' in row 2 is not in the pedigree",
+               fixed = TRUE)
+  expect_match(res$error, "animal '1' in row 1 is", fixed = TRUE)
+  expect_null(res$staged)
+})
+
+test_that("a refused XrefID is deleted only if the genotype ids are pedigree ids (#53)", {
+
+  ## Lab ids that are all also pedigree ids look like pedigree ids. Deleting
+  ## the XrefID then derives one that puts the genotypes on those animals, so
+  ## the message must not advise it unconditionally.
+  res <- run_with_supplied_xref(c('1 1', '2 2', '3 3'), recoded_ped_1to3())
+  expect_match(res$error,
+               "If the genotype file names animals by their pedigree ids, delete 'geno.txt_XrefID'",
+               fixed = TRUE)
+  expect_match(res$error, "If it uses other ids, rename them", fixed = TRUE)
+})
+
+test_that("a supplied XrefID code with a fraction is refused (#53)", {
+  res <- run_with_supplied_xref(c('3.7 1', '1 2', '2 3'), recoded_ped_1to3())
+  expect_match(res$error, "codes animal '1' as 3.7, but breedR codes it 3",
+               fixed = TRUE)
+  expect_null(res$staged)
+})
+
+
 ## -- parse_pregsf90_qc() --
 
 ## preGSf90 reports animals by the codes of the pedigree breedR wrote for it,
