@@ -394,6 +394,86 @@ test_that("write_xref_from_pedigree() translates ids of a pedigree coded from 2 
 })
 
 
+## -- parse_pregsf90_qc() --
+
+## preGSf90 reports animals by the codes of the pedigree breedR wrote for it,
+## which are breedR's internal codes. The reports below are laid out as
+## preGSf90 writes them.
+write_qc_reports <- function(dir) {
+  writeLines(
+    " Genotyped Animal with low call rate REMOVED         3    0.2500",
+    file.path(dir, 'Gen_call_rate'))
+  writeLines(c(
+    " Quality Control - Check Parent-Progeny Mendelian  conflicts",
+    "",
+    "    Total animals: 3 - Genotyped animals: 3 - Effective: 2",
+    "",
+    "   Animal - Sire Conflict         3         1        81    0.4050",
+    "   Animal - Dam Conflict         3         2        24    0.1200",
+    "",
+    "   Number of Parent-Progeny Mendelian Conflicts: 2",
+    " ",
+    "       #_Gen   Renf90_Id      #_sire  tot_#_sire       #_dam   tot_#_dam       #_ind   tot_#_ind",
+    "           2           3           0           0           0           0           2           2",
+    "           1           1           1           1           0           0           0           0"),
+    file.path(dir, 'Gen_conflicts'))
+}
+
+test_that("parse_pregsf90_qc() names animals of a recoded pedigree by their ids (#58)", {
+
+  ## Animal 1 precedes its parents 2 and 3, so the pedigree is recoded with
+  ## map 3 1 2: animal 1 is code 3, animal 2 code 1 and animal 3 code 2. Every
+  ## code is also another animal's id, so an untranslated code names the
+  ## wrong animal.
+  ped <- suppressWarnings(
+    build_pedigree(1:3, data = data.frame(self = 1:3, dad = c(2L, 0L, 0L),
+                                          mum = c(3L, 0L, 0L))))
+  expect_identical(attr(ped, 'map'), c(3L, 1L, 2L))
+  wd <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  write_qc_reports(wd)
+
+  qc <- parse_pregsf90_qc(wd, pedigree = ped)
+
+  ## code 3 is animal 1
+  expect_identical(qc$excluded_animals[[8]], 1L)
+  expect_identical(qc$excluded_animals[[9]], 0.25)
+  expect_identical(qc$n_animals_excluded, 1L)
+
+  ## Progeny 1 with its sire 2 and its dam 3. In the table only the second
+  ## column is a pedigree code: the first is the row of the SNP file, and it
+  ## must stay 2 and 1. Every other line is left as preGSf90 wrote it.
+  expect_identical(qc$conflicts, c(
+    " Quality Control - Check Parent-Progeny Mendelian  conflicts",
+    "",
+    "    Total animals: 3 - Genotyped animals: 3 - Effective: 2",
+    "",
+    "   Animal - Sire Conflict         1         2        81    0.4050",
+    "   Animal - Dam Conflict         1         3        24    0.1200",
+    "",
+    "   Number of Parent-Progeny Mendelian Conflicts: 2",
+    " ",
+    "       #_Gen   Renf90_Id      #_sire  tot_#_sire       #_dam   tot_#_dam       #_ind   tot_#_ind",
+    "           2           1           0           0           0           0           2           2",
+    "           1           2           1           1           0           0           0           0"))
+})
+
+test_that("parse_pregsf90_qc() leaves the report of a pedigree that was not recoded alone (#58)", {
+
+  p0 <- build_pedigree(1:3, data = data.frame(self = 1:4, dad = c(0, 0, 1, 1),
+                                              mum = c(0, 0, 2, 2)))
+  expect_null(attr(p0, 'map'))
+  wd <- breedR_workdir()
+  on.exit(unlink(wd, recursive = TRUE), add = TRUE)
+  write_qc_reports(wd)
+
+  qc <- parse_pregsf90_qc(wd, pedigree = p0)
+  expect_identical(qc, parse_pregsf90_qc(wd))
+  expect_identical(qc$excluded_animals[[8]], 3L)
+  expect_identical(qc$conflicts, readLines(file.path(wd, 'Gen_conflicts')))
+})
+
+
 ## -- postgsf90() input checks --
 
 ## These run without binaries: each stops before anything is executed.
