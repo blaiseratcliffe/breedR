@@ -120,8 +120,8 @@ sample_covar <- function(dim) {
   crossprod(matrix(x, nrow = dim))
 }
 set.seed(123)
-S_bl <- sample_covar(dim)   # 5 & 3 & 5 // 22 & 10 // 11
-S_resid <- sample_covar(dim)  # 9 & 3 & -3 // 9 & 9 // 14
+S_bl <- sample_covar(dim)   # 9 & -3 & 6 // 11 & 1 // 5
+S_resid <- sample_covar(dim)  # 22 & -7 & 4 // 5 & -4 // 4
 # diag(1/sqrt(diag(S_bl))) %*% S_bl %*% diag(1/sqrt(diag(S_bl)))
 
 dimnames(S_bl) <- dimnames(S_resid) <- 
@@ -147,6 +147,15 @@ testdat <-
             y2 = beta_X[2]*X + bl_y2 + e_y2,
             y3 = beta_X[3]*X + bl_y3 + e_y3)
 
+## Recovery tolerances in this and the next two test_that() blocks come from
+## this design's sampling noise (Nbl = 50, Nobs = 1e4), not from one draw.
+## With 50 blocks the block variance has a relative SE of about
+## sqrt(2/49) = .2; the residual (co)variances and beta_X are much tighter.
+## Each tolerance is about 3 SE in all.equal() relative units (for a vector
+## or matrix, the 99.7% point of its summed relative error); tolerances that
+## were already at or above that are unchanged. Measured over 61 seeds in
+## issue #29: the estimates centre on the truth and the reported S.E.s match
+## the spread. The matrices in the comments above need R >= 3.6.0 sample().
 
 test_that("Residual variance acurately identified in a fixed-effects model", {
   
@@ -157,7 +166,7 @@ test_that("Residual variance acurately identified in a fixed-effects model", {
     method = "em"
   )
   
-  expect_equal(S_resid, res$var$Residual, tol = .01)
+  expect_equal(S_resid, res$var$Residual, tol = .04)
 })
 
 
@@ -170,9 +179,9 @@ test_that("Simulated values reasonably recovered using one or more traits", {
     data = testdat
   )
   
-  expect_equal(S_resid[1, 1], res_1$var["Residual", 1], tol = .01)
-  expect_equal(S_bl[1, 1], res_1$var["bl", 1], tol = .1)
-  expect_equal(beta_X[1], fixef(res_1)$X, tol = .1, check.attributes = FALSE)
+  expect_equal(S_resid[1, 1], res_1$var["Residual", 1], tol = .04)
+  expect_equal(S_bl[1, 1], res_1$var["bl", 1], tol = .6)
+  expect_equal(beta_X[1], fixef(res_1)$X, tol = .5, check.attributes = FALSE)
 
   ## 2 trait
   res_2 <- remlf90(
@@ -182,7 +191,7 @@ test_that("Simulated values reasonably recovered using one or more traits", {
     method = "ai"
   )
 
-  expect_equal(S_resid[-3, -3], res_2$var[["Residual", 1]], tol = .01)
+  expect_equal(S_resid[-3, -3], res_2$var[["Residual", 1]], tol = .04)
   expect_equal(S_bl[-3, -3], res_2$var[["bl", 1]], tol = 1)
   expect_equal(beta_X[-3], fixef(res_2)$X, tol = .1, check.attributes = FALSE)
   
@@ -194,9 +203,9 @@ test_that("Simulated values reasonably recovered using one or more traits", {
     method = "em"
   )  
 
-  expect_equal(S_resid, res_3$var$Residual, tol = .01)
+  expect_equal(S_resid, res_3$var$Residual, tol = .04)
   expect_equal(S_bl, res_3$var$bl, tol = 1)
-  expect_equal(beta_X, fixef(res_3)$X, tol = .01, check.attributes = FALSE)
+  expect_equal(beta_X, fixef(res_3)$X, tol = .07, check.attributes = FALSE)
 })
 
 
@@ -212,7 +221,7 @@ test_that("Initial variance specification", {
     var.ini = list(bl = vi(2), resid = vi(2))
   )
   
-  expect_equal(S_resid[-3, -3], res_2$var[["Residual", 1]], tol = .01)
+  expect_equal(S_resid[-3, -3], res_2$var[["Residual", 1]], tol = .04)
   expect_equal(S_bl[-3, -3], res_2$var[["bl", 1]], tol = 1)
   expect_equal(beta_X[-3], fixef(res_2)$X, tol = .1, check.attributes = FALSE)
   
@@ -231,7 +240,7 @@ test_that("Initial variance specification", {
   )
   
   expect_equal(diag(diag(S_resid[-3, -3])), res_2$var[["Residual", 1]],
-               tol = .01, check.attributes = FALSE)
+               tol = .04, check.attributes = FALSE)
   
   ## estimated residual covariance of 0
   expect_identical(res_2$var[["Residual", 1]][1, 2], 0)
@@ -254,7 +263,7 @@ test_that("Initial variance specification", {
   )
   
   expect_equal(S_resid[-3, -3], res_2$var[["Residual", 1]],
-               tol = .01, check.attributes = FALSE)
+               tol = .04, check.attributes = FALSE)
 
   expect_equal(S_bl[-3, -3], res_2$var[["bl", 1]], tol = 1)
   
