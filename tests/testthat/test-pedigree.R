@@ -148,3 +148,46 @@ test_that('build_pedigree() refuses codes above the integer range (#67)', {
                                                      mum = 0)),
                'Codes out of range: 3000000000$')
 })
+
+
+test_that('build_pedigree() stores the recoding map as an integer vector indexed by code (#67)', {
+
+  ## The map is public API: map[x] gives the new codes of original codes x,
+  ## and match(y, map) gives back the original codes. So it is an integer
+  ## vector as long as the largest code, with NA for codes not in the
+  ## pedigree, and no names or other attributes.
+  map_of <- function(self, dad, mum)
+    attr(suppressWarnings(
+      build_pedigree(1:3, data = data.frame(self = self, dad = dad, mum = mum))),
+      'map')
+
+  ## Animal 1 precedes its parents 2 and 3 (#49)
+  expect_identical(map_of(1:3, c(2L, 0L, 0L), c(3L, 0L, 0L)), c(3L, 1L, 2L))
+  ## Each new code is also another animal's original code
+  expect_identical(map_of(1:6, c(5L, 5L, 5L, 0L, 0L, 0L), c(6L, 6L, 4L, 0L, 0L, 0L)),
+                   c(3L, 4L, 6L, 5L, 1L, 2L))
+  ## Consecutive codes starting at 2 (#50)
+  expect_identical(map_of(2:4, c(0L, 0L, 2L), c(0L, 0L, 3L)), c(NA, 1L, 2L, 3L))
+  ## Gaps, and codes not starting at 1, stored as doubles
+  expect_identical(map_of(c(10, 20, 30), c(0, 0, 10), c(0, 0, 20)),
+                   replace(rep(NA_integer_, 30), c(10, 20, 30), 1:3))
+  ## Offspring coded below its parents, with gaps
+  expect_identical(map_of(c(3, 7, 9), c(7, 0, 0), c(9, 0, 0)),
+                   c(NA, NA, 3L, NA, NA, NA, 1L, NA, 2L))
+  ## Founders added from the parent columns, with an NA parent
+  expect_identical(map_of(c(4, 6), c(2, 4), c(1, NA)), c(1L, 2L, NA, 3L, NA, 4L))
+
+  ## The shuffled m4 pedigree above: one slot per code up to the largest,
+  ## NA where no animal has that code
+  map_fix <- attr(ped_fix, 'map')
+  codes <- sort(unique(c(ped_shuffled)))
+  codes <- codes[!is.na(codes) & codes > 0]
+  expect_identical(typeof(map_fix), 'integer')
+  expect_null(attributes(map_fix))
+  expect_identical(length(map_fix), as.integer(max(codes)))
+  expect_identical(which(!is.na(map_fix)), as.integer(codes))
+  expect_identical(sort(map_fix[codes]), seq_along(codes))
+
+  ## A pedigree that needs no recoding has no map
+  expect_null(map_of(1:4, c(0, 0, 1, 1), c(0, 0, 2, 2)))
+})
