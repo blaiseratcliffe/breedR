@@ -719,15 +719,25 @@ xref_codes <- function(snp_ids, pedigree) {
 ## Check a user-supplied XrefID before it is handed to preGSf90, which pairs
 ## its row i with SNP-file row i and takes the animal's code from column 1
 ## without reading column 2. Each non-blank row must name the animal of the
-## same SNP-file row in column 2 and, when the pedigree is known, give breedR's
-## code for it in column 1 -- i.e. be what write_xref_from_pedigree() writes.
-## Without a pedigree the codes cannot be checked. Stops at the first row that
-## disagrees.
+## same SNP-file row in column 2. When the pedigree is known and the SNP ids
+## are its ids, column 1 must be breedR's code for that animal -- i.e. the
+## file must be what write_xref_from_pedigree() writes. When none of the SNP
+## ids is a pedigree id (lab or sample ids), only the XrefID says which animal
+## each row is, so its codes need only be codes of the pedigree. When some are
+## and some are not, which animal a row is cannot be told, and the file is
+## refused. Without a pedigree the codes cannot be checked. Stops at the first
+## row that disagrees.
 check_xref_file <- function(xref_file, snp_file, pedigree = NULL) {
   nm <- basename(xref_file)
-  hint <- if (is.null(pedigree)) "" else
-    paste0(" Delete '", nm, "' to let breedR derive it from the pedigree.")
   snp_ids <- snp_file_ids(snp_file)
+  in_ped <- if (is.null(pedigree)) logical(0) else
+    snp_ids %in% pedigree_labels(pedigree)
+  ## Lab ids that all happen to be pedigree ids look like pedigree ids, and
+  ## deleting the XrefID would then put their genotypes on those animals.
+  rename <- " If it uses other ids, rename them so that none is also a pedigree id."
+  hint <- if (length(in_ped) && all(in_ped))
+    paste0(" If the genotype file names animals by their pedigree ids, delete '",
+           nm, "' to let breedR derive it.", rename) else ""
   raw <- readLines(xref_file)
   raw <- raw[nchar(trimws(raw)) > 0]
 
@@ -749,13 +759,30 @@ check_xref_file <- function(xref_file, snp_file, pedigree = NULL) {
          snp_ids[bad[1]], "': preGSf90 pairs their rows by position.", hint,
          call. = FALSE)
 
-  if (!is.null(pedigree)) {
+  if (is.null(pedigree)) return(invisible(TRUE))
+
+  ## codes are whole numbers; as.integer() alone would take "3.7" as 3
+  got <- suppressWarnings(as.integer(ifelse(grepl("^[0-9]+$", col1), col1, NA)))
+  if (all(in_ped)) {
     code <- xref_codes(snp_ids, pedigree)
-    got <- suppressWarnings(as.integer(col1))
     if (length(bad <- which(is.na(got) | got != code)))
       stop("Row ", bad[1], " of '", nm, "' codes animal '", snp_ids[bad[1]],
            "' as ", col1[bad[1]], ", but breedR codes it ", code[bad[1]],
            " in the pedigree.", hint, call. = FALSE)
+  } else if (any(in_ped)) {
+    out <- which(!in_ped)[1]
+    ped <- which(in_ped)[1]
+    stop("In the genotype file, animal '", snp_ids[out], "' in row ", out,
+         " is not in the pedigree but animal '", snp_ids[ped], "' in row ",
+         ped, " is, so breedR cannot tell whether it names animals by their ",
+         "pedigree ids. If it does, add the missing animals to the pedigree.",
+         rename, call. = FALSE)
+  } else {
+    n <- length(pedigree@label)
+    if (length(bad <- which(is.na(got) | got < 1L | got > n)))
+      stop("Row ", bad[1], " of '", nm, "' codes animal '", snp_ids[bad[1]],
+           "' as ", col1[bad[1]], ", but the pedigree codes its animals 1 to ",
+           n, ".", call. = FALSE)
   }
   invisible(TRUE)
 }

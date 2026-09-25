@@ -23,10 +23,13 @@
 #'       unless a file named \code{<snp_file>_XrefID} sits next to it: that
 #'       file is then used instead. preGSf90 pairs its rows with the genotype
 #'       file's by position, so it must have one row per genotype row, in the
-#'       same order, each giving breedR's code for the animal (its id, or
-#'       \code{attr(pedigree, 'map')[id]} for a pedigree that
+#'       same order, each giving breedR's code for the animal (its pedigree id,
+#'       or \code{attr(pedigree, 'map')[id]} for a pedigree that
 #'       \code{\link{build_pedigree}} recoded) and then its id as written in
-#'       the genotype file. breedR stops at the first row that does not.}
+#'       the genotype file. breedR stops at the first row that does not. With
+#'       such a file the genotype file can name animals by other ids (lab or
+#'       sample ids), provided none of them is also a pedigree id; the codes
+#'       are then only checked to be codes of the pedigree.}
 #'     \item{map_file}{path to SNP map file (header: SNP_ID, CHR, POS)}
 #'     \item{whichG}{G matrix method: 1 = VanRaden 2008 (default), 2 = Amin
 #'       2007, 3 = Yang 2010}

@@ -435,15 +435,16 @@ test_that("write_xref_from_pedigree() translates ids of a pedigree coded from 2 
 
 ## preGSf90 pairs XrefID row i with SNP-file row i and takes the animal's code
 ## from column 1; it never reads column 2. Runs the genomic pipeline on the
-## SNP file '1 / 2 / 3' with the given XrefID lines next to it, preGSf90
-## mocked. Returns the pipeline's error, the bytes of the XrefID staged for
+## SNP file with animal ids `snp_ids` (default '1 / 2 / 3') and the given
+## XrefID lines next to it, preGSf90 mocked. Returns the pipeline's error, the bytes of the XrefID staged for
 ## preGSf90 (NULL if it was never reached) and the bytes supplied.
-run_with_supplied_xref <- function(xref_lines, pedigree) {
+run_with_supplied_xref <- function(xref_lines, pedigree,
+                                   snp_ids = c('1', '2', '3')) {
   src <- breedR_workdir()
   wd  <- breedR_workdir()
   on.exit(unlink(c(src, wd), recursive = TRUE), add = TRUE)
   snp <- file.path(src, 'geno.txt')
-  writeLines(c('1 0120', '2 1111', '3 2222'), snp)
+  writeLines(paste(snp_ids, c('0120', '1111', '2222')), snp)
   xref <- paste0(snp, '_XrefID')
   writeLines(xref_lines, xref)
   staged <- NULL
@@ -521,6 +522,67 @@ test_that("a correct supplied XrefID reaches preGSf90 byte for byte (#53)", {
   res <- run_with_supplied_xref(c('  3   1', '1\t2 ', '2 3'), ped)
   expect_identical(res$error, 'preGSf90 reached')
   expect_identical(res$staged, res$supplied)
+})
+
+test_that("a supplied XrefID for genotype ids that are not pedigree ids is used (#53)", {
+
+  ## Genotypes named by lab ids: only the XrefID says which animal each row
+  ## is, so its codes cannot be checked against the ids, and a correct file
+  ## must reach preGSf90 unchanged.
+  ped <- recoded_ped_1to3()
+
+  res <- run_with_supplied_xref(c('3 S1', '1 S2', '2 S3'), ped,
+                                snp_ids = c('S1', 'S2', 'S3'))
+  expect_identical(res$error, 'preGSf90 reached')
+  expect_identical(res$staged, res$supplied)
+
+  res <- run_with_supplied_xref(c('3 5001', '1 5002', '2 5003'), ped,
+                                snp_ids = c('5001', '5002', '5003'))
+  expect_identical(res$error, 'preGSf90 reached')
+  expect_identical(res$staged, res$supplied)
+})
+
+test_that("a supplied XrefID for lab ids must give codes of the pedigree (#53)", {
+  ped <- recoded_ped_1to3()
+
+  res <- run_with_supplied_xref(c('3 S1', '4 S2', '2 S3'), ped,
+                                snp_ids = c('S1', 'S2', 'S3'))
+  expect_match(res$error,
+               "Row 2 of 'geno.txt_XrefID' codes animal 'S2' as 4, but the pedigree codes its animals 1 to 3",
+               fixed = TRUE)
+  expect_null(res$staged)
+})
+
+test_that("a genotype file with only some ids in the pedigree is refused (#53)", {
+
+  ## Either the genotype file names animals by pedigree ids and 'S2' is not
+  ## in the pedigree, or it uses other ids and '1' and '3' collide with
+  ## pedigree ids. breedR cannot tell which animal each row is.
+  res <- run_with_supplied_xref(c('3 1', '1 S2', '2 3'), recoded_ped_1to3(),
+                                snp_ids = c('1', 'S2', '3'))
+  expect_match(res$error, "animal 'S2' in row 2 is not in the pedigree",
+               fixed = TRUE)
+  expect_match(res$error, "animal '1' in row 1 is", fixed = TRUE)
+  expect_null(res$staged)
+})
+
+test_that("a refused XrefID is deleted only if the genotype ids are pedigree ids (#53)", {
+
+  ## Lab ids that are all also pedigree ids look like pedigree ids. Deleting
+  ## the XrefID then derives one that puts the genotypes on those animals, so
+  ## the message must not advise it unconditionally.
+  res <- run_with_supplied_xref(c('1 1', '2 2', '3 3'), recoded_ped_1to3())
+  expect_match(res$error,
+               "If the genotype file names animals by their pedigree ids, delete 'geno.txt_XrefID'",
+               fixed = TRUE)
+  expect_match(res$error, "If it uses other ids, rename them", fixed = TRUE)
+})
+
+test_that("a supplied XrefID code with a fraction is refused (#53)", {
+  res <- run_with_supplied_xref(c('3.7 1', '1 2', '2 3'), recoded_ped_1to3())
+  expect_match(res$error, "codes animal '1' as 3.7, but breedR codes it 3",
+               fixed = TRUE)
+  expect_null(res$staged)
 })
 
 
