@@ -197,6 +197,41 @@ test_that("the parallel rho grid search agrees with the sequential one", {
 })
 
 
+## The parallel search read each rho's -2logL with a regex that could not
+## match a sign, so every rho with logL > 0 came back NA and the winner was
+## picked from the rest (issue #73). The sign of a REML logL depends only on
+## the units of the trait: logL(y/c) = logL(y) + (n - p) log(c), here with
+## p = 2 (intercept and z). Rescale y so the two best rhos straddle 0; the
+## best one is then the only candidate with logL > 0.
+L.73 <- sort(reslist.spec[[1]]$rho$loglik, decreasing = TRUE)
+dat.73 <- transform(datlist[[1]],
+                    y = y / exp(-(L.73[1] + L.73[2]) / 2 /
+                                  (nrow(datlist[[1]]) - 2)))
+fit.73 <- function(parallel)
+  try(
+    suppressMessages(
+      remlf90(
+        fixed = y ~ z,
+        spatial = list(model = 'AR',
+                       coord = dat.73[, 1:2],
+                       rho = gridlist[[1]]),
+        data = dat.73,
+        parallel = parallel)
+    )
+  )
+res.seq.73 <- fit.73(FALSE)
+res.par.73 <- fit.73(2L)
+
+test_that("the parallel rho grid search scores rhos with a positive logL", {
+  expect_false(inherits(res.seq.73, 'try-error'))
+  expect_false(inherits(res.par.73, 'try-error'))
+  ## the rescaling did its job
+  expect_true(any(res.seq.73$rho$loglik > 0) && any(res.seq.73$rho$loglik < 0))
+  expect_equal(res.par.73$rho, res.seq.73$rho)
+  expect_equal(res.par.73$var, res.seq.73$var)
+})
+
+
 # # Debug
 # image(s.mat)
 # image(matrix(res.bR$spatial$fit$z, nrow, ncol))

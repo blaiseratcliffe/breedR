@@ -880,25 +880,16 @@ remlf90 <- function(fixed,
             return(ans)
           }
 
-          # Extract log-likelihoods from binary output.
-          # BLUPF90+ format: "-2logL =     5619.45354541821     : AIC = ..."
+          # Extract log-likelihoods from binary output, exactly as
+          # parse_results() reads them for the sequential search (a -2logL
+          # can be negative: issue #73).
           loglik_vals <- rep(NA_real_, n_rho)
           j <- 1
           for (i in seq_len(n_rho)) {
             if (!rho_valid[i]) next
             bout <- binary_results[[j]]; j <- j + 1
             if (!is.null(attr(bout, 'status'))) next
-            ll_line <- grep("^-2logL", bout, value = TRUE)
-            if (length(ll_line) > 0) {
-              ll_str <- tail(ll_line, 1)
-              # Extract the number after "-2logL ="
-              ll_match <- regmatches(ll_str,
-                regexpr("-2logL\\s*=\\s*([0-9.]+)", ll_str))
-              if (length(ll_match) > 0) {
-                ll_num <- as.numeric(sub(".*=\\s*", "", ll_match))
-                if (!is.na(ll_num)) loglik_vals[i] <- -ll_num / 2
-              }
-            }
+            loglik_vals[i] <- -parse_logl(bout)[1] / 2
           }
 
           ## Clean up temp directories, including the seed fit's own -- the
