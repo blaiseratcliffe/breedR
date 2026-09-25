@@ -922,6 +922,142 @@ test_that('default_initial_variance() works as expected', {
   
 })
 
+
+## -- default initial variances when few records observe every trait (#71) --
+
+## Responses where the listwise (complete-record) estimate is undefined, or is
+## not, for the tests below. Built in a function so that each test sets its
+## own seeds.
+designs_71 <- function() {
+  ## Two sites, each record observed at one site only (the issue's example)
+  set.seed(1)
+  sites <- cbind(site1 = c(rnorm(5), rep(NA, 5)),
+                 site2 = c(rep(NA, 5), rnorm(5)))
+  ## t1 and t2 observed together on 8 records, t3 alone on 6 others
+  t3alone <- cbind(t1 = c(1.2, .4, 2.2, 1.9, .8, 1.5, 2.8, .1, rep(NA, 6)),
+                   t2 = c(3.1, 2.0, 3.9, 2.2, 2.5, 3.6, 3.3, 1.9, rep(NA, 6)),
+                   t3 = c(rep(NA, 8), 5.1, 6.3, 4.4, 5.9, 7.0, 4.8))
+  ## A chain: t1 with t2 on 20 records, t2 with t3 on 20 others, t1 and t3
+  ## never together. The pairwise correlations are not positive definite.
+  set.seed(3)
+  z <- rnorm(40); a <- z + rnorm(40, sd = .3); b <- z + rnorm(40, sd = .3)
+  chain <- cbind(t1 = c(a[1:20], rep(NA, 20)), t2 = c(b[1:20], z[21:40]),
+                 t3 = c(rep(NA, 20), a[21:40]))
+  ## A cycle of four traits, each observed with its two neighbours only
+  set.seed(4)
+  z <- rnorm(40)
+  pairs <- rbind(c(1, 2), c(2, 3), c(3, 4), c(4, 1))[rep(1:4, each = 10), ]
+  cycle <- matrix(NA, 40, 4)
+  for (i in 1:40) cycle[i, pairs[i, ]] <- z[i] + rnorm(2, sd = .3)
+  ## Exactly one complete record: every pair shares it
+  one <- cbind(c(1, 2, 3, NA, NA), c(2, NA, NA, 4, 6))
+  ## Missing completely at random, with complete records
+  set.seed(2)
+  mcar <- matrix(rnorm(240), 60)
+  mcar[matrix(runif(240) < .3, 60)] <- NA
+  list(sites = sites, t3alone = t3alone, chain = chain, cycle = cycle,
+       one = one, mcar = mcar)
+}
+
+test_that('default_initial_variance() is defined without a complete record (#71)', {
+
+  y <- designs_71()$sites
+  ## the listwise estimate is undefined for this data
+  expect_true(all(is.na(stats::var(y, na.rm = TRUE))))
+
+  v <- default_initial_variance(y, dim = 1, cor.effect = 0.1, digits = 2)
+  expect_error(validate_variance(v, dimension = c(2, 2)), NA)
+
+  ## each site's own half variance, and a 0.1 correlation for the pair never
+  ## observed together
+  s <- apply(y, 2, stats::var, na.rm = TRUE)/2
+  c12 <- 0.1*sqrt(s[[1]]*s[[2]])
+  expect_equal(unname(v), signif(matrix(c(s[[1]], c12, c12, s[[2]]), 2), 2))
+  expect_true(all(v[row(v) != col(v)] != 0))
+})
+
+test_that('without a complete record, correlations come from the records observing both traits (#71)', {
+
+  y <- designs_71()$t3alone
+  v <- default_initial_variance(y, digits = NULL)
+
+  D <- diag(sqrt(apply(y, 2, stats::var, na.rm = TRUE)/2))
+  r12 <- stats::cor(y[, 1], y[, 2], use = 'complete.obs')
+  R <- matrix(c(1, r12, .1, r12, 1, .1, .1, .1, 1), 3)
+  expect_equal(unname(v), D %*% R %*% D)
+})
+
+test_that('the pairwise default initial variance is positive definite (#71)', {
+
+  y <- designs_71()$chain
+  Rraw <- suppressWarnings(stats::cor(y, use = 'pairwise.complete.obs'))
+  Rraw[is.na(Rraw)] <- .1
+  ## the raw pairwise correlations are not positive definite
+  expect_lt(min(eigen(Rraw, symmetric = TRUE, only.values = TRUE)$values), 0)
+
+  v <- default_initial_variance(y, digits = NULL)
+  ## variances untouched
+  expect_equal(diag(v), unname(apply(y, 2, stats::var, na.rm = TRUE)/2))
+  ## correlations shrunk toward zero by one common factor, just enough to
+  ## leave a smallest eigenvalue of 0.05
+  C <- stats::cov2cor(v)
+  expect_equal(min(eigen(C, symmetric = TRUE, only.values = TRUE)$values), .05,
+               tolerance = 1e-8)
+  off <- row(C) != col(C)
+  ratio <- C[off] / Rraw[off]
+  expect_equal(ratio, rep(ratio[1], length(ratio)))
+  expect_true(ratio[1] > 0 && ratio[1] < 1)
+  expect_true(all(v[off] != 0))
+
+  ## also after rounding
+  v2 <- default_initial_variance(y, cor.effect = 0.1, digits = 2)
+  expect_error(validate_variance(v2), NA)
+})
+
+test_that('the pairwise default initial variance expands to two-dimensional effects (#71)', {
+
+  y <- designs_71()$sites
+  v1 <- default_initial_variance(y, dim = 1, cor.effect = 0.1, digits = 2)
+  v2 <- default_initial_variance(y, dim = 2, cor.effect = 0.1, digits = 2)
+  expect_equal(v2, signif(kronecker(v1, matrix(c(1, .1, .1, 1), 2)), 2))
+  expect_error(validate_variance(v2, dimension = c(4, 4)), NA)
+  expect_true(all(v2[row(v2) != col(v2)] != 0))
+})
+
+test_that('the pairwise default initial variance stops at degenerate traits (#71)', {
+
+  expect_error(default_initial_variance(cbind(c(1, NA, NA), c(NA, 2, 3))),
+               'Trait 1 has fewer than two observations.')
+  expect_error(default_initial_variance(cbind(c(1, 1, NA, NA), c(NA, NA, 2, 3))),
+               'Trait 1 is constant.')
+})
+
+test_that('default initial variances that work today are unchanged (#71)', {
+
+  ## The formula before #71, restated
+  listwise <- function(x, d)
+    signif(kronecker(stats::var(as.matrix(x), na.rm = TRUE)/2,
+                     matrix(0.1, d, d) + diag(1 - 0.1, d, d)), 2)
+
+  y <- list(mcar = designs_71()$mcar,
+            larix = larix[, c('LAS', 'DOS')],
+            douglas = douglas[douglas$site == 's3', c('H04', 'C13')])
+  expect_true(all(sapply(y, function(x) sum(stats::complete.cases(x))) >= 2))
+  for (x in y) for (d in 1:2)
+    expect_identical(default_initial_variance(x, dim = d, cor.effect = 0.1,
+                                              digits = 2),
+                     listwise(x, d))
+
+  ## Two complete records for three traits: a finite, singular listwise
+  ## estimate, which still fails as before
+  x2 <- cbind(c(1, 2, 3, NA, NA), c(2, 1, NA, 4, NA), c(5, 7, NA, NA, 1))
+  for (d in 1:2) {
+    v <- default_initial_variance(x2, dim = d, cor.effect = 0.1, digits = 2)
+    expect_identical(v, listwise(x2, d))
+    expect_error(validate_variance(v), 'must be a SPD matrix')
+  }
+})
+
 test_that('The variance checker check.var_ini() works as expected', {
 
   test_response <- 1:4
@@ -983,4 +1119,75 @@ test_that('The variance checker check.var_ini() works as expected', {
 
   ## two traits
   
+})
+
+test_that('default residual covariances are zero exactly for traits never observed together (#71)', {
+
+  dsg <- designs_71()
+  off <- function(m) row(m) != col(m)
+  never <- function(y) crossprod(!is.na(y)) == 0
+  s <- function(y) apply(y, 2, stats::var, na.rm = TRUE)/2
+
+  ## (a) t3 never observed with t1 or t2
+  y <- dsg$t3alone
+  out <- check_var.ini(NULL, ~ bl, y)
+  r <- out$residuals
+  g <- out$bl
+  expect_identical(r[1, 3], 0)
+  expect_identical(r[2, 3], 0)
+  expect_identical(r[off(r)] == 0, never(y)[off(r)])
+  expect_equal(r[1, 2],
+               signif(stats::cor(y[, 1], y[, 2], use = 'complete.obs') *
+                        sqrt(s(y)[[1]]*s(y)[[2]]), 2))
+  expect_equal(diag(r), diag(g))
+  expect_true(all(g[off(g)] != 0))
+  expect_error(validate_variance(r), NA)
+
+  ## (b) the chain: only t1-t3 is never observed together; with that zero the
+  ## pairwise correlations are not positive definite before shrinking
+  y <- dsg$chain
+  r <- check_var.ini(NULL, ~ bl, y)$residuals
+  expect_identical(r[off(r)] == 0, never(y)[off(r)])
+  expect_identical(r[1, 3], 0)
+  expect_error(validate_variance(r), NA)
+  ## the cycle: t1-t3 and t2-t4 never observed together. Setting these to 0
+  ## after shrinking the correlations, rather than before, would leave a
+  ## matrix that is not positive definite
+  y <- dsg$cycle
+  r <- check_var.ini(NULL, ~ bl, y)$residuals
+  expect_identical(r[off(r)] == 0, never(y)[off(r)])
+  expect_error(validate_variance(r), NA)
+
+  ## (c) every pair observed together on some record: the residual default
+  ## is the one shared by every effect
+  for (y in dsg[c('mcar', 'one')]) {
+    out <- check_var.ini(NULL, ~ bl, y)
+    expect_identical(out$residuals, out$bl)
+    expect_true(all(out$residuals[off(out$residuals)] != 0))
+  }
+
+  ## (d) two sites: a diagonal residual of the halved per-site variances,
+  ## while the random term keeps the 0.1 correlation
+  y <- dsg$sites
+  out <- check_var.ini(NULL, ~ bl, y)
+  expect_identical(out$residuals[off(out$residuals)], c(0, 0))
+  expect_equal(diag(out$residuals), unname(signif(s(y), 2)))
+  expect_equal(out$bl[1, 2], signif(0.1*sqrt(s(y)[[1]]*s(y)[[2]]), 2))
+
+  ## (f) resuming: the checkpoint placeholder, as before
+  out <- check_var.ini(NULL, ~ bl, y, from_checkpoint = TRUE)
+  expect_identical(out$residuals, resume_placeholder_variance(y))
+  expect_identical(out$bl, resume_placeholder_variance(y))
+})
+
+test_that('a user default.initial.variance function is used as given for the residual (#71)', {
+
+  old <- breedR.getOption('default.initial.variance')
+  on.exit(breedR.setOption('default.initial.variance', old), add = TRUE)
+  breedR.setOption('default.initial.variance',
+                   quote(function(x, ...) diag(ncol(as.matrix(x))) + 0.1))
+
+  out <- check_var.ini(NULL, ~ bl, designs_71()$t3alone)
+  expect_identical(out$residuals, out$bl)
+  expect_true(all(out$residuals != 0))
 })

@@ -456,6 +456,83 @@ test_that("without cont the data-based default initial variances are used", {
 })
 
 
+test_that("a fresh fit where no record observes every trait gets default initial variances (#71)", {
+
+  ## The site-as-trait data of the cont test above, fitted from scratch. The
+  ## defaults take each trait's variance from its own records, with a 0.1
+  ## correlation for the pair never observed together; the residual
+  ## covariance of that pair is an exact 0.
+  n <- 12
+  d <- data.frame(y1 = c(3.1, 2.4, 4.0, 3.6, 2.9, 3.3, rep(NA, 6)),
+                  y2 = c(rep(NA, 6), 7.2, 8.1, 6.5, 7.7, 9.0, 6.9),
+                  rep = factor(rep(1:3, 4)), id = 1:n,
+                  x = rep(1:3, 4), y = rep(1:4, each = 3))
+  ped <- data.frame(self = 1:n, sire = 0, dam = 0)
+  s <- sapply(d[, c('y1', 'y2')], stats::var, na.rm = TRUE)/2
+  c12 <- 0.1*sqrt(s[[1]]*s[[2]])
+  default <- default_initial_variance(d[, c('y1', 'y2')], cor.effect = 0.1,
+                                      digits = 2)
+  expect_equal(unname(default), signif(matrix(c(s[[1]], c12, c12, s[[2]]), 2), 2))
+
+  captured <- new.env()
+  local_mocked_bindings(
+    check_progsf90 = function(...) TRUE,
+    write.progsf90 = function(pf90, dir) {
+      assign('pf90', pf90, envir = captured)
+      stop('parameter file reached')
+    },
+    .package = 'breedR')
+
+  expect_error(
+    suppressMessages(remlf90(cbind(y1, y2) ~ 1, data = d, random = ~ rep,
+                             genetic = list(model = 'add_animal', pedigree = ped,
+                                            id = 'id'),
+                             spatial = list(model = 'AR',
+                                            coordinates = d[, c('x', 'y')],
+                                            rho = c(.5, .5)),
+                             generic = list(sp = list(incidence = diag(n),
+                                                      precision = diag(n))))),
+    'parameter file reached')
+
+  par <- captured$pf90$parameter
+  expect_length(par$rangroup, 4L)
+  for (i in 1:4) {
+    cv <- unname(as.matrix(par$rangroup[[i]]$cov))
+    expect_equal(cv, unname(default))
+    expect_error(validate_variance(cv), NA)
+    expect_true(all(cv[row(cv) != col(cv)] != 0))
+  }
+  residvar <- unname(as.matrix(par$residvar))
+  expect_identical(residvar[row(residvar) != col(residvar)], c(0, 0))
+  expect_equal(diag(residvar), diag(unname(default)))
+
+  ## Competition with pec
+  rm('pf90', envir = captured)
+  expect_error(
+    suppressMessages(remlf90(cbind(y1, y2) ~ 1, data = d,
+                             genetic = list(model = 'competition',
+                                            pedigree = ped, id = 'id',
+                                            coordinates = d[, c('x', 'y')],
+                                            pec = TRUE))),
+    'parameter file reached')
+  par <- captured$pf90$parameter
+  gen <- unname(as.matrix(par$rangroup[[1]]$cov))
+  pec <- unname(as.matrix(par$rangroup[[2]]$cov))
+  expect_equal(gen, unname(default_initial_variance(d[, c('y1', 'y2')], dim = 2,
+                                                    cor.effect = 0.1,
+                                                    digits = 2)))
+  expect_equal(dim(gen), c(4L, 4L))
+  expect_equal(pec, unname(default))
+  for (cv in list(gen, pec)) {
+    expect_error(validate_variance(cv), NA)
+    expect_true(all(cv[row(cv) != col(cv)] != 0))
+  }
+  residvar <- unname(as.matrix(par$residvar))
+  expect_identical(residvar[row(residvar) != col(residvar)], c(0, 0))
+  expect_equal(diag(residvar), diag(unname(default)))
+})
+
+
 ## -- the line index -------------------------------------------------------
 
 test_that("a supplied line index gives identical results", {

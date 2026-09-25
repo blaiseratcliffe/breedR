@@ -508,3 +508,50 @@ test_that("noncontiguous traits agree with a hand-written BLUPF90 model", {
 })
 
 
+test_that("site-as-trait fit without var.ini (#71)", {
+  skip_if_not(isTRUE(check_progsf90(quiet = TRUE)), "PROGSF90 binaries not installed")
+
+  ## 30 sires with 5 offspring at each of two sites; every record is observed
+  ## at one site only, so no record observes both traits
+  set.seed(71)
+  ns <- 30; noff <- 5
+  a_sire <- matrix(rnorm(2 * ns), ns) %*% chol(matrix(c(1, .7, .7, 1), 2))
+  ped <- data.frame(self = 1:(ns + 2 * ns * noff),
+                    sire = c(rep(0, ns), rep(rep(1:ns, each = noff), 2)),
+                    dam = 0)
+  dat <- data.frame(self = (ns + 1):(ns + 2 * ns * noff),
+                    sire = rep(rep(1:ns, each = noff), 2),
+                    site = rep(1:2, each = ns * noff))
+  bv <- 0.5 * a_sire[cbind(dat$sire, dat$site)] +
+    rnorm(nrow(dat), sd = sqrt(0.75))
+  dat$y1 <- ifelse(dat$site == 1, 10 + bv + rnorm(nrow(dat), sd = sqrt(2.3)), NA)
+  dat$y2 <- ifelse(dat$site == 2, 20 + bv + rnorm(nrow(dat), sd = sqrt(2.3)), NA)
+  expect_false(any(complete.cases(dat[, c("y1", "y2")])))
+
+  expect_message(
+    fit <- remlf90(cbind(y1, y2) ~ 1,
+                   genetic = list(model = "add_animal", pedigree = ped,
+                                  id = "self"),
+                   data = dat, method = "ai"),
+    "Using default initial variances")
+  G <- fit$var[["genetic", "Estimated variances"]]
+  R <- fit$var[["Residual", "Estimated variances"]]
+  expect_true(all(is.finite(G)))
+  expect_true(all(eigen(G, symmetric = TRUE, only.values = TRUE)$values > 0))
+  expect_true(G[1, 2] != 0)
+  ## the residual covariance of the two sites cannot be estimated
+  expect_identical(unname(R[1, 2]), 0)
+
+  ## The same starting values given explicitly, with the residual covariance
+  ## at 0: the same fit, and no extra parameter in logLik()'s df
+  G0 <- breedR:::default_initial_variance(dat[, c("y1", "y2")],
+                                          cor.effect = 0.1, digits = 2)
+  explicit <- suppressMessages(
+    remlf90(cbind(y1, y2) ~ 1,
+            genetic = list(model = "add_animal", pedigree = ped, id = "self",
+                           var.ini = G0),
+            var.ini = list(residuals = diag(diag(G0))),
+            data = dat, method = "ai"))
+  expect_identical(attr(logLik(fit), "df"), attr(logLik(explicit), "df"))
+  expect_equal(as.numeric(logLik(fit)), as.numeric(logLik(explicit)))
+})

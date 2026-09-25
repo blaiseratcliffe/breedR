@@ -212,6 +212,51 @@ test_that("gibbsf90() returns the pedigree that translates its genetic levels (#
                                 dat$y)))
 })
 
+test_that("gibbsf90() starts where no record observes every trait (#71)", {
+
+  ## Site-as-trait data: each record observed at one site only. The default
+  ## initial variances are the ones remlf90() uses; the residual covariance of
+  ## the two sites is an exact 0. Stop at the parameter file.
+  n <- 12
+  d <- data.frame(y1 = c(3.1, 2.4, 4.0, 3.6, 2.9, 3.3, rep(NA, 6)),
+                  y2 = c(rep(NA, 6), 7.2, 8.1, 6.5, 7.7, 9.0, 6.9),
+                  id = 1:n)
+  ped <- data.frame(self = 1:n, sire = 0, dam = 0)
+  default <- default_initial_variance(d[, c('y1', 'y2')], cor.effect = 0.1,
+                                      digits = 2)
+
+  bin <- breedR_workdir()
+  on.exit(unlink(bin, recursive = TRUE), add = TRUE)
+  gibbs_name <- if (breedR.os.type() == 'windows') 'gibbsf90+.exe' else 'gibbsf90+'
+  file.create(file.path(bin, gibbs_name))
+
+  captured <- new.env()
+  local_mocked_bindings(
+    write.progsf90 = function(pf90, dir) {
+      assign('pf90', pf90, envir = captured)
+      assign('dir', dir, envir = captured)
+      stop('parameter file reached')
+    },
+    .package = 'breedR')
+
+  expect_error(
+    suppressMessages(
+      gibbsf90(cbind(y1, y2) ~ 1,
+               genetic = list(model = 'add_animal', pedigree = ped, id = 'id'),
+               data = d, breedR.bin = bin, n_samples = 10L)),
+    'parameter file reached')
+  on.exit(unlink(captured$dir, recursive = TRUE), add = TRUE)
+
+  par <- captured$pf90$parameter
+  gen <- unname(as.matrix(par$rangroup[[1]]$cov))
+  expect_equal(gen, unname(default))
+  expect_error(validate_variance(gen), NA)
+  expect_true(gen[1, 2] != 0)
+  residvar <- unname(as.matrix(par$residvar))
+  expect_identical(residvar[row(residvar) != col(residvar)], c(0, 0))
+  expect_equal(diag(residvar), diag(unname(default)))
+})
+
 ## -- parse_postout_tables() --
 
 test_that("parse_postout_tables extracts MCE table", {
