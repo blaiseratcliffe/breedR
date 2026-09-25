@@ -335,6 +335,32 @@ first_number <- function(x) {
 }
 
 
+# -2logL and AIC of the last REML round in the backend's output, as
+# c(-2logL, AIC); NA where there is none.
+#
+# The -2logL line usually sits immediately above the last 'In round', but not
+# always: BLUPF90+ writes a 'Corrections made: ... final bending proportions
+# of AI and EM' line in between whenever it has to bend the AI matrix, which
+# it does routinely for a negative rho. Taking the line by a fixed offset
+# therefore picked up the bending line, gave NA, and killed the whole fit in
+# first_number() with 'replacement has length zero' -- a fit that had in fact
+# converged perfectly well. Search back for the line instead.
+#
+# Used by parse_results() and by the parallel AR grid search, which read the
+# value with a regex of its own that missed a negative -2logL (issue #73).
+parse_logl <- function(reml.out) {
+  last.round.idx <- utils::tail(grep('In round', reml.out), 1)
+  if (!length(last.round.idx)) return(c(NA_real_, NA_real_))
+  logl.idx <- utils::tail(grep('-2logL', reml.out[seq_len(last.round.idx)]), 1)
+  if (length(logl.idx))
+    first_number(strsplit(strsplit(reml.out[logl.idx],
+                                   split='-2logL =')[[1]][2],
+                          split=': AIC =')[[1]])
+  else
+    c(NA_real_, NA_real_)
+}
+
+
 # Read the backend's fixed-width solution fields, including touching trait and
 # effect columns when a virtual effect has four digits (issue #24).
 read_pf90_solutions <- function(solfile, restricted = FALSE) {
@@ -768,21 +794,7 @@ parse_results <- function (solfile, effects, mf, reml.out, method, mcout) {
   if (is_hetres && identical(last.round[1], max.it)) hetres[] <- NA
 
   # Fit info
-  #
-  # The -2logL line usually sits immediately above the last 'In round', but not
-  # always: BLUPF90+ writes a 'Corrections made: ... final bending proportions
-  # of AI and EM' line in between whenever it has to bend the AI matrix, which
-  # it does routinely for a negative rho. Taking the line by a fixed offset
-  # therefore picked up the bending line, gave NA, and killed the whole fit in
-  # first_number() with 'replacement has length zero' -- a fit that had in fact
-  # converged perfectly well. Search back for the line instead.
-  logl.idx <- tail(grep('-2logL', reml.out[seq_len(last.round.idx)]), 1)
-  last.fit <- if (length(logl.idx))
-    first_number(strsplit(strsplit(reml.out[logl.idx],
-                                   split='-2logL =')[[1]][2],
-                          split=': AIC =')[[1]])
-  else
-    c(NA_real_, NA_real_)
+  last.fit <- parse_logl(reml.out)
   fit <- list(
     '-2logL' = last.fit[1],
     AIC = last.fit[2]
