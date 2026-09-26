@@ -1,3 +1,8 @@
+* `build_pedigree()` now gives its usual "codes must be 1 or greater" error for
+a pedigree row whose own id is `NA`, instead of an unrelated internal error
+from `check_pedigree()`. `?build_pedigree`'s recoding recipe is also fixed to
+stop on a row's own id of 0, rather than silently turning it into `NA` (#108)
+
 * `?remlf90` now documents a known corner case of the iteration-cap check added
 for #40: a heterogeneous-residual fit that stops by another of the backend's
 stopping rules exactly on an explicit `OPTION maxrounds` round, with its

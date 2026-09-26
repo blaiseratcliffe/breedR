@@ -62,12 +62,14 @@ every animal with an unknown parent, without an error. With both left
 out, unknown parents become \code{NA}. If your data mark unknown parents
 in another way, such as -1, set those to 0 or \code{NA} first. The recipe
 takes numeric ids, as \code{build_pedigree()} does, and stops on any id
-below 1 or any non-numeric id, so such a code cannot slip through. For a
-data frame \code{ped} with columns \code{self}, \code{sire} and \code{dam}:
+below 1 or any non-numeric id, including a row's own id, so such a code
+cannot slip through. For a data frame \code{ped} with columns
+\code{self}, \code{sire} and \code{dam}:
 \preformatted{
 ids <- unique(c(ped$self, ped$sire, ped$dam))
 ids <- ids[!is.na(ids) & ids != 0]
-if (!is.numeric(ids) || any(ids < 1))
+if (!is.numeric(ids) || any(ids < 1) ||
+    any(is.na(ped$self) | ped$self < 1))
   stop("Set unknown-parent codes to 0 or NA; ids must be numbers >= 1")
 ped$self <- match(ped$self, ids)
 ped$sire <- match(ped$sire, ids)
