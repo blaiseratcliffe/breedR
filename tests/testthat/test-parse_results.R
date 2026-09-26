@@ -435,7 +435,10 @@ test_that('restricted solutions align explicit trait, effect and level keys', {
 
 
 test_that('restricted nested effects use their positive-level solution anchor', {
-  ans <- parse_issue51_fixture(nested = TRUE)
+  ## this fixture is a real fit stopped at its maxrounds 80 (#40)
+  expect_warning(ans <- parse_issue51_fixture(nested = TRUE),
+                 'did not converge')
+  expect_true(all(is.na(ans$var[['rep', 1]])))
   lay <- pf90_effect_layout(ans$effects, 2)
   expect_identical(as.integer(lay$effect), c(1L, 3L))
   expect_identical(names(ans$ranef), 'rep')
@@ -448,8 +451,10 @@ test_that('restricted nested effects use their positive-level solution anchor', 
 test_that('restricted nonconvergence preserves covariance dimensions and names', {
   out <- readLines(file.path(testdata, 'issue51_analytic_ai.log'))
   at <- tail(grep('In round', out), 1)
-  out[at] <- sub('In round\\s+[0-9]+',
-                 paste('In round', MAX_REML_ITERATIONS), out[at])
+  ## a round at the cap that has not met the convergence criterion
+  out[at] <- sub('In round.*$',
+                 paste('In round', MAX_REML_ITERATIONS,
+                       ' convergence=  1.0E-03'), out[at])
   expect_warning(ans <- parse_issue51_fixture(out = out), 'did not converge')
   expect_identical(dim(ans$var), c(2L, 2L))
   expect_identical(dim(ans$var[['rep', 1]]), c(2L, 2L))
@@ -457,6 +462,152 @@ test_that('restricted nonconvergence preserves covariance dimensions and names',
   expect_true(all(is.na(ans$var[['rep', 1]])))
   expect_identical(rownames(ans$reml$invAI),
                    c('rep.y1', 'resid.y1', 'resid.y2'))
+})
+
+
+## Captured BLUPF90+ 2.73 fits stopped by OPTION maxrounds (issue #40; see
+## inst/testdata/index.json). The data come from issue40_data() in
+## helper-testdata.R.
+parse_issue40_fixture <- function(key, out = NULL, fixed = y ~ x,
+                                  method = 'ai', var.ini = list(g = 3.4)) {
+  data <- issue40_data()
+  mc <- call('remlf90', fixed = fixed, random = ~ g, data = quote(data))
+  mf <- build.mf(mc)
+  effects <- build.effects(mf, NULL, NULL, NULL, var.ini)
+  if (is.null(out)) out <- readLines(file.path(testdata, paste0(key, '.log')))
+  parse_results(file.path(testdata, paste0(key, '.sol')), effects, mf, out,
+                method, quote(remlf90()))
+}
+
+## The same log without the backend's echo of OPTION maxrounds, so that the
+## default cap applies to it
+drop_cap_echo <- function(out)
+  out[!grepl('maximum number of iterations', out, fixed = TRUE)]
+
+## The same log with its last round renumbered
+set_last_round <- function(out, n) {
+  at <- tail(grep('In round', out), 1)
+  out[at] <- sub('In round[[:space:]]+[0-9]+', paste('In round', n), out[at])
+  out
+}
+
+
+test_that('a fit stopped by OPTION maxrounds warns and gives NA variance components (#40)', {
+  ## BLUPF90+ marks the stop nowhere: the log of a capped fit reads like a
+  ## converged one. Without its cap echo (3 rounds, default cap 10000), this
+  ## very log is parsed as a converged fit, which gives the reference.
+  out <- readLines(file.path(testdata, 'issue40_capped_ai.log'))
+  expect_warning(ref <- parse_issue40_fixture('issue40_capped_ai',
+                                              drop_cap_echo(out)), NA)
+  expect_equal(unname(ref$var[, 'Estimated variances']), c(2.7767, 3.9440))
+  expect_equal(unname(ref$funvars['mean', 'ratio']), 0.41316)
+
+  expect_warning(cap <- parse_issue40_fixture('issue40_capped_ai', out),
+                 'did not converge')
+  expect_identical(dimnames(cap$var), dimnames(ref$var))
+  expect_true(all(is.na(cap$var)))
+  expect_identical(dimnames(cap$funvars), dimnames(ref$funvars))
+  expect_true(all(is.na(cap$funvars)))
+  ## the BLUE/BLUP and the fit of the last round are kept, as are the
+  ## algorithm's diagnostics
+  expect_identical(cap$ranef, ref$ranef)
+  expect_identical(cap$fixed, ref$fixed)
+  expect_identical(cap$fit, ref$fit)
+  expect_identical(cap$reml$invAI, ref$reml$invAI)
+  expect_identical(cap$reml$rounds, 3)
+})
+
+
+test_that('a capped multi-trait EM fit keeps the shape of its variance components (#40)', {
+  out <- readLines(file.path(testdata, 'issue40_capped_em_mt.log'))
+  vi <- list(g = matrix(c(3.4, .92, .92, .76), 2))
+  expect_warning(ref <- parse_issue40_fixture('issue40_capped_em_mt',
+                                              drop_cap_echo(out),
+                                              cbind(y, y2) ~ x, 'em', vi), NA)
+  expect_warning(cap <- parse_issue40_fixture('issue40_capped_em_mt', out,
+                                              cbind(y, y2) ~ x, 'em', vi),
+                 'did not converge')
+  expect_identical(names(cap$var), c('g', 'Residual'))
+  expect_identical(lapply(cap$var, dimnames), lapply(ref$var, dimnames))
+  expect_true(all(is.na(unlist(cap$var))))
+  expect_identical(cap$ranef, ref$ranef)
+})
+
+
+test_that('the default iteration cap is BLUPF90+ 10000, not 5000 (#40)', {
+  ## Without OPTION maxrounds the backend echoes no cap and stops at 10000
+  out <- drop_cap_echo(readLines(file.path(testdata, 'issue40_capped_ai.log')))
+  expect_warning(parse_issue40_fixture('issue40_capped_ai',
+                                       set_last_round(out, 10000)),
+                 'did not converge')
+  expect_warning(parse_issue40_fixture('issue40_capped_ai',
+                                       set_last_round(out, 5000)),
+                 NA)
+  capped <- readLines(file.path(testdata, 'issue40_capped_ai.log'))
+  expect_true(reml_stopped_at_cap(capped, 3, 1.3e-6))
+  expect_false(reml_stopped_at_cap(capped, 2, 1.1e-3))
+  expect_true(reml_stopped_at_cap(out, 10000, 1))
+  expect_false(reml_stopped_at_cap(out, 5000, 1))
+})
+
+
+test_that('a capped hetres fit gives NA coefficients and variances (#40)', {
+  log1 <- readLines(file.path(testdata, 'airemlf90_log_hetres_1.txt'))
+  ## the same fit, as if stopped by OPTION maxrounds at its last round
+  ## without having converged
+  at <- grep('Statistical method from OPTION', log1, fixed = TRUE)
+  capped <- append(log1,
+                   ' * maximum number of iterations (default=10000):           6',
+                   after = at)
+  last <- tail(grep('In round', capped), 1)
+  capped[last] <- sub('convergence=.*$', 'convergence=  1.0E-03', capped[last])
+  data <- data.frame(x  = seq(0, 2, length.out = 100),
+                     g  = factor(rep(1:50, 2)),
+                     y  = rep(c(9, 11), 50))
+  mf <- build.mf(call('remlf90', fixed = quote(y ~ x), random = quote(~ g),
+                      data = quote(data)))
+  eff <- build.effects(mf, NULL, NULL, NULL, list(g = 3.4))
+  sol <- file.path(testdata, 'airemlf90_sol_hetres_1.txt')
+  ref <- parse_results(sol, eff, mf, log1, 'ai', quote(remlf90()))
+  expect_warning(h <- parse_results(sol, eff, mf, capped, 'ai',
+                                    quote(remlf90())),
+                 'did not converge')
+  expect_identical(dimnames(h$hetres), dimnames(ref$hetres))
+  expect_true(all(is.na(h$hetres)))
+  expect_identical(dimnames(h$var), dimnames(ref$var))
+  expect_true(all(is.na(h$var)))
+  expect_identical(h$reml$invAI, ref$reml$invAI)
+})
+
+
+test_that('a fit that converges on its last permitted round is not taken for a capped one (#40)', {
+  ## The backend stops once convergence= falls below its criterion, echoed
+  ## here as 1e-12 since OPTION conv_crit is set. This fit converged at
+  ## round 4 (9.3e-13); with its cap set to 4 its log reads like a capped one.
+  out <- readLines(file.path(testdata, 'issue51_analytic_ai.log'))
+  at <- grep('maximum number of iterations', out, fixed = TRUE)
+  out[at] <- sub('80$', '4', out[at])
+  expect_warning(ans <- parse_issue51_fixture(out = out), NA)
+  expect_equal(ans$var[['rep', 1]]['y1', 'y1'], 5.2667)
+  expect_true(reml_stopped_at_cap(out, 4, 1e-3))
+  expect_false(reml_stopped_at_cap(out, 4, 9.3e-13))
+  ## without an echo the default criterion, 1e-12, applies
+  expect_false(reml_stopped_at_cap(character(0), 10000, 9.3e-13))
+  expect_true(reml_stopped_at_cap(character(0), 10000, 1.1e-12))
+  ## OPTION conv_crit -1 never converges
+  expect_true(reml_stopped_at_cap(
+    c(' * convergence criterion (default=1e-12):  -1.000000',
+      ' * maximum number of iterations (default=10000):           3'),
+    3, 0))
+})
+
+
+test_that('a fit stopped by another rule of the backend is not taken for a capped one (#40)', {
+  ## This converged hetres fit stopped by itself at round 6 with
+  ## convergence= 4.2e-2, so the convergence value alone cannot tell a
+  ## capped fit
+  expect_warning(res <- parse_hetres_fixture(2, cbind(y, y3) ~ x), NA)
+  expect_true(all(is.finite(res$hetres)))
 })
 
 

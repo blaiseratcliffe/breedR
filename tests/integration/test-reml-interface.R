@@ -340,7 +340,9 @@ test_that("Multitrait model with all kind of effects works as expected", {
   }
   
   ## make things fast, as I am not looking at numerical results
-  res_ai <- fullrun("ai", opt = c("maxrounds 2"))
+  ## two rounds do not converge, which parse_results() reports (#40)
+  expect_warning(res_ai <- fullrun("ai", opt = c("maxrounds 2")),
+                 'did not converge')
   ## cannot use it with em as the logfile would not report final estimates
   res_em <- fullrun("em")
   

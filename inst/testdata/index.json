@@ -132,7 +132,35 @@
     "n_parameters": 3,
     "n_records": 24,
     "n_random_effects": 1,
-    "converged": "TRUE",
-    "notes": "Same responses as issue51_analytic_ai.log, but generic rep incidence assigns 0.7 to the original group and 0.3 to its cyclic successor, with identity covariance structure. Restricted to y1. Two nested virtual effect rows have positions 4/0 and 5/0, nesting positions 6/0 and 7/0, and levels 0 and 6; solutions are attached to positive-level anchor effect 3. OPTION maxrounds 80 and sol se. Captured 2026-09-12. Same BLUPF90+ 2.76 binary hash as the analytical fixture. This fixture establishes nested layout, not the analytical random-intercept BLUP oracle."
+    "converged": "FALSE",
+    "notes": "Same responses as issue51_analytic_ai.log, but generic rep incidence assigns 0.7 to the original group and 0.3 to its cyclic successor, with identity covariance structure. Restricted to y1. Two nested virtual effect rows have positions 4/0 and 5/0, nesting positions 6/0 and 7/0, and levels 0 and 6; solutions are attached to positive-level anchor effect 3. OPTION maxrounds 80 and sol se. Captured 2026-09-12. Same BLUPF90+ 2.76 binary hash as the analytical fixture. This fixture establishes nested layout, not the analytical random-intercept BLUP oracle. It did not converge: it stopped at its maxrounds 80 with convergence 3631, never below 0.33, so parse_results() warns and gives NA variance components for it (issue #40)."
+  },
+  {
+    "file_name": "issue40_capped_ai.log",
+    "solutions_file": "issue40_capped_ai.sol",
+    "program": "BLUPF90+ 2.73",
+    "data_type": "log",
+    "n_traits": 1,
+    "n_effects": 3,
+    "n_parameters": 2,
+    "n_records": 300,
+    "n_random_effects": 1,
+    "n_rounds": 3,
+    "converged": "FALSE",
+    "notes": "Issue #40: an AI-REML fit stopped by OPTION maxrounds 3 at convergence 1.29e-6, which the backend does not mark in any way. Data: set.seed(40); g = factor(rep(1:30, each = 10)); x = rnorm(300); y = 10 + 0.5 x + rnorm(30, sd = 1.5)[g] + rnorm(300, sd = 2). Model y ~ x + random g, var.ini g = 3.4 (residual 3.4), OPTION sol se, method VCE, maxrounds 3, se_covar_function ratio G_3_3_1_1/(G_3_3_1_1+R_1_1). The same model without the cap converges at round 4 (9.5e-13). Captured 2026-09-25. Deterministic model reconstruction in parse_issue40_fixture() in test-parse_results.R."
+  },
+  {
+    "file_name": "issue40_capped_em_mt.log",
+    "solutions_file": "issue40_capped_em_mt.sol",
+    "program": "BLUPF90+ 2.73",
+    "data_type": "log",
+    "n_traits": 2,
+    "n_effects": 3,
+    "n_parameters": 6,
+    "n_records": 300,
+    "n_random_effects": 1,
+    "n_rounds": 2,
+    "converged": "FALSE",
+    "notes": "Issue #40: a two-trait EM-REML fit stopped by OPTION maxrounds 2 at convergence 1.83e-3. Same data as issue40_capped_ai.log plus set.seed(41); y2 = 5 + 0.3 y + rnorm(300). Model cbind(y, y2) ~ x + random g, initial G = R = [3.4 .92; .92 .76], OPTION sol se, method VCE, EM-REML, maxrounds 2. No inverse AI or variance SE. Captured 2026-09-25. Deterministic model reconstruction in parse_issue40_fixture() in test-parse_results.R."
   }
 ]
