@@ -4,7 +4,14 @@
 \alias{reml_checkpoint_var.ini}
 \title{Recover initial variances from a previous run's log}
 \usage{
-reml_checkpoint_var.ini(file, effects, ntraits, lines = NULL, spd = TRUE)
+reml_checkpoint_var.ini(
+  file,
+  effects,
+  ntraits,
+  lines = NULL,
+  spd = TRUE,
+  hetres = NULL
+)
 }
 \arguments{
 \item{file}{character. Path of the log, used for messages.}
@@ -16,9 +23,14 @@ reml_checkpoint_var.ini(file, effects, ntraits, lines = NULL, spd = TRUE)
 \item{lines}{character vector. Lines of the log, when already read.}
 
 \item{spd}{logical. Passed to \code{last_reml_checkpoint}.}
+
+\item{hetres}{\code{NULL}, or for a model with heterogeneous residual
+variances the list described in \code{\link{last_reml_checkpoint}}.}
 }
 \value{
-list with \code{var} (named list of matrices) and \code{round}.
+list with \code{var} (named list of matrices, ending in the
+  coefficients \code{hetres} in place of \code{residuals} under
+  \code{hetres}) and \code{round}.
 }
 \description{
 Recover initial variances from a previous run's log

@@ -22,13 +22,19 @@ which is useful for diagnosing a diverging fit.}
 }
 \value{
 A named list of (co)variance matrices, ending in \code{residuals},
-  with an integer attribute \code{round}.
+  with an integer attribute \code{round}. For a fit with heterogeneous
+  residual variances it ends instead in \code{hetres}, a numeric vector of
+  the coefficients in the order of the \code{initial} argument of
+  \code{\link{hetres_options}}: \code{a0} of every trait, then \code{a1} of
+  every trait, and so on.
 }
 \description{
 Recovers the (co)variance matrices of the last usable round of a REML log,
 including one that is still being written. This makes the current state of a
 long-running fit visible without interrupting it, and lets the components of
-a crashed or non-converged run be reused.
+a crashed or non-converged run be reused. For a fit with heterogeneous
+residual variances (see \code{\link{hetres_options}}) it recovers the
+coefficients of log(var(e)) in place of the residual (co)variance matrix.
 }
 \details{
 Because \code{remlf90} blocks while the backend runs, checking on a fit in
