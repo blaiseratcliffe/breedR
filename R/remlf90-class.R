@@ -341,6 +341,13 @@
 #'   \code{cont = TRUE} picks up exactly where an otherwise useless result
 #'   object left off.
 #'
+#'   One case cannot be told apart from this: a heterogeneous-residual fit that
+#'   stops by the backend's own stopping rule exactly on an explicit
+#'   \code{OPTION maxrounds} round, without its convergence value dropping
+#'   below the criterion, leaves a log with the same shape as a capped fit and
+#'   is treated as one. \code{cont = TRUE} recovers it, because resuming reads
+#'   the log rather than the \code{NA} estimates.
+#'
 #'   Both arguments are for local fits. They are rejected for
 #'   \code{breedR.bin = 'remote'} or \code{'submit'}, and for an AR \code{rho}
 #'   grid search, which fits one model per \code{rho}. With \code{genomic},

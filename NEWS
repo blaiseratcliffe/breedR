@@ -1,3 +1,10 @@
+* `?remlf90` now documents a known corner case of the iteration-cap check added
+for #40: a heterogeneous-residual fit that stops by the backend's own
+stopping rule exactly on an explicit `OPTION maxrounds` round, without its
+convergence value dropping below the criterion, cannot be told apart from a
+capped fit and is treated as one. `cont = TRUE` recovers it, because resuming
+reads the log rather than the `NA` estimates. No code changes (#40)
+
 * The `Additive Genetic Models in Mixed Populations` vignette's method 3 equation now names the
 top-left founder blocks of the covariance matrix `A_{E:E}` and `A_{J:J}`, matching the `X:Y`
 naming used for the matrix's other cross-block terms. They used to share the symbols `A_E` and
