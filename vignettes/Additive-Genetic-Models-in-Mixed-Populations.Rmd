@@ -243,8 +243,8 @@ mixture is
   \begin{split}
     \Sigma & =
     \begin{bmatrix}
-      \sigma^2_E A_{E}    & \mathbf{0}        & \sigma^2_E A_{E:EE} & \sigma^2_E A_{E:H} & \mathbf{0} \\
-      \mathbf{0}          & \sigma^2_J A_{J}  & \mathbf{0} & \sigma^2_J A_{J:H} & \sigma^2_J A_{J:JJ} \\
+      \sigma^2_E A_{E:E}  & \mathbf{0}        & \sigma^2_E A_{E:EE} & \sigma^2_E A_{E:H} & \mathbf{0} \\
+      \mathbf{0}          & \sigma^2_J A_{J:J} & \mathbf{0} & \sigma^2_J A_{J:H} & \sigma^2_J A_{J:JJ} \\
       \sigma^2_E A_{E:EE} & \mathbf{0}        & \sigma^2_E A_{EE} & \sigma^2_E A_{EH} & \mathbf{0} \\
       \sigma^2_E A_{E:H}  & \sigma^2_J A_{J:H} & \sigma^2_E A_{HE} & \sigma^2_E A^E_{HH} + \sigma^2_J A^J_{HH} & \sigma^2_J A_{HJ} \\
       \mathbf{0}          & \sigma^2_J A_{J:JJ} & \mathbf{0} & \sigma^2_J A_{JH} & \sigma^2_J A_{JJ} \\
