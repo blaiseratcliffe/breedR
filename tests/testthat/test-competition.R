@@ -148,6 +148,25 @@ test_that("the competition incidence follows the recode map (#65), and an id of 
                msg, fixed = TRUE)
 })
 
+test_that("a repeated id sums its neighbour weights in the competition incidence (#107)", {
+  ## 3 x 3 grid; the codes of the 7 individuals make build_pedigree() recode them,
+  ## and the first two are planted twice (records 1 and 8, records 2 and 9)
+  code  <- c(70, 10, 60, 20, 50, 30, 40)
+  ped7  <- suppressWarnings(build_pedigree(1:3, data = data.frame(self = code, dad = 0, mum = 0)))
+  coord <- expand.grid(x = 1:3, y = 1:3)
+  id    <- code[c(1:7, 1:2)]
+  W   <- as.matrix(competition(coordinates = coord, covariance = Matrix::Diagonal(9),
+                               decay = 1)$incidence.matrix)
+  Zd  <- as.matrix(model.matrix(additive_genetic_animal(ped7, id)))
+  inc <- as.matrix(model.matrix(additive_genetic_competition(ped7, coord, id, 1)))
+  j1 <- which(Zd[1, ] == 1)                      # column of individual 70
+  expect_equal(inc[5, j1], W[5, 1] + W[5, 8])     # centre tree neighbours both its ramets
+  expect_equal(inc[2, j1], W[2, 1])               # record 2 neighbours record 1 only
+  expect_true(W[2, 1] > 0)
+  expect_equal(rowSums(inc), rowSums(W))          # no competition weight is lost
+  expect_equal(unname(inc), unname(W %*% Zd))     # W Z
+})
+
 
 
 test_that("neighbours.at.list() accepts a list of matrices (R 4.0 class regression, #27)", {
