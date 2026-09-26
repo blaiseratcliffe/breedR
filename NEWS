@@ -1,3 +1,10 @@
+* In a competition model (`genetic = list(model = 'competition', ...)`), the
+competition incidence matrix now adds up the weights of all the neighbouring
+records of an individual, e.g. several ramets of a clone. Only the last such
+record used to count, which silently changed the competition effects,
+variance estimates and fitted values of any fit where an `id` is carried by
+more than one record. Fits with one record per `id` are unchanged (#107)
+
 * `remlf90(cont = TRUE)` now resumes a fit with heterogeneous residual variances
 (`hetres_options(covariate_cols = ...)`). Such a log holds, in each round, the
 coefficients of log(var(e)) where other fits print a residual (co)variance

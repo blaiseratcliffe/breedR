@@ -210,12 +210,12 @@ additive_genetic_competition <- function(pedigree,
   ## the internal codes of the observed individuals are the indices
   ## of the corresponding levels of the random effect
   id.internal <- pedigree_index(pedigree, id)
-  ## the incidence matrix has to be exapanded with 0
-  ## in the columns corresponding to unobserved individuals (e.g. founders)
-  ## furthermore, the order of the columns must fit
-  ## the internal representation
-  inc.mat <- Matrix::Matrix(0, n, p)
-  inc.mat[, id.internal] <- as.matrix(comp.aux$incidence.matrix)
+  ## Competition incidence W Z: W (n x n) holds the weight of each neighbouring
+  ## record, Z (n x p) maps each record to its individual, with zero columns for
+  ## unobserved individuals (e.g. founders). The weights of several neighbouring
+  ## records of the same individual (e.g. ramets of a clone) add up (#107).
+  Z <- Matrix::sparseMatrix(i = seq_len(n), j = id.internal, x = 1, dims = c(n, p))
+  inc.mat <- comp.aux$incidence.matrix %*% Z
   
   random.args <- structure(list(inc.mat, ag.aux$structure.matrix),
                            names = c('incidence', ag.aux$structure.type))
