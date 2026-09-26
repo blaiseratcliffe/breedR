@@ -339,14 +339,18 @@
 #'   \code{funvars} and \code{hetres} with a warning, keeping the fixed effects
 #'   and BLUPs of its last round, while the log holds every round intact, so
 #'   \code{cont = TRUE} picks up exactly where an otherwise useless result
-#'   object left off.
+#'   object left off, except for a fit with heterogeneous residuals: its log
+#'   holds coefficient lines rather than a residual (co)variance matrix, so
+#'   \code{cont} cannot read it and the fit has to be refitted instead.
 #'
 #'   One case cannot be told apart from this: a heterogeneous-residual fit that
-#'   stops by the backend's own stopping rule exactly on an explicit
-#'   \code{OPTION maxrounds} round, without its convergence value dropping
-#'   below the criterion, leaves a log with the same shape as a capped fit and
-#'   is treated as one. \code{cont = TRUE} recovers it, because resuming reads
-#'   the log rather than the \code{NA} estimates.
+#'   stops by another of the backend's stopping rules exactly on an explicit
+#'   \code{OPTION maxrounds} round, with its convergence value still at or
+#'   above the criterion, leaves a log of the same shape as a capped fit and
+#'   is treated as one. Refit it with a larger \code{maxrounds}, or none; the
+#'   backend's own rule then stops it before the cap, and the fit parses as
+#'   converged. \code{cont = TRUE} cannot recover it, because, as above, its
+#'   log holds coefficients rather than a residual (co)variance matrix.
 #'
 #'   Both arguments are for local fits. They are rejected for
 #'   \code{breedR.bin = 'remote'} or \code{'submit'}, and for an AR \code{rho}

@@ -1,9 +1,11 @@
 * `?remlf90` now documents a known corner case of the iteration-cap check added
-for #40: a heterogeneous-residual fit that stops by the backend's own
-stopping rule exactly on an explicit `OPTION maxrounds` round, without its
-convergence value dropping below the criterion, cannot be told apart from a
-capped fit and is treated as one. `cont = TRUE` recovers it, because resuming
-reads the log rather than the `NA` estimates. No code changes (#40)
+for #40: a heterogeneous-residual fit that stops by another of the backend's
+stopping rules exactly on an explicit `OPTION maxrounds` round, with its
+convergence value still at or above the criterion, cannot be told apart from
+a capped fit and is treated as one. Refit it with a larger `maxrounds`, or
+none; `cont = TRUE` cannot recover it, because a heterogeneous-residual log
+holds coefficients rather than a residual (co)variance matrix, which the
+`?remlf90` text on `cont` now also says. No code changes (#40)
 
 * The `Additive Genetic Models in Mixed Populations` vignette's method 3 equation now names the
 top-left founder blocks of the covariance matrix `A_{E:E}` and `A_{J:J}`, matching the `X:Y`
