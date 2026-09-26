@@ -1,9 +1,11 @@
 ## Checkpointing and resuming a REML fit.
 ##
-## AIREMLF90 prints the full state of the optimiser -- the residual and genetic
-## (co)variance matrices -- at every round. A streamed log is therefore a
-## complete per-round checkpoint, and resuming a fit is nothing more than
-## reading the last usable round back into the initial variances.
+## AIREMLF90 prints the current value of every variance parameter at every
+## round: the genetic (co)variance matrices and the residual (co)variance
+## matrix or, under heterogeneous residual variances (OPTION hetres_pos), the
+## coefficients of log(var(e)). A streamed log is therefore a per-round
+## checkpoint, and resuming a fit is a restart from the last usable round's
+## values, read back as initial values.
 ##
 ## The blocks are laid out as
 ##
@@ -22,6 +24,13 @@
 ##
 ## Note that the residual comes *first* within a round but *last* in the final
 ## estimates; the two representations are not positionally interchangeable.
+##
+## Under hetres_pos the `new R` block holds one line per coefficient instead,
+##
+##              1 -th trait:           1 -th coefficient =  0.576236467472488
+##
+## coefficient-major with the trait index fastest, which is also the order in
+## which OPTION hetres_pol reads them back.
 
 
 #' Line numbers of the round headers of a REML log
@@ -90,12 +99,17 @@ parse_block_strict <- function(l, x, text_lines = which(!is_numericlog(x))) {
 #' @param from,to integer. Bounds of the round segment, inclusive.
 #' @param text_lines integer vector. Non-numeric line numbers of \code{x},
 #'   computed once by the caller. Must come from this same \code{x}.
+#' @param hetres \code{NULL}, or for a log with heterogeneous residual
+#'   variances a list with \code{ntraits} and \code{trait_names}; see
+#'   \code{\link{reml_round_hetres}}.
 #'
-#' @return list with elements \code{R} (matrix or \code{NULL}) and \code{G}
+#' @return list with elements \code{R} (matrix or \code{NULL}; under
+#'   \code{hetres} what \code{\link{reml_round_hetres}} returns) and \code{G}
 #'   (list of matrices, in parameter-file order).
 #' @keywords internal
 reml_round_covariances <- function(x, from, to,
-                                   text_lines = which(!is_numericlog(x))) {
+                                   text_lines = which(!is_numericlog(x)),
+                                   hetres = NULL) {
 
   ## Anchored on the whole log so that extract_block() sees the real
   ## surroundings of the block, and never the parameter echo near the top of
@@ -109,10 +123,52 @@ reml_round_covariances <- function(x, from, to,
   g_at <- win[grepl(grp_re, x[win])]
 
   list(R = if (length(r_at))
-             parse_block_strict(utils::tail(r_at, 1) + 1L, x, text_lines)
+             (if (is.null(hetres))
+                parse_block_strict(utils::tail(r_at, 1) + 1L, x, text_lines)
+              else reml_round_hetres(utils::tail(r_at, 1), x, hetres))
            else NULL,
        G = lapply(g_at + 1L, parse_block_strict, x = x,
                   text_lines = text_lines))
+}
+
+
+#' Heterogeneous residual coefficients printed within one round of a REML log
+#'
+#' Under \code{OPTION hetres_pos} the \code{new R} block of a round holds the
+#' coefficients of log(var(e)), one line each, instead of a residual
+#' (co)variance matrix. The block is refused if it runs to the end of the log,
+#' for the same reason as in \code{\link{parse_block_strict}}. The layout is
+#' checked by \code{parse_hetres}, but not the number of coefficients: a line
+#' cut at the end of the log before its value is not a coefficient line, so a
+#' truncated block can end early without reaching the end of the file. The
+#' caller compares the length with the number the model expects.
+#'
+#' @param l integer. Line of the \code{new R} heading.
+#' @param x character vector. Lines of the log.
+#' @param hetres list with \code{ntraits} and \code{trait_names} (\code{NULL}
+#'   for positional trait suffixes with one trait).
+#'
+#' @return named numeric vector of coefficients, coefficient-major with the
+#'   trait index fastest, as the backend prints them; \code{numeric(0)} for a
+#'   finished block with no coefficients in the expected layout; \code{NULL}
+#'   for a block that runs to the end of the log.
+#' @keywords internal
+reml_round_hetres <- function(l, x, hetres) {
+
+  end <- l
+  while (end < length(x) && grepl(hetres_coef_re, x[end + 1L])) end <- end + 1L
+
+  ## Refuse a block that is not terminated by a following line.
+  if (end >= length(x)) return(NULL)
+
+  tryCatch({
+    ## A value that does not parse as a number becomes NA; the caller refuses
+    ## it, as it does NaN, when it needs usable starting values.
+    m <- suppressWarnings(parse_hetres(x[l:end], hetres$ntraits,
+                                       hetres$trait_names))
+    stats::setNames(m[, 'Estimate'], rownames(m))
+  },
+  error = function(e) numeric(0))
 }
 
 
@@ -133,18 +189,27 @@ reml_round_covariances <- function(x, from, to,
 #' @param dims integer vector of length \code{n_groups + 1}. Expected dimension
 #'   of each group and, last, of the residual. \code{NULL} to skip the check.
 #' @param names character vector of length \code{n_groups + 1}, ending in
-#'   \code{'residuals'}. \code{NULL} for positional names.
-#' @param spd logical. Require every recovered matrix to be positive definite.
+#'   \code{'residuals'} (\code{'hetres'} under \code{hetres}). \code{NULL} for
+#'   positional names.
+#' @param spd logical. Require every recovered matrix to be positive definite,
+#'   and under \code{hetres} every coefficient to be finite.
 #' @param active list of logical vectors, in the same order as the covariance
 #'   blocks. A restricted block must have exact zeros outside its active
 #'   coordinates; its positive-definiteness check uses the active block only.
+#' @param hetres \code{NULL}, or for a model with heterogeneous residual
+#'   variances a list with \code{n}, the number of coefficients of
+#'   log(var(e)), \code{ntraits} and \code{trait_names}. The residual element
+#'   of \code{dims} and \code{active} is then ignored.
 #'
-#' @return named list of matrices with an integer attribute \code{round}. When
-#'   no round qualifies, an empty list with a character attribute
-#'   \code{reason}; test for failure with \code{!length(.)}.
+#' @return named list of matrices with an integer attribute \code{round}.
+#'   Under \code{hetres} the last element is the numeric vector of
+#'   coefficients, in the order the backend prints them, in place of the
+#'   residual matrix. When no round qualifies, an empty list with a character
+#'   attribute \code{reason}; test for failure with \code{!length(.)}.
 #' @keywords internal
 last_reml_checkpoint <- function(x, n_groups, dims = NULL,
-                                 names = NULL, spd = TRUE, active = NULL) {
+                                 names = NULL, spd = TRUE, active = NULL,
+                                 hetres = NULL) {
 
   ## NULL cannot carry attributes, so failure is an empty list.
   failed <- function(reason) structure(list(), reason = reason)
@@ -167,7 +232,8 @@ last_reml_checkpoint <- function(x, n_groups, dims = NULL,
   text_lines <- which(!is_numericlog(x))
 
   if (is.null(names))
-    names <- c(if (n_groups) paste0("G", seq_len(n_groups)), "residuals")
+    names <- c(if (n_groups) paste0("G", seq_len(n_groups)),
+               if (is.null(hetres)) "residuals" else "hetres")
 
   is_spd <- function(m) {
     all(is.finite(m)) &&
@@ -182,8 +248,9 @@ last_reml_checkpoint <- function(x, n_groups, dims = NULL,
     from <- anchors[[i]]
     to <- if (i < length(anchors)) anchors[[i + 1L]] - 1L else length(x)
 
-    cv <- reml_round_covariances(x, from, to, text_lines)
-    blocks <- c(cv$G, list(cv$R))
+    cv <- reml_round_covariances(x, from, to, text_lines, hetres = hetres)
+    ## Under hetres the checks on matrices below apply to the groups only.
+    blocks <- if (is.null(hetres)) c(cv$G, list(cv$R)) else cv$G
 
     ## A round the backend never finished writing, or that a crash cut short.
     if (is.null(cv$R) || any(vapply(cv$G, is.null, TRUE))) {
@@ -194,6 +261,13 @@ last_reml_checkpoint <- function(x, n_groups, dims = NULL,
     ## A different model: it printed a different number of groups. Reported
     ## separately from incompleteness, because the remedy is different.
     if (length(cv$G) != n_groups) {
+      reason <- "dimension"
+      next
+    }
+
+    ## Or a different number of coefficients. This also catches a block cut
+    ## short by a truncated line, and a log without heterogeneous residuals.
+    if (!is.null(hetres) && length(cv$R) != hetres$n) {
       reason <- "dimension"
       next
     }
@@ -234,7 +308,12 @@ last_reml_checkpoint <- function(x, n_groups, dims = NULL,
       reason <- "not positive definite"
       next
     }
+    if (spd && !is.null(hetres) && !all(is.finite(cv$R))) {
+      reason <- "non-finite coefficients"
+      next
+    }
 
+    if (!is.null(hetres)) blocks <- c(blocks, list(cv$R))
     return(structure(stats::setNames(blocks, names),
                      round = as.integer(base::names(anchors)[i])))
   }
@@ -364,20 +443,28 @@ check_checkpoint_traits <- function(x, effects, ntraits) {
 #' @param ntraits integer.
 #' @param lines character vector. Lines of the log, when already read.
 #' @param spd logical. Passed to \code{last_reml_checkpoint}.
+#' @param hetres \code{NULL}, or for a model with heterogeneous residual
+#'   variances the list described in \code{\link{last_reml_checkpoint}}.
 #'
-#' @return list with \code{var} (named list of matrices) and \code{round}.
+#' @return list with \code{var} (named list of matrices, ending in the
+#'   coefficients \code{hetres} in place of \code{residuals} under
+#'   \code{hetres}) and \code{round}.
 #' @keywords internal
 reml_checkpoint_var.ini <- function(file, effects, ntraits,
-                                    lines = NULL, spd = TRUE) {
+                                    lines = NULL, spd = TRUE, hetres = NULL) {
 
   x <- if (is.null(lines)) readLines(file, warn = FALSE) else lines
   lay <- reml_checkpoint_layout(effects, ntraits)
   check_checkpoint_traits(x, effects, ntraits)
 
   ck <- last_reml_checkpoint(x, n_groups = lay$n_groups, dims = lay$dims,
-                             names = lay$names, spd = spd,
+                             names = if (is.null(hetres)) lay$names
+                                     else c(utils::head(lay$names, -1),
+                                            'hetres'),
+                             spd = spd,
                              active = if (has_trait_restrictions(effects))
-                               lay$active else NULL)
+                               lay$active else NULL,
+                             hetres = hetres)
 
   if (!length(ck)) {
     reason <- attr(ck, 'reason')
@@ -386,8 +473,11 @@ reml_checkpoint_var.ini <- function(file, effects, ntraits,
              dimension = paste0(
                "its rounds do not match this model, which has ",
                lay$n_groups, " random-effect group(s) (",
-               paste(utils::head(lay$names, -1), collapse = ", "),
-               "). The log was probably written by a different model"),
+               paste(utils::head(lay$names, -1), collapse = ", "), ")",
+               if (!is.null(hetres))
+                 paste0(" and ", hetres$n, " heterogeneous residual ",
+                        "coefficient(s)"),
+               ". The log was probably written by a different model"),
              `not positive definite` = paste(
                "none of its rounds holds a positive-definite set of",
                "(co)variance matrices"),
@@ -419,7 +509,9 @@ reml_checkpoint_var.ini <- function(file, effects, ntraits,
 #' Recovers the (co)variance matrices of the last usable round of a REML log,
 #' including one that is still being written. This makes the current state of a
 #' long-running fit visible without interrupting it, and lets the components of
-#' a crashed or non-converged run be reused.
+#' a crashed or non-converged run be reused. For a fit with heterogeneous
+#' residual variances (see \code{\link{hetres_options}}) it recovers the
+#' coefficients of log(var(e)) in place of the residual (co)variance matrix.
 #'
 #' Because \code{remlf90} blocks while the backend runs, checking on a fit in
 #' progress means calling this from a \emph{second} R session.
@@ -446,7 +538,11 @@ reml_checkpoint_var.ini <- function(file, effects, ntraits,
 #'   which is useful for diagnosing a diverging fit.
 #'
 #' @return A named list of (co)variance matrices, ending in \code{residuals},
-#'   with an integer attribute \code{round}.
+#'   with an integer attribute \code{round}. For a fit with heterogeneous
+#'   residual variances it ends instead in \code{hetres}, a numeric vector of
+#'   the coefficients in the order of the \code{initial} argument of
+#'   \code{\link{hetres_options}}: \code{a0} of every trait, then \code{a1} of
+#'   every trait, and so on.
 #'
 #' @details
 #' For a trait-restricted fit, supply \code{model} to check the active covariance
@@ -503,7 +599,27 @@ reml_checkpoint <- function(file, model = NULL, spd = TRUE) {
       function(i) sum(grepl(grp_re,
                             x[seq.int(bounds[i], bounds[i + 1L] - 1L)])),
       1L))
-    ck <- last_reml_checkpoint(x, n_groups = n_groups, spd = spd)
+
+    ## Heterogeneous residual variances, detected as parse_results() does. The
+    ## number of coefficients is read off the header, one per 'hetres_pos'
+    ## entry plus an intercept per trait, and not off the rounds, for the same
+    ## reason as the group count above.
+    hetres <- NULL
+    if (any(grepl(hetres_coef_re, x))) {
+      nt <- grep("^[[:space:]]*Number of Traits[[:space:]]+[0-9]+[[:space:]]*$",
+                 x, value = TRUE)
+      if (length(nt) != 1L)
+        stop("Cannot read a checkpoint from '", file, "': its header does ",
+             "not give the number of traits.", call. = FALSE)
+      nt <- as.integer(sub(".*[[:space:]]+([0-9]+)[[:space:]]*$", "\\1", nt))
+      npos <- sum(grepl(paste0("^[[:space:]]*[0-9]+ -th trait:[[:space:]]+",
+                               "[0-9]+ -th position ="), x))
+      hetres <- list(n = npos + nt, ntraits = nt,
+                     trait_names = if (nt > 1L) as.character(seq_len(nt)))
+    }
+
+    ck <- last_reml_checkpoint(x, n_groups = n_groups, spd = spd,
+                               hetres = hetres)
     if (!length(ck))
       stop("Cannot read a checkpoint from '", file, "': ",
            attr(ck, 'reason'), ".", call. = FALSE)
@@ -516,7 +632,12 @@ reml_checkpoint <- function(file, model = NULL, spd = TRUE) {
   ans <- reml_checkpoint_var.ini(
     file, model$effects,
     ntraits = ncol(as.matrix(stats::model.response(model$mf))),
-    lines = x, spd = spd)
+    lines = x, spd = spd,
+    ## kept, with NA values, by a fit that did not converge
+    hetres = if (!is.null(model$hetres))
+      list(n = nrow(model$hetres),
+           ntraits = ncol(as.matrix(stats::model.response(model$mf))),
+           trait_names = colnames(stats::model.response(model$mf))))
 
   structure(ans$var, round = ans$round)
 }

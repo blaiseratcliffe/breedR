@@ -22,7 +22,9 @@
 #'   coefficients a1, a2, etc. Start the slopes at small non-zero values,
 #'   e.g. \code{c(log(residual_var), rep(0.01, n_covariates))}. A coefficient
 #'   that starts at exactly 0 is never updated, and BLUPF90+ (version 2.73)
-#'   then crashes.
+#'   then crashes. Omit it when resuming a fit with \code{remlf90(cont =
+#'   TRUE)}, which takes the coefficients from the progress file and refuses
+#'   an explicit \code{initial}.
 #' @param var_file character or NULL. Path to a file containing the
 #'   residual (co)variances for each class. Required with \code{group_col}.
 #'
@@ -119,6 +121,21 @@ hetres_options <- function(group_col = NULL,
   }
 
   return(opts)
+}
+
+
+## What remlf90(cont = TRUE) needs to read the coefficients of log(var(e))
+## back from a checkpoint (see last_reml_checkpoint()): how many there are,
+## one per hetres_pos entry plus an intercept per trait, and the trait names
+## that label them. NULL when `opts`, the progsf90.options, set no hetres_pos.
+hetres_checkpoint_spec <- function(opts, response) {
+  pos <- grep('^\\s*hetres_pos\\b', opts, value = TRUE)
+  if (!length(pos)) return(NULL)
+  response <- as.matrix(response)
+  entries <- strsplit(trimws(sub('^\\s*hetres_pos\\b', '', pos[1])),
+                      '[[:space:]]+')[[1]]
+  list(n = length(entries) + ncol(response), ntraits = ncol(response),
+       trait_names = colnames(response))
 }
 
 
