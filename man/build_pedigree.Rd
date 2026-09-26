@@ -48,6 +48,33 @@ is attached to the pedigree, such that \code{map[i] = j} means that code
 \code{i} was renumbered as \code{j}. Therefore, if \code{x} is a vector with 
 original codes, \code{map[x]} gives the new codes. Conversely, \code{match(y,
 map)} back-transforms to original codes.
+
+The map is an integer vector as long as the largest code, with \code{NA}
+for the codes not in the pedigree, so its size follows the largest code and
+not the number of individuals: about 4 bytes per unit of the largest code.
+Codes near \code{1e8} make a map of about 400 MB, and building it needs
+working memory on top of that. Registry-scale ids are better recoded to
+consecutive integers before building the pedigree. List each id once,
+leaving out both 0 and \code{NA}, which mark an unknown parent:
+\code{match()} gives every value left in \code{ids} a code of its own, so
+an unknown-parent code left there would make one animal the parent of
+every animal with an unknown parent, without an error. With both left
+out, unknown parents become \code{NA}. If your data mark unknown parents
+in another way, such as -1, set those to 0 or \code{NA} first. The recipe
+takes numeric ids, as \code{build_pedigree()} does, and stops on any id
+below 1 or any non-numeric id, so such a code cannot slip through. For a
+data frame \code{ped} with columns \code{self}, \code{sire} and \code{dam}:
+\preformatted{
+ids <- unique(c(ped$self, ped$sire, ped$dam))
+ids <- ids[!is.na(ids) & ids != 0]
+if (!is.numeric(ids) || any(ids < 1))
+  stop("Set unknown-parent codes to 0 or NA; ids must be numbers >= 1")
+ped$self <- match(ped$self, ids)
+ped$sire <- match(ped$sire, ids)
+ped$dam  <- match(ped$dam, ids)
+}
+Recode the ids in the data, and in a genotype file, with the same
+\code{ids}; \code{ids[k]} gives back the id recoded as \code{k}.
 }
 \section{Functions}{
 \itemize{
