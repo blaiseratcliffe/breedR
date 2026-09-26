@@ -110,6 +110,66 @@ test_that('build_pedigree() refuses individual codes below 1 (#50)', {
 })
 
 
+test_that('build_pedigree() refuses an NA self id, rather than an unrelated internal error (#108)', {
+
+  ## An NA self (e.g. from following the recoding recipe in ?build_pedigree
+  ## on a pedigree whose own id is 0) used to skip build_pedigree()'s own
+  ## check (na.rm = TRUE dropped it) and fall through to check_pedigree()'s
+  ## range()/seq(), failing with the unrelated "from must be a finite
+  ## number" instead of the usual, clear message.
+  ped_na_self <- data.frame(self = c(NA, 1, 2, 3),
+                            sire = c(NA, NA, 4, 1),
+                            dam  = c(NA, NA, NA, 4))
+  expect_error(build_pedigree(1:3, data = ped_na_self),
+              'codes must be 1 or greater')
+})
+
+
+test_that('the recoding recipe in ?build_pedigree stops on a self of 0, rather than silently dropping it (#108)', {
+
+  ## Run the recipe from its own documented source (the source tree's
+  ## man/build_pedigree.Rd under devtools::test(), or the installed package's
+  ## Rd database under R CMD check, where the freshly installed package is
+  ## the one under test), rather than a copy kept in this file, so this test
+  ## tracks the actual text ?build_pedigree shows users and catches future
+  ## drift between the docs and this test.
+  rd_path <- testthat::test_path('..', '..', 'man', 'build_pedigree.Rd')
+  rd <- if (file.exists(rd_path)) {
+    tools::parse_Rd(rd_path)
+  } else {
+    db <- tools::Rd_db('breedR')
+    db[['build_pedigree.Rd']]
+  }
+
+  find_tag <- function(x, tag) {
+    if (is.null(x)) return(NULL)
+    if (identical(attr(x, 'Rd_tag'), tag)) return(x)
+    if (is.list(x)) for (el in x) {
+      found <- find_tag(el, tag)
+      if (!is.null(found)) return(found)
+    }
+    NULL
+  }
+  recipe_block <- find_tag(rd, '\\preformatted')
+  if (is.null(recipe_block))
+    stop("Could not find the \\preformatted recoding recipe in build_pedigree.Rd")
+  recipe_code <- paste(unlist(recipe_block), collapse = '')
+
+  run_recipe <- function(ped) {
+    env <- new.env()
+    env$ped <- ped
+    eval(parse(text = recipe_code), envir = env)
+    env$ped
+  }
+
+  ## Exactly the issue reproduction: the pedigree's own row (self) is 0.
+  ped0 <- data.frame(self = c(0, 2, 3, 4),
+                     sire = c(NA, 0, 1, 2),
+                     dam  = c(NA, 0, NA, 1))
+  expect_error(run_recipe(ped0), 'ids must be numbers >= 1')
+})
+
+
 test_that('build_pedigree() refuses negative parent codes, and names them (#66)', {
 
   ## 0 or NA marks an unknown parent. A negative code is neither: with
