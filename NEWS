@@ -1,3 +1,10 @@
+* The `Additive Genetic Models in Mixed Populations` vignette's method 3 equation now names the
+top-left founder blocks of the covariance matrix `A_{E:E}` and `A_{J:J}`, matching the `X:Y`
+naming used for the matrix's other cross-block terms. They used to share the symbols `A_E` and
+`A_J` with the full n x n split matrices those blocks sit inside, which denote a different thing
+in the equation's right-hand side and in the surrounding prose. No number or fitted value changes
+(#36)
+
 * `build_pedigree()` needs less memory to recode a pedigree. The recoding map
 (`attr(ped, 'map')`) is as long as the largest code; it is now built as an
 integer vector directly instead of being converted from a logical one, so with
