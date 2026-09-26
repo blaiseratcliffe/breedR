@@ -4,7 +4,13 @@
 \alias{reml_round_covariances}
 \title{(Co)variance matrices printed within one round of a REML log}
 \usage{
-reml_round_covariances(x, from, to, text_lines = which(!is_numericlog(x)))
+reml_round_covariances(
+  x,
+  from,
+  to,
+  text_lines = which(!is_numericlog(x)),
+  hetres = NULL
+)
 }
 \arguments{
 \item{x}{character vector. The whole log.}
@@ -13,9 +19,14 @@ reml_round_covariances(x, from, to, text_lines = which(!is_numericlog(x)))
 
 \item{text_lines}{integer vector. Non-numeric line numbers of \code{x},
 computed once by the caller. Must come from this same \code{x}.}
+
+\item{hetres}{\code{NULL}, or for a log with heterogeneous residual
+variances a list with \code{ntraits} and \code{trait_names}; see
+\code{\link{reml_round_hetres}}.}
 }
 \value{
-list with elements \code{R} (matrix or \code{NULL}) and \code{G}
+list with elements \code{R} (matrix or \code{NULL}; under
+  \code{hetres} what \code{\link{reml_round_hetres}} returns) and \code{G}
   (list of matrices, in parameter-file order).
 }
 \description{

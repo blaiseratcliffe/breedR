@@ -502,3 +502,84 @@ test_that("trait-restricted checkpoints support continuation and manual restart"
   expect_equal(em_warm$reml$resumed_from, 2L)
   expect_equal(fitted(em_warm), fitted(cold), tolerance = 1e-4)
 })
+
+
+test_that("cont resumes a heterogeneous-residual fit where it left off (#111)", {
+
+  ## log(var(e)) = a0 + a1*x, with a random group effect
+  set.seed(1)
+  n <- 300; ng <- 30
+  hd <- data.frame(g = factor(sample(ng, n, replace = TRUE)),
+                   x = runif(n, 0, 2))
+  u <- rnorm(ng, sd = sqrt(2))
+  hd$y <- 10 + hd$x + u[hd$g] + rnorm(n, sd = sqrt(exp(0.5 + 0.8 * hd$x)))
+  hd$y2 <- 3 - hd$x + rnorm(n, sd = sqrt(exp(2 - 1.2 * hd$x)))
+
+  ## -2logL at the start of every round: the value at the parameters the
+  ## previous round printed
+  logl <- function(x)
+    as.numeric(sub("^[[:space:]]*-2logL =[[:space:]]*([^[:space:]]+).*$", "\\1",
+                   grep("^[[:space:]]*-2logL =", x, value = TRUE)))
+
+  fit_hetres <- function(fixed, var.ini, opts, ...)
+    suppressMessages(remlf90(fixed, random = ~ g, data = hd, var.ini = var.ini,
+                             progsf90.options = opts, ...))
+
+  ## One trait. x is column 3 of the data file (y, Intercept, x, g).
+  opts <- hetres_options(covariate_cols = 3, initial = c(log(4), 0.1))
+  v0 <- list(g = 3.1, residuals = 3.1)
+  f_full <- file.path(wd, "hetres-full.log")
+  full <- fit_hetres(y ~ x, v0, opts, progress_file = f_full)
+  f <- file.path(wd, "hetres-capped.log")
+  expect_warning(fit_hetres(y ~ x, v0, c(opts, "maxrounds 2"), progress_file = f),
+                 "did not converge")
+  ck <- reml_checkpoint(f)
+  expect_identical(attr(ck, "round"), 2L)
+
+  expect_message(
+    warm <- remlf90(y ~ x, random = ~ g, data = hd, progress_file = f,
+                    cont = TRUE,
+                    progsf90.options = hetres_options(covariate_cols = 3)),
+    "Resuming from round 2")
+  expect_equal(warm$reml$resumed_from, 2L)
+
+  ## the recovered coefficients reach the backend, in the order it prints them
+  pars <- readLines(file.path(warm$reml$dir, "parameters"), warn = FALSE)
+  expect_true(paste("OPTION hetres_pol", paste(ck$hetres, collapse = " ")) %in%
+                trimws(pars))
+
+  ## The resumed fit starts where the capped one stopped: its first -2logL is
+  ## the uninterrupted fit's third, the value at round 2's parameters. With
+  ## round 2's genetic variance but the original coefficients it is not.
+  expect_equal(logl(readLines(f, warn = FALSE))[1],
+               logl(readLines(f_full, warn = FALSE))[3], tolerance = 1e-6)
+
+  expect_equal(warm$hetres[, "Estimate"], full$hetres[, "Estimate"],
+               tolerance = 1e-5)
+  expect_equal(warm$var, full$var, tolerance = 1e-5)
+  expect_equal(warm$fit$`-2logL`, full$fit$`-2logL`, tolerance = 1e-5)
+  expect_lt(warm$reml$rounds, full$reml$rounds)
+
+  ## Two traits: the coefficients differ by trait and by coefficient, so a
+  ## change in the order the backend reads them would show. x is column 4
+  ## (y, y2, Intercept, x, g).
+  opts2 <- hetres_options(covariate_cols = c(4, 4), initial = c(1, 1, 0.1, 0.1))
+  v2 <- list(g = diag(1, 2), residuals = matrix(c(3, 1.5, 1.5, 3), 2))
+  f2_full <- file.path(wd, "hetres2-full.log")
+  full2 <- fit_hetres(cbind(y, y2) ~ x, v2, opts2, progress_file = f2_full)
+  f2 <- file.path(wd, "hetres2-capped.log")
+  expect_warning(fit_hetres(cbind(y, y2) ~ x, v2, c(opts2, "maxrounds 3"),
+                            progress_file = f2),
+                 "did not converge")
+
+  warm2 <- suppressMessages(
+    remlf90(cbind(y, y2) ~ x, random = ~ g, data = hd, progress_file = f2,
+            cont = TRUE,
+            progsf90.options = hetres_options(covariate_cols = c(4, 4))))
+  expect_equal(warm2$reml$resumed_from, 3L)
+  expect_equal(logl(readLines(f2, warn = FALSE))[1],
+               logl(readLines(f2_full, warn = FALSE))[4], tolerance = 1e-6)
+  expect_equal(warm2$hetres[, "Estimate"], full2$hetres[, "Estimate"],
+               tolerance = 1e-5)
+  expect_equal(warm2$var, full2$var, tolerance = 1e-4)
+})

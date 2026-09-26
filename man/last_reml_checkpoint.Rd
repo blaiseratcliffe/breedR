@@ -10,7 +10,8 @@ last_reml_checkpoint(
   dims = NULL,
   names = NULL,
   spd = TRUE,
-  active = NULL
+  active = NULL,
+  hetres = NULL
 )
 }
 \arguments{
@@ -22,18 +23,27 @@ last_reml_checkpoint(
 of each group and, last, of the residual. \code{NULL} to skip the check.}
 
 \item{names}{character vector of length \code{n_groups + 1}, ending in
-\code{'residuals'}. \code{NULL} for positional names.}
+\code{'residuals'} (\code{'hetres'} under \code{hetres}). \code{NULL} for
+positional names.}
 
-\item{spd}{logical. Require every recovered matrix to be positive definite.}
+\item{spd}{logical. Require every recovered matrix to be positive definite,
+and under \code{hetres} every coefficient to be finite.}
 
 \item{active}{list of logical vectors, in the same order as the covariance
 blocks. A restricted block must have exact zeros outside its active
 coordinates; its positive-definiteness check uses the active block only.}
+
+\item{hetres}{\code{NULL}, or for a model with heterogeneous residual
+variances a list with \code{n}, the number of coefficients of
+log(var(e)), \code{ntraits} and \code{trait_names}. The residual element
+of \code{dims} and \code{active} is then ignored.}
 }
 \value{
-named list of matrices with an integer attribute \code{round}. When
-  no round qualifies, an empty list with a character attribute
-  \code{reason}; test for failure with \code{!length(.)}.
+named list of matrices with an integer attribute \code{round}.
+  Under \code{hetres} the last element is the numeric vector of
+  coefficients, in the order the backend prints them, in place of the
+  residual matrix. When no round qualifies, an empty list with a character
+  attribute \code{reason}; test for failure with \code{!length(.)}.
 }
 \description{
 Walks backwards from the final round and returns the first one that is

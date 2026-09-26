@@ -30,7 +30,9 @@ For covariate-based: the intercept a0 followed by regression
 coefficients a1, a2, etc. Start the slopes at small non-zero values,
 e.g. \code{c(log(residual_var), rep(0.01, n_covariates))}. A coefficient
 that starts at exactly 0 is never updated, and BLUPF90+ (version 2.73)
-then crashes.}
+then crashes. Omit it when resuming a fit with \code{remlf90(cont =
+TRUE)}, which takes the coefficients from the progress file and refuses
+an explicit \code{initial}.}
 
 \item{var_file}{character or NULL. Path to a file containing the
 residual (co)variances for each class. Required with \code{group_col}.}

@@ -854,3 +854,213 @@ test_that("raw checkpoint inspection preserves the model-free SPD policy", {
   expect_equal(unname(reml_checkpoint(f, model, spd = FALSE)$rep),
                diag(c(-1, 0, 3)))
 })
+
+
+## -- heterogeneous residual variances (#111) -------------------------------
+
+## Under OPTION hetres_pos, BLUPF90+ prints in each round's 'new R' block the
+## coefficients of log(var(e)) = a0 + a1*x1 + ..., coefficient-major with the
+## trait index fastest, in place of a residual (co)variance matrix.
+h1 <- log_lines("airemlf90_log_hetres_1.txt")   # 1 trait, random g, a0 + a1*x
+h2 <- log_lines("airemlf90_log_hetres_2.txt")   # 2 traits, no random effect
+
+## The data of the hetres fixtures, in the shape parse_results() needs (see
+## test-parse_results.R): the effect structure matters, not the values.
+hetres_data <- function()
+  data.frame(x  = seq(0, 2, length.out = 100),
+             g  = factor(rep(1:50, 2)),
+             y  = rep(c(9, 11), 50),
+             y3 = rep(c(2, 4), 50))
+
+## A stand-in for a fitted hetres model with `n_coef` coefficients: what
+## reml_checkpoint() reads from a model.
+hetres_model <- function(fixed, random, var.ini, n_coef) {
+  data <- hetres_data()
+  mc <- call('remlf90', fixed = fixed, random = random, data = quote(data))
+  mf <- build.mf(mc)
+  structure(list(effects = build.effects(mf, NULL, NULL, NULL, var.ini),
+                 mf = mf,
+                 hetres = cbind(Estimate = rep(NA_real_, n_coef),
+                                S.E. = NA_real_)),
+            class = 'remlf90')
+}
+
+hetres_tmp <- function(lines) {
+  f <- tempfile(fileext = ".log")
+  writeLines(lines, f)
+  f
+}
+
+
+test_that("hetres logs are read, coefficients in backend order (#111)", {
+
+  ck1 <- reml_checkpoint(file.path(testdata, "airemlf90_log_hetres_1.txt"))
+  expect_identical(names(ck1), c("G1", "hetres"))
+  expect_identical(attr(ck1, "round"), 6L)
+  expect_equal(ck1$G1, matrix(2.0684))
+  expect_equal(ck1$hetres, c(a0 = 0.576236467472488, a1 = 0.779007867141735))
+
+  ## The values differ by trait, so reading them trait-major would show.
+  ck2 <- reml_checkpoint(file.path(testdata, "airemlf90_log_hetres_2.txt"))
+  expect_identical(names(ck2), "hetres")
+  expect_identical(attr(ck2, "round"), 6L)
+  expect_identical(names(ck2$hetres), c("a0.1", "a0.2", "a1.1", "a1.2"))
+  expect_equal(unname(ck2$hetres),
+               c(0.448080563362213, 2.02177454365617,
+                 0.870952863693744, -1.19361378589017))
+
+  ## the last round equals the final estimates
+  expect_equal(ck1$hetres, parse_hetres(h1, 1L, NULL)[, "Estimate"])
+  expect_equal(unname(ck2$hetres),
+               unname(parse_hetres(h2, 2L, c("1", "2"))[, "Estimate"]))
+})
+
+
+test_that("a truncated hetres round falls back to the previous one (#111)", {
+
+  round5_1 <- c(a0 = 0.576236341923053, a1 = 0.779007997401684)
+  round5_2 <- c(0.448080563366279, 2.02177461577441,
+                0.870952863689709, -1.19361385795570)
+
+  ## round 6's coefficient block runs to the end of the file
+  f <- hetres_tmp(head(h1, 140))
+  on.exit(unlink(f), add = TRUE)
+  ck <- reml_checkpoint(f)
+  expect_identical(attr(ck, "round"), 5L)
+  expect_equal(ck$hetres, round5_1)
+
+  ## a value cut at the end of the file still matches a coefficient line
+  writeLines(c(head(h1, 139),
+               "           1 -th trait:           2 -th coefficient =  0.779"),
+             f)
+  ck <- reml_checkpoint(f)
+  expect_identical(attr(ck, "round"), 5L)
+  expect_equal(ck$hetres, round5_1)
+
+  ## A line cut before its value is not a coefficient line: the block stops
+  ## short of the end of the file, and only the expected count, taken from the
+  ## log's header, tells that it is incomplete.
+  writeLines(c(head(h2, 143), "           1 -th trait:           2 -th coeffic"),
+             f)
+  ck <- reml_checkpoint(f)
+  expect_identical(attr(ck, "round"), 5L)
+  expect_equal(unname(ck$hetres), round5_2)
+})
+
+
+test_that("a hetres checkpoint must match the model's coefficients (#111)", {
+
+  f <- file.path(testdata, "airemlf90_log_hetres_1.txt")
+
+  ## named after the model's random effects, the coefficients last
+  model <- hetres_model(y ~ x, ~ g, list(g = 3.4), n_coef = 2L)
+  ck <- reml_checkpoint(f, model = model)
+  expect_identical(names(ck), c("g", "hetres"))
+  expect_identical(attr(ck, "round"), 6L)
+  expect_equal(unname(ck$hetres), c(0.576236467472488, 0.779007867141735))
+
+  ## a model with a different number of coefficients
+  model3 <- hetres_model(y ~ x, ~ g, list(g = 3.4), n_coef = 3L)
+  expect_error(reml_checkpoint(f, model = model3), "different model")
+
+  ## a log written without heterogeneous residuals, for a hetres model
+  plain <- hetres_tmp(c(" In round            1  convergence=  1.0",
+                        " new R", "  9.0",
+                        " new G", "  1.0",
+                        " -2logL =    1.0       : AIC =    1.0",
+                        " In round            2  convergence=  0.1",
+                        " new R", "  8.0",
+                        " new G", "  3.0",
+                        " solutions stored"))
+  on.exit(unlink(plain), add = TRUE)
+  expect_error(reml_checkpoint(plain, model = model), "different model")
+})
+
+
+test_that("cont re-injects the hetres coefficients (#111)", {
+
+  ## Stop at the parameter file: no binaries involved.
+  captured <- new.env()
+  local_mocked_bindings(
+    check_progsf90 = function(...) TRUE,
+    write.progsf90 = function(pf90, dir) {
+      assign('pf90', pf90, envir = captured)
+      stop('parameter file reached')
+    },
+    .package = 'breedR')
+  d <- hetres_data()
+  hetres_opts <- function() grep("^hetres", captured$pf90$parameter$options,
+                                 value = TRUE)
+
+  f1 <- hetres_tmp(h1)
+  on.exit(unlink(f1), add = TRUE)
+  expect_error(
+    suppressMessages(remlf90(y ~ x, random = ~ g, data = d, progress_file = f1,
+                             cont = TRUE,
+                             progsf90.options = hetres_options(covariate_cols = 3))),
+    'parameter file reached')
+  par <- captured$pf90$parameter
+  expect_identical(hetres_opts(),
+                   c("hetres_pos 3",
+                     "hetres_pol 0.576236467472488 0.779007867141735"))
+  expect_equal(unname(as.matrix(par$rangroup[[1]]$cov)), matrix(2.0684))
+  expect_equal(unname(as.matrix(par$residvar)), matrix(1))
+
+  ## Two traits: routed by trait and coefficient, in the backend's order.
+  rm('pf90', envir = captured)
+  f2 <- hetres_tmp(h2)
+  on.exit(unlink(f2), add = TRUE)
+  expect_error(
+    suppressMessages(remlf90(cbind(y, y3) ~ x, data = d, progress_file = f2,
+                             cont = TRUE,
+                             progsf90.options = hetres_options(covariate_cols = c(4, 4)))),
+    'parameter file reached')
+  expect_identical(hetres_opts(),
+                   c("hetres_pos 4 4",
+                     paste("hetres_pol 0.448080563362213 2.02177454365617",
+                           "0.870952863693744 -1.19361378589017")))
+
+  ## A log with a different number of coefficients, or none, is refused
+  ## before the parameter file is written.
+  rm('pf90', envir = captured)
+  expect_error(
+    suppressMessages(remlf90(y ~ x, random = ~ g, data = d, progress_file = f1,
+                             cont = TRUE,
+                             progsf90.options = hetres_options(covariate_cols = c(3, 5)))),
+    'different model')
+  plain <- hetres_tmp(c(" In round            1  convergence=  1.0",
+                        " new R", "  9.0",
+                        " new G", "  1.0",
+                        " solutions stored"))
+  on.exit(unlink(plain), add = TRUE)
+  expect_error(
+    suppressMessages(remlf90(y ~ x, random = ~ g, data = d, progress_file = plain,
+                             cont = TRUE,
+                             progsf90.options = hetres_options(covariate_cols = 3))),
+    'different model')
+  expect_false(exists('pf90', envir = captured))
+})
+
+
+test_that("cont refuses an explicit hetres initial (#111)", {
+
+  ## cont takes the coefficients from the log, as it does the variances, so an
+  ## explicit initial would be silently discarded. Refused before the binaries
+  ## are checked.
+  local_mocked_bindings(check_progsf90 = function(...) stop('binaries checked'),
+                        .package = 'breedR')
+  d <- hetres_data()
+  f <- hetres_tmp(h1)
+  on.exit(unlink(f), add = TRUE)
+  expect_error(
+    remlf90(y ~ x, random = ~ g, data = d, progress_file = f, cont = TRUE,
+            progsf90.options = hetres_options(covariate_cols = 3,
+                                              initial = c(1, 0.1))),
+    "'cont = TRUE' takes the initial hetres coefficients from")
+
+  ## without it, the call gets as far as the binaries
+  expect_error(
+    remlf90(y ~ x, random = ~ g, data = d, progress_file = f, cont = TRUE,
+            progsf90.options = hetres_options(covariate_cols = 3)),
+    'binaries checked')
+})

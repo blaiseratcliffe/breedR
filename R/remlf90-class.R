@@ -78,8 +78,11 @@
 #'   the suffix \code{.err}. Local fits only. Default \code{NULL}, which keeps
 #'   the output silent until the fit returns.
 #' @param cont logical. Resume a previous fit, taking its initial variances from
-#'   the last usable round of \code{progress_file}. Cannot be combined with an
-#'   explicit \code{var.ini}. The previous log is renamed with a timestamp
+#'   the last usable round of \code{progress_file}, and for a fit with
+#'   heterogeneous residual variances its coefficients of log(var(e)) as well.
+#'   Cannot be combined with an explicit \code{var.ini}, nor with the
+#'   \code{initial} argument of \code{\link{hetres_options}}. The previous log
+#'   is renamed with a timestamp
 #'   before the new one is written. Default \code{FALSE}. Named after the
 #'   equivalent argument of \code{\link{gibbsf90}}, though the mechanism
 #'   differs: for Gibbs it is a backend \code{OPTION}, whereas AIREMLF90 has no
@@ -299,11 +302,15 @@
 #'   at the last round leaves no partial result and nothing to restart from.
 #'   \code{progress_file} and \code{cont} address both halves of that.
 #'
-#'   The backend prints the residual and genetic (co)variance matrices at
-#'   \emph{every} round, and those matrices are the whole state of the
-#'   optimiser. A streamed log is therefore a complete per-round checkpoint,
-#'   and resuming is simply a matter of reading the last usable round back into
-#'   the initial variances -- which typically converges in a couple of rounds.
+#'   The backend prints the current value of every variance parameter at
+#'   \emph{every} round: the genetic (co)variance matrices, and the residual
+#'   (co)variance matrix or, for a fit with heterogeneous residual variances,
+#'   the coefficients of log(var(e)). A streamed log is therefore a per-round
+#'   checkpoint, and resuming reads the last usable round back as initial
+#'   values. It is a restart from those values, not a replay: (co)variances
+#'   are printed to about five significant figures and the backend's
+#'   convergence history starts afresh, so a fit resumed from round k takes
+#'   about as many rounds as the uninterrupted fit had left.
 #'   The recovered components are distributed to the right places
 #'   automatically, so unlike \code{\link{reml_checkpoint}} there is nothing to
 #'   assemble by hand.
@@ -339,9 +346,7 @@
 #'   \code{funvars} and \code{hetres} with a warning, keeping the fixed effects
 #'   and BLUPs of its last round, while the log holds every round intact, so
 #'   \code{cont = TRUE} picks up exactly where an otherwise useless result
-#'   object left off, except for a fit with heterogeneous residuals: its log
-#'   holds coefficient lines rather than a residual (co)variance matrix, so
-#'   \code{cont} cannot read it and the fit has to be refitted instead.
+#'   object left off.
 #'
 #'   One case cannot be told apart from this: a heterogeneous-residual fit that
 #'   stops by another of the backend's stopping rules exactly on an explicit
@@ -349,8 +354,8 @@
 #'   above the criterion, leaves a log of the same shape as a capped fit and
 #'   is treated as one. Refit it with a larger \code{maxrounds}, or none; the
 #'   backend's own rule then stops it before the cap, and the fit parses as
-#'   converged. \code{cont = TRUE} cannot recover it, because, as above, its
-#'   log holds coefficients rather than a residual (co)variance matrix.
+#'   converged. Alternatively, resume it with \code{cont = TRUE} and a larger
+#'   \code{maxrounds}, or none.
 #'
 #'   Both arguments are for local fits. They are rejected for
 #'   \code{breedR.bin = 'remote'} or \code{'submit'}, and for an AR \code{rho}
@@ -719,6 +724,13 @@ remlf90 <- function(fixed,
          ".\n Drop the explicit var.ini specifications, or set cont = FALSE.",
          call. = FALSE)
 
+  ## The same holds for the initial coefficients of heterogeneous residual
+  ## variances.
+  if (isTRUE(cont) && any(grepl('^\\s*hetres_pol\\b', progsf90.options)))
+    stop("'cont = TRUE' takes the initial hetres coefficients from ",
+         progress_file, ".\n Drop 'initial' from hetres_options(), or set ",
+         "cont = FALSE.", call. = FALSE)
+
   ## After every argument check above, so that they are reachable without the
   ## backend installed.
   if (!check_progsf90(quiet = debug | !interactive())) {
@@ -1009,16 +1021,37 @@ remlf90 <- function(fixed,
   ## parse_results() will use to label the results.
   resumed_round <- NULL
   if (isTRUE(cont)) {
+    hetres_spec <- hetres_checkpoint_spec(progsf90.options, responsem)
     ckpt <- reml_checkpoint_var.ini(progress_file, effects,
-                                    ntraits = ncol(responsem))
+                                    ntraits = ncol(responsem),
+                                    hetres = hetres_spec)
     resumed_round <- ckpt$round
     message('Resuming from round ', resumed_round, ' of ', progress_file)
 
     ## Assigning cov.ini directly bypasses effect_group(), where the variance
     ## is validated; reml_checkpoint_var.ini() has already run those checks.
-    for (nm in setdiff(names(ckpt$var), 'residuals'))
-      effects[[nm]]$cov.ini <- ckpt$var[[nm]]
-    var.ini$residuals <- ckpt$var[['residuals']]
+    if (is.null(hetres_spec)) {
+      for (nm in setdiff(names(ckpt$var), 'residuals'))
+        effects[[nm]]$cov.ini <- ckpt$var[[nm]]
+      var.ini$residuals <- ckpt$var[['residuals']]
+    } else {
+      ## By position, so that a random effect named 'hetres' is not taken
+      ## for the coefficients, which come last.
+      k <- length(ckpt$var)
+      for (i in seq_len(k - 1L))
+        effects[[names(ckpt$var)[i]]]$cov.ini <- ckpt$var[[i]]
+      ## The residual keeps its placeholder: under hetres_pos BLUPF90+ models
+      ## var(e) from the coefficients, and the residual in the parameter file
+      ## changes neither the starting -2logL nor the estimates (in BLUPF90+
+      ## 2.73 it can change the path of a multi-trait fit). The coefficients
+      ## go to OPTION
+      ## hetres_pol in the order the backend printed them, which is the order
+      ## it reads them in, next to hetres_pos as hetres_options() puts them.
+      progsf90.options <-
+        append(progsf90.options,
+               paste('hetres_pol', paste(ckpt$var[[k]], collapse = ' ')),
+               after = grep('^\\s*hetres_pos\\b', progsf90.options)[1])
+    }
   }
 
   # Generate progsf90 parameters
