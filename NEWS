@@ -1,3 +1,6 @@
+breedR 0.13
+===========
+
 * In a competition model (`genetic = list(model = 'competition', ...)`), the
 competition incidence matrix now adds up the weights of all the neighbouring
 records of an individual, e.g. several ramets of a clone. Only the last such
