@@ -1,98 +1,57 @@
 # breedR
 
-### Statistical methods for genetic resources analysts — with genomic selection
+[![Latest release](https://img.shields.io/github/v/release/blaiseratcliffe/breedR)](https://github.com/blaiseratcliffe/breedR/releases/latest)
 
-breedR is an R package for fitting linear mixed models in breeding and quantitative genetics. It wraps the [BLUPF90](https://nce.ads.uga.edu/wiki/doku.php?id=start) family of programs to estimate variance components via REML, compute breeding values, and run genomic evaluations.
+### Statistical methods for genetic resources analysts, with genomic selection
+
+breedR is an R package for fitting linear mixed models in breeding and quantitative genetics. It wraps the [BLUPF90](https://nce.ads.uga.edu/wiki/doku.php?id=start) family of programs to estimate variance components by REML, predict breeding values and run genomic evaluations. This fork of the [original breedR](https://github.com/famuvie/breedR) moves it to the current BLUPF90+ program and adds single-step genomic BLUP, GWAS, genomic prediction, Bayesian inference by Gibbs sampling, RENUMF90 data preparation, genotype QC, parentage verification and prediction validation.
 
 > **Note:** This fork is in active development and is written with the assistance of [Claude Code](https://claude.com/claude-code). The genomic paths (ssGBLUP, GWAS, genomic prediction, RENUMF90, parentage verification, and QC) now run end to end and are verified on small test datasets. See [Known limitations](#known-limitations) for two features that need a newer binary or extra setup.
 >
-> **Testing help is especially welcome.** The most useful thing you can do is run breedR on your own data and compare the estimates against whatever you use now — BLUPF90 run directly, ASReml-R, sommer — then [open an issue](https://github.com/blaiseratcliffe/breedR/issues) with anything that diverges. If the backend itself failed, the error message ends with the last 20 lines of its output; paste that along with your R and OS versions. For the full backend log, rerun a local fit with `progress_file = "run.log"`, which streams the output to that file as it is produced, and writes a companion `run.log.err` if the backend put anything on stderr; both survive the error. That needs a single model run, so fix `rho` to one pair first if you are fitting an AR model — the default `rho` grid search fits one model per value and does not accept `progress_file`. When your data are confidential, a synthetic reproduction built with `breedR.sample.phenotype()` is just as useful.
+> Testing help is welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to compare breedR's estimates with other tools and what to put in an issue.
 
-This fork extends the [original breedR](https://github.com/famuvie/breedR) with:
+## Upgrading from an earlier version
 
-- **BLUPF90+ backend** — migrated from deprecated standalone binaries to the current unified program
-- **Single-step genomic BLUP (ssGBLUP)** — PREGSF90 integration for combining pedigree and genomic information
-- **Genome-wide association (ssGWAS)** — PostGSF90 wrapper for SNP effect extraction and Manhattan plots
-- **Genomic prediction** — PREDF90 wrapper for predicting DGV in new animals
-- **RENUMF90 data preparation** — full wrapper for data renumbering, pedigree validation, and unknown parent groups
-- **Parentage verification** — SeekParentF90 wrapper for SNP-based paternity testing and parent discovery
-- **Prediction validation** — ValidationF90 wrapper for LR validation method (Legarra & Reverter)
-- **Variance function helpers** — `h2_formula()`, `rg_formula()`, `var_functions()` for heritability and genetic correlations with SEs
-- **Heterogeneous residual variances** — `hetres_options()` for log-linear residual variance models
-- **Bayesian inference** — GIBBSF90+ wrapper for Gibbs sampling, threshold/categorical traits, convergence diagnostics via POSTGIBBSF90
-- **Genotype QC** — QCF90 wrapper for standalone quality control on raw (non-renumbered) data
-- **SNP file I/O** — `write_snp_file()` / `read_snp_file()` for integer and fractional genotype formats
-- **Convenience data preparation** — `renumf90_from_data()` takes R data.frames and column names instead of file positions
-- **Performance improvements** — vectorized spatial indexing, parallel AR grid search, resilient error handling
+Some fixes in 0.13 change results that earlier versions returned without an error. Read "Check these if you have results from an earlier version" in the [v0.13 release notes](https://github.com/blaiseratcliffe/breedR/releases/tag/v0.13), and refit any model that one of its items applies to.
 
-## Known limitations
+## What breedR fits
 
-- **`validate_prediction()` / `validationf90`** — the breedR wrapper is verified, but the bundled
-  `validationf90` v1.01 aborts on valid input (an end-of-file read error inside the program). LR
-  validation therefore needs a newer `validationf90` build; this is a binary-side limitation, not a
-  wrapper defect. The whole/partial model fits and the partial-data construction work correctly.
-- **`predf90(acc = TRUE)`** — reliabilities require an `OPTION snp_var` file from the `postgsf90()`
-  run, which is not wired up yet. Direct genomic values (`acc = FALSE`, the default) work.
+| Model | Description |
+|---|---|
+| Animal model | Additive genetic effects via pedigree |
+| Competition model | Direct and competition genetic effects with neighbour structure |
+| AR(1)xAR(1) spatial | Autoregressive spatial correlation (row x column) |
+| B-splines spatial | Bidimensional penalized splines |
+| Blocks | Block or group random effects |
+| Generic | User-supplied incidence and covariance or precision matrices |
+| Multi-trait | Multiple correlated traits |
+| Trait-specific random effects | Random effect groups fitted on some responses of a multi-trait model only (`remlf90(traits = ...)`, [#51](https://github.com/blaiseratcliffe/breedR/issues/51)) |
+| Heterogeneous residual variances | Residual variance as a log-linear function of covariates (`hetres_options()`) |
+| Threshold/categorical | Binary (survival) and ordinal traits via Gibbs sampling |
+| ssGBLUP | Single-step genomic BLUP combining pedigree and genomic data |
 
 ## Installation
 
 ```r
-# Install from this fork
-devtools::install_github('blaiseratcliffe/breedR')
+# The 0.13 release
+devtools::install_github('blaiseratcliffe/breedR@v0.13')
 
-# Or install from source
+# The development version
+devtools::install_github('blaiseratcliffe/breedR')
+```
+
+Or install from source:
+
+```sh
 git clone https://github.com/blaiseratcliffe/breedR.git
 R CMD INSTALL breedR
 ```
 
-BLUPF90+ binaries are downloaded automatically from UGA at install time.
+breedR needs R >= 3.1.2 and depends on `Matrix`, `sp`, `ggplot2`, `pedigree` and `pedigreemm`, among others. The BLUPF90+ binary is downloaded from [UGA](https://nce.ads.uga.edu/html/projects/programs/) at install time. If that download fails, the package still installs, and `install_progsf90()` fetches the binary later. `install_genomic_programs()` adds preGSf90, postGSf90, predf90, validationf90, predictf90, seekparentf90, gibbsf90+, postgibbsf90 and qcf90, and `install_renumf90()` adds renumf90.
 
-### Linux requirements
+On Linux, downloads from UGA currently fail with an SSL certificate error ([#116](https://github.com/blaiseratcliffe/breedR/issues/116)), and most binaries need the Intel MKL runtime: see [docs/linux.md](docs/linux.md).
 
-Most of the BLUPF90+ binaries (all but renumf90 and postgibbsf90) are
-linked against Intel MKL and the Intel OpenMP runtime and will not
-start without them (error while loading shared libraries:
-libmkl_intel_lp64.so.2). Intel's PyPI wheels provide the libraries:
-
-```sh
-python3 -m pip download --no-deps --only-binary=:all: --dest wheels \
-  mkl==2024.2.2 intel-openmp==2024.2.1
-mkdir -p ~/mkl && for w in wheels/*.whl; do
-  unzip -q -j -o "$w" '*.data/data/lib/*' -d ~/mkl
-done
-export LD_LIBRARY_PATH=~/mkl${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}   # before starting R
-```
-
-As of 2026, nce.ads.uga.edu also sends a TLS certificate without the
-intermediate that signed it (InCommon RSA Server CA 2), which some
-Linux OpenSSL/libcurl setups reject with "SSL peer certificate ... was
-not OK". This is a fault in the server's configuration, not breedR's,
-and is expected to be temporary; until it is fixed, add the
-intermediate to the system trust store (Debian/Ubuntu). The certificate
-is fetched over plain http, so verify it against the system trust store
-before trusting it: the `openssl verify` line below must print `OK`.
-
-```sh
-curl -fsSL http://crt.sectigo.com/InCommonRSAServerCA2.crt |
-  openssl x509 -inform DER -out InCommonRSAServerCA2.pem
-openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt InCommonRSAServerCA2.pem   # must say OK
-sudo cp InCommonRSAServerCA2.pem /usr/local/share/ca-certificates/InCommonRSAServerCA2.crt
-sudo update-ca-certificates
-```
-
-To install additional programs:
-
-```r
-library(breedR)
-install_genomic_programs()   # preGSf90, postGSf90, predf90, validationf90,
-                             # predictf90, seekparentf90, gibbsf90+,
-                             # postgibbsf90, qcf90
-install_renumf90()           # renumf90
-```
-
-## Quick Start
-
-### Basic animal model
+## A quick example
 
 ```r
 library(breedR)
@@ -112,340 +71,28 @@ res <- remlf90(
 summary(res)
 ```
 
-### Spatial model with automatic rho selection
+## Where to go next
 
-```r
-# Grid search over rho values (parallelized on multi-core systems)
-res <- remlf90(
-  fixed   = phe_X ~ gg,
-  spatial = list(model = 'AR',
-                 coord = globulus[, c('x', 'y')]),
-  data    = globulus,
-  parallel = 4   # use 4 cores for grid search
-)
+- [docs/examples.md](docs/examples.md) has worked examples for multi-trait models, spatial grid search, ssGBLUP, GWAS, Gibbs sampling, RENUMF90, QC, parentage and validation, and lists every wrapped BLUPF90 program.
+- The vignettes: `vignette("Overview", package = "breedR")` to start, then `Handling-pedigrees`, `Heritability`, `Heterogeneous-variances`, `Missing-values`, `Additive-Genetic-Models-in-Mixed-Populations`, `General-and-Specific-Combining-Abilities` and `Genomic-selection` (the genomic pipeline from genotypes to prediction).
+- [COMPARISON.md](COMPARISON.md) compares breedR with ASReml-R, sommer, lme4 and five other mixed-model packages.
+- [ENVIROTYPING.md](ENVIROTYPING.md) covers packages that bring environmental covariates into the model.
 
-res$rho   # evaluation grid with log-likelihoods
-```
+## Known limitations
 
-### Genomic evaluation (ssGBLUP)
-
-> For a full walkthrough of the genomic pipeline (genotype prep → ssGBLUP → GWAS
-> → prediction), see the *Genomic selection* vignette:
-> `vignette("Genomic-selection", package = "breedR")`.
-
-```r
-res <- remlf90(
-  fixed   = phe_X ~ gg,
-  genetic = list(model = 'add_animal',
-                 pedigree = dat[, 1:3],
-                 id = 'self'),
-  data    = dat,
-  genomic = list(
-    snp_file = "genotypes.txt",
-    map_file = "snp_map.txt",
-    whichG   = 1,        # VanRaden (2008)
-    tunedG   = 2,        # scale G to match A22
-    minfreq  = 0.05      # MAF threshold
-  )
-)
-
-# QC report
-res$genomic$n_snp_passed
-res$genomic$excluded_snp
-```
-
-### GWAS
-
-`postgsf90()` back-solves SNP effects from the genomic G-inverse, so the model must be fitted with
-`save_ginverse = TRUE` (otherwise `postgsf90()` stops and asks you to refit):
-
-```r
-res <- remlf90(
-  fixed   = phe_X ~ gg,
-  genetic = list(model = 'add_animal', pedigree = dat[, 1:3], id = 'self'),
-  data    = dat,
-  genomic = list(snp_file = "genotypes.txt",
-                 map_file = "snp_map.txt",
-                 save_ginverse = TRUE)     # required for a later GWAS
-)
-
-gwas <- postgsf90(res,
-  windows_variance = 20,
-  manhattan_plot    = TRUE
-)
-
-gwas$snp_sol      # SNP solutions and weights
-gwas$manhattan    # Manhattan plot data
-gwas$windows      # variance explained by genomic windows
-```
-
-### Bayesian inference (Gibbs sampling)
-
-```r
-# Linear model with Gibbs sampling
-res <- gibbsf90(phe_X ~ gg,
-  genetic = list(model = 'add_animal', pedigree = dat[, 1:3], id = 'self'),
-  data = dat, n_samples = 50000, burnin = 5000, thin = 10)
-
-# Posterior means for variance components
-colMeans(res$samples)
-
-# Convergence diagnostics
-diag <- postgibbsf90(res, burnin = 5000, thin = 10)
-diag$effective_size    # should be > 10
-diag$geweke            # should be |x| < 2
-diag$hpd               # 95% HPD intervals
-
-# Threshold model for binary survival
-res_bin <- gibbsf90(survival ~ site,
-  genetic = list(model = 'add_animal', pedigree = ped, id = 'self'),
-  data = dat, n_samples = 100000, burnin = 20000, thin = 10,
-  cat = 2)   # 2 = binary trait
-```
-
-### Predict new animals
-
-`predf90()` reads the SNP effects (`snp_pred`) written by `postgsf90()`, so run it in the same R
-session as the GWAS step above:
-
-```r
-# ... after gwas <- postgsf90(res, ...) in the same session ...
-predictions <- predf90(
-  snp_file   = "new_genotypes.txt",
-  use_mu_hat = TRUE       # add the base so DGV are comparable to GEBV
-)
-# Returns: data.frame(id, call_rate, dgv)
-```
-
-Reliabilities (`acc = TRUE`) additionally require an `OPTION snp_var` file — see
-[Known limitations](#known-limitations).
-
-### RENUMF90 data preparation
-
-```r
-# For datasets with alphanumeric IDs, unknown parent groups, etc.
-renum <- renumf90(
-  datafile = "raw_data.txt",
-  traits   = c(5, 6),
-  residual_variance = matrix(c(5, 2, 2, 4), 2, 2),
-  effects  = list(
-    list(pos = c(1, 1), type = "cross", form = "alpha"),
-    list(pos = c(2, 2), type = "cross", form = "alpha",
-         random = "animal",
-         file = "pedigree.txt",
-         covariances = matrix(c(10, 3, 3, 11), 2, 2))
-  ),
-  inbreeding = "pedigree"
-)
-
-# Fit model using RENUMF90 output
-res <- remlf90_from_renum(renum, method = 'ai')
-```
-
-### Easy data preparation (from R data.frames)
-
-```r
-# No need to think about column positions — just use column names
-renum <- renumf90_from_data(
-  data     = dat,
-  traits   = "height",
-  fixed    = c("site", "age"),
-  random   = c("block"),
-  pedigree = dat[, c("tree_id", "sire", "dam")],
-  factors  = c("block"),    # treat numeric block as factor
-  genetic_variance  = 5,
-  residual_variance = 10
-)
-res <- remlf90_from_renum(renum, method = 'ai')
-```
-
-### Genotype quality control
-
-```r
-# QCF90 runs on raw (non-renumbered) data before RENUMF90
-qc <- qcf90(
-  snp_file = "genotypes.txt",
-  ped_file = "pedigree.txt",
-  map_file = "snp_map.txt",
-  maf = 0.05,
-  check_parentage = TRUE,
-  save_clean = TRUE
-)
-qc$log              # QC summary
-qc$clean_snp        # path to cleaned genotype file
-qc$removed_animals  # animals excluded
-```
-
-### Multi-trait with different effects per trait
-
-```r
-# Height depends on herd + age; diameter depends on herd + site
-# Use renumf90() with per-trait positions (0 = absent for that trait)
-renum <- renumf90(
-  datafile = "data.txt",
-  traits   = c(5, 6),    # height col 5, diameter col 6
-  residual_variance = matrix(c(10, 3, 3, 5), 2, 2),
-  effects  = list(
-    list(pos = c(2, 2), type = "cross", form = "alpha"),  # herd: both
-    list(pos = c(3, 0), type = "cov"),                     # age: height only
-    list(pos = c(0, 4), type = "cross", form = "alpha"),  # site: diameter only
-    list(pos = c(1, 1), type = "cross", form = "alpha",
-         random = "animal", file = "pedigree.txt",
-         covariances = matrix(c(5, 2, 2, 3), 2, 2))       # genetic: both
-  )
-)
-
-# Fit with heritabilities + genetic correlation
-res <- remlf90_from_renum(renum, method = 'ai',
-  progsf90.options = c(
-    h2_formula(genetic_effect = 4, trait = 1),
-    h2_formula(genetic_effect = 4, trait = 2),
-    rg_formula(1, 2, effect = 4)
-  )
-)
-```
-
-See `inst/doc/multi_trait_different_effects.md` for the full workflow.
-
-### Heritability and genetic correlations
-
-```r
-# Automatic heritability + SE for a model with genetic (effect 2) + spatial (effect 3)
-res <- remlf90(phe_X ~ gg,
-  genetic = list(model = 'add_animal', pedigree = dat[, 1:3], id = 'self'),
-  spatial = list(model = 'AR', coord = dat[, c('x', 'y')], rho = c(.85, .8)),
-  data = dat,
-  progsf90.options = var_functions(n_traits = 1, genetic_effect = 2,
-                                    other_random = 3)
-)
-# h2 and spatial proportion in res$funvars: one column per function, with rows
-# 'mean' (the estimate, at the REML solution), 'sample mean' and 'sample sd'
-# (mean and SE of the Monte Carlo draws). summary() prints all three.
-
-# For multi-trait: heritabilities + all genetic correlations
-var_functions(n_traits = 3, genetic_effect = 2, correlations = TRUE)
-```
-
-### Parentage verification
-
-```r
-result <- seekparentf90(
-  snp_file = "genotypes.txt",
-  ped_file = "pedigree.txt",
-  seek_sire = TRUE,      # search for correct sire
-  seek_dam  = TRUE,      # search for correct dam
-  yob       = TRUE       # use year of birth from pedigree col 4
-)
-result$check       # Match/No-Match for each parent-offspring pair
-result$assigned    # corrected pedigree after parent assignment
-```
-
-### Prediction validation
-
-> Requires a `validationf90` build that runs to completion — see
-> [Known limitations](#known-limitations).
-
-```r
-# Full LR validation workflow (Legarra & Reverter 2018)
-val <- validate_prediction(
-  renum            = renum_output,     # from renumf90()
-  validation_ids   = young_animal_ids, # animals to validate
-  effect           = 2,                # genetic effect number
-  trait            = 1                 # focal trait to hold out (multi-trait)
-)
-val$statistics     # bias, dispersion, accuracy
-```
-
-### SNP file formatting
-
-```r
-# Write genotype matrix in BLUPF90 format
-write_snp_file(geno_matrix, animal_ids, "genotypes.txt")
-
-# Fractional genotypes (from imputation)
-write_snp_file(imputed_geno, animal_ids, "genotypes.txt", fractional = TRUE)
-
-# Read back
-snp_data <- read_snp_file("genotypes.txt")
-snp_data$ids    # animal IDs
-snp_data$geno   # genotype matrix
-```
-
-## Supported Models
-
-| Model | Description |
-|---|---|
-| Animal model | Additive genetic effects via pedigree |
-| Competition model | Direct + competition genetic effects with neighbour structure |
-| AR(1)xAR(1) spatial | Autoregressive spatial correlation (row x column) |
-| B-splines spatial | Bidimensional penalized splines |
-| Blocks | Block/group random effects |
-| Generic | User-supplied incidence + covariance/precision matrices |
-| Multi-trait | Multiple correlated traits |
-| Threshold/categorical | Binary (survival) and ordinal traits via Gibbs sampling |
-| ssGBLUP | Single-step genomic BLUP combining pedigree + genomic data |
-
-## BLUPF90 Programs Wrapped
-
-| R Function | BLUPF90 Program | Purpose |
-|---|---|---|
-| `remlf90()` | BLUPF90+ | Variance component estimation (AI-REML / EM-REML) |
-| `remlf90(genomic=...)` | PREGSF90 + BLUPF90+ | Genomic QC + G matrix + ssGBLUP |
-| `postgsf90()` | PostGSF90 | SNP effects, GWAS, Manhattan plots |
-| `predf90()` | PREDF90 | Genomic prediction for new animals |
-| `renumf90()` | RENUMF90 | Data renumbering, pedigree validation, UPGs |
-| `remlf90_from_renum()` | BLUPF90+ | Model fitting from RENUMF90 output |
-| `seekparentf90()` | SeekParentF90 | Parentage verification and discovery via SNP |
-| `validationf90()` | ValidationF90 | LR prediction validation |
-| `validate_prediction()` | BLUPF90+ + ValidationF90 | Full validation workflow |
-| `gibbsf90()` | GIBBSF90+ | Bayesian variance estimation (Gibbs sampling) |
-| `postgibbsf90()` | POSTGIBBSF90 | Convergence diagnostics for Gibbs samples |
-| `gibbsf90_from_renum()` | GIBBSF90+ | Gibbs sampling from RENUMF90 output |
-| `qcf90()` | QCF90 | Genotype/pedigree QC (pre-RENUMF90, raw IDs) |
-
-## Helper Functions
-
-| Function | Purpose |
-|---|---|
-| `h2_formula()` | Generate heritability OPTION with SE |
-| `rg_formula()` | Generate genetic correlation OPTION with SE |
-| `var_functions()` | Generate all variance functions for a model |
-| `vp_formula()` | Generate phenotypic variance OPTION with SE |
-| `var_ratio_formula()` | Generate variance proportion OPTION with SE |
-| `hetres_options()` | Generate heterogeneous residual variance OPTIONs |
-| `write_snp_file()` | Write genotype matrix in BLUPF90 format |
-| `read_snp_file()` | Read BLUPF90 genotype file into R |
-| `write_xref_file()` | Write cross-reference ID file |
-| `renumf90_from_data()` | Prepare data from R data.frames (no column positions needed) |
-| `build_gibbs_options()` | Generate GIBBSF90+ OPTION strings |
-
-## Comparison with other mixed-model tools
-
-How breedR compares with ASReml-R, sommer, lme4, gremlin, SpATS, BGLR, MCMCglmm
-and hibayes — engine, licence, pedigree and genomic support, spatial models,
-multi-trait, threshold traits and scalability — is covered in
-**[COMPARISON.md](COMPARISON.md)**, along with a see-also list of narrower tools.
-
-For packages that bring **environmental covariates** into the model —
-envirotyping pipelines and reaction-norm / G×E kernel models in the tradition of
-Jarquín *et al.* (2014) — see **[ENVIROTYPING.md](ENVIROTYPING.md)**.
-
-## Requirements
-
-- R >= 3.1.2
-- Key dependencies: `Matrix`, `sp`, `ggplot2`, `pedigree`, `pedigreemm`
-- BLUPF90+ binary (downloaded automatically from [UGA](https://nce.ads.uga.edu/html/projects/programs/))
+- LR validation with `validate_prediction()` or `validationf90()` needs a newer `validationf90` build. The wrapper is verified, and the whole and partial fits and the partial data it builds are correct, but the bundled `validationf90` v1.01 aborts on valid input with an end-of-file read error inside the program.
+- `predf90(acc = TRUE)` cannot compute reliabilities yet: they need an `OPTION snp_var` file from the `postgsf90()` run, which breedR does not write. Direct genomic values (`acc = FALSE`, the default) work.
 
 ## Development
 
 ```bash
-# Run tests
-Rscript -e "testthat::test_dir('tests/testthat')"
+# Run the unit tests (loads the package first)
+Rscript -e "devtools::test()"
 
 # Regenerate documentation
 Rscript -e "roxygen2::roxygenise()"
 
-# Build package
+# Build and check the package
 R CMD build . --no-build-vignettes
 R CMD check breedR_*.tar.gz --no-vignettes
 ```

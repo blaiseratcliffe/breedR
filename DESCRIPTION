@@ -64,7 +64,8 @@ SystemRequirements: BLUPF90 programs will be downloaded from the UGA
     the binaries additionally require the Intel MKL and OpenMP runtime
     libraries (libmkl_intel_lp64.so.2, libmkl_intel_thread.so.2,
     libmkl_core.so.2, libiomp5.so), which are not installed
-    automatically; see README.md.
+    automatically; see
+    https://github.com/blaiseratcliffe/breedR/blob/main/docs/linux.md.
 LazyLoad: yes
 LazyData: yes
 URL: https://github.com/blaiseratcliffe/breedR
