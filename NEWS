@@ -80,6 +80,23 @@ different row count, or original ids where a recoded pedigree needs breedR's
 codes put genotypes on the wrong animals without an error. A correct file is
 used as before (#53)
 
+* A pedigree whose codes do not start at 1 is now recoded by `build_pedigree()`,
+with the usual warning and a `map`, and a code below 1 for an individual is an
+error ("Individual codes must be 1 or greater (0 marks an unknown parent)").
+`check_pedigree()` only checked that the codes were consecutive, so such a
+pedigree was used as it was. Codes `k+1..k+n` then failed with an unrelated
+error, from R or from BLUPF90+. Codes `0..n` with animal 0 unphenotyped were
+fitted without an error and wrongly: the log-likelihood and genetic variance
+changed, and every breeding value was named after the animal coded
+one below it (#50)
+
+* `remlf90(genomic = ...)` now writes the preGSf90 XrefID with breedR's codes
+for a recoded pedigree (gaps, codes not starting at 1, offspring coded below a
+parent). It matched the genotype file's original ids against the recoded
+codes, so the fit ran without an error with genotypes attached to other
+animals. Pedigrees that keep their codes, and an XrefID supplied by the user,
+were not affected (#49)
+
 * `ranef()` now names a multi-trait random effect with a single level by
 trait, instead of silently replacing every trait past the first with `NA`.
 The value and its standard error were both affected; only a multi-trait
