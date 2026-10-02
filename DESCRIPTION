@@ -2,7 +2,7 @@ Package: breedR
 Type: Package
 Title: Statistical Methods for Forest Genetics, Animal Breeding and
     Genomic Selection
-Version: 0.13-0
+Version: 0.13
 Encoding: UTF-8
 Authors@R: c(person("Blaise", "Ratcliffe",
     role=c("aut", "cre"),

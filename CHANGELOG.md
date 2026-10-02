@@ -2,7 +2,10 @@
 
 All notable changes from the original [famuvie/breedR](https://github.com/famuvie/breedR) repository.
 
-## [Unreleased]
+## [0.13] - 2026-10-02
+
+This file summarises the larger changes. `NEWS` lists every user-visible
+change in 0.13, including the later bug fixes not described here.
 
 ### Random-effect groups can be omitted from selected responses (#51)
 
@@ -151,8 +154,6 @@ at 0. A coefficient that starts at exactly 0 is never updated, and BLUPF90+
 2.73 then crashes, so it now recommends small non-zero values such as 0.01.
 
 [#1]: https://github.com/blaiseratcliffe/breedR/issues/1
-
-## [0.13.0] - 2026-07-23
 
 ### Genomic pipelines now run end to end
 
