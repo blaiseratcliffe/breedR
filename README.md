@@ -49,7 +49,7 @@ R CMD INSTALL breedR
 
 breedR needs R >= 3.1.2 and depends on `Matrix`, `sp`, `ggplot2`, `pedigree` and `pedigreemm`, among others. The BLUPF90+ binary is downloaded from [UGA](https://nce.ads.uga.edu/html/projects/programs/) at install time. If that download fails, the package still installs, and `install_progsf90()` fetches the binary later. `install_genomic_programs()` adds preGSf90, postGSf90, predf90, validationf90, predictf90, seekparentf90, gibbsf90+, postgibbsf90 and qcf90, and `install_renumf90()` adds renumf90.
 
-On Linux, downloads from UGA currently fail with an SSL certificate error ([#116](https://github.com/blaiseratcliffe/breedR/issues/116)), and most binaries need the Intel MKL runtime: see [docs/linux.md](docs/linux.md).
+On Linux, downloads from UGA fail at the time of writing with an SSL certificate error, tracked in [#116](https://github.com/blaiseratcliffe/breedR/issues/116). Windows is not affected, and macOS is untested. Most Linux binaries also need the Intel MKL runtime: see [docs/linux.md](docs/linux.md).
 
 ## A quick example
 

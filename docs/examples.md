@@ -1,6 +1,6 @@
 # breedR examples
 
-Worked examples beyond the [quick example in the README](../README.md#a-quick-example). Examples on `globulus` and `douglas` run as they are, since both data sets come with breedR. The others stand for your own data: `dat` is a data frame with `self`, `sire` and `dam` in its first three columns, and names such as `genotypes.txt` or `pedigree.txt` are files you supply.
+Worked examples beyond the [quick example in the README](../README.md#a-quick-example). Examples on `globulus` and `douglas` run as they are, since both data sets come with breedR. The others stand for your own data. Wherever an example uses an object it does not create, such as `dat`, `ped`, `renum_output` or `geno_matrix`, that object is yours, with the columns the example names. In the pedigree examples, `dat` has `self`, `sire` and `dam` in its first three columns. Names such as `genotypes.txt` or `pedigree.txt` are files you supply.
 
 Several examples need programs beyond BLUPF90+: install them with `install_genomic_programs()` and `install_renumf90()`.
 
@@ -46,7 +46,7 @@ res$rho   # the grid, with the log-likelihood of each fit
 
 ### Multi-trait models with different effects per trait
 
-When only the random effects differ between traits, fit the model with `remlf90()` and use `traits` to name the responses each random effect group applies to. Groups that `traits` does not list apply to every response. `traits` covers random formula terms, `genetic`, `spatial`, `pec` and generic groups (see `?remlf90`).
+When only the random effects differ between traits, fit the model with `remlf90()` and use `traits` to name the responses each random effect group applies to. Groups that `traits` does not list apply to every response. `traits` covers random formula terms, `genetic`, `spatial`, `pec` and generic groups (see `?remlf90`). With `genomic`, the genetic group must stay on every response: restricting it to some traits is refused.
 
 In this example on the `douglas` trial, the block effect is fitted on circumference (`C13`) only, while the additive genetic effect covers both height (`H05`) and circumference:
 
@@ -127,7 +127,7 @@ The fit has no `Residual` row in `res$var`, and no default heritability, which B
 
 `progress_file` writes the backend's output to a file as it runs, so a long fit can be followed with `tail -F` or read with `reml_checkpoint()` from another R session. `cont = TRUE` resumes a fit from the last complete round in that file, for example after an interruption or a fit that stopped at `maxrounds`.
 
-Both need a single local fit. An AR `rho` grid search (no `rho`, or a `rho` matrix) refuses them, so fix `rho` to one pair first. Remote fits (`breedR.bin = 'remote'` or `'submit'`) refuse them too. `cont = TRUE` also refuses an explicit `var.ini`, since it takes the initial variances from the file.
+Both need a single local fit. An AR `rho` grid search (no `rho`, or a `rho` matrix) refuses them, so fix `rho` to one pair first. Remote fits (`breedR.bin = 'remote'` or `'submit'`) refuse them too. `cont = TRUE` takes the starting values from the file, so it refuses an explicit `var.ini` and the `initial` argument of `hetres_options()`. It also refuses `debug = TRUE`, which parses no results.
 
 ```r
 fit_globulus <- function(...)
@@ -228,7 +228,7 @@ gwas$windows      # variance explained by genomic windows
 
 ### Predicting new animals
 
-`predf90()` reads the SNP effects (`snp_pred`) that `postgsf90()` wrote. Pass it the directory they are in, `gwas$dir`:
+`predf90()` reads the SNP effects (`snp_pred`) that `postgsf90()` wrote. Pass it the directory they are in, `gwas$dir`. That is a temporary directory of the R session that fitted the model, and it is deleted when the session ends, so run `remlf90()`, `postgsf90()` and `predf90()` in one session. A saved `gwas` object reloaded later keeps the path but not the files.
 
 ```r
 predictions <- predf90(
@@ -254,10 +254,10 @@ res <- gibbsf90(phe_X ~ gg,
 colMeans(res$samples)
 
 # Convergence diagnostics
-diag <- postgibbsf90(res, burnin = 5000, thin = 10)
-diag$effective_size    # should be > 10
-diag$geweke            # should be |x| < 2
-diag$hpd               # 95% HPD intervals
+pg <- postgibbsf90(res, burnin = 5000, thin = 10)
+pg$effective_size    # should be > 10
+pg$geweke            # should be |x| < 2
+pg$hpd               # 95% HPD intervals
 
 # Threshold model for binary survival, coded 1 and 2 (0 = missing)
 res_bin <- gibbsf90(survival ~ site,
@@ -266,7 +266,7 @@ res_bin <- gibbsf90(survival ~ site,
   cat = 2)   # 2 = binary trait
 ```
 
-`gibbsf90_from_renum()` runs the same sampler on `renumf90()` output, and `build_gibbs_options()` builds GIBBSF90+ options by hand.
+`gibbsf90_from_renum()` runs the same sampler on `renumf90()` output.
 
 ## Data preparation with RENUMF90
 
@@ -343,13 +343,14 @@ result$assigned    # corrected pedigree after parent assignment
 
 ## Prediction validation
 
-`validate_prediction()` runs the LR validation method (Legarra and Reverter, 2018): it fits the model on the whole data and on a copy where the validation animals' phenotypes for the focal trait are set to missing, and compares the two sets of predictions. `validation_ids` are RENUMF90's renumbered ids, not the original ones. The `pedigree` element of the `renumf90()` result maps one to the other. The bundled `validationf90` cannot finish this yet: see [Known limitations](../README.md#known-limitations).
+`validate_prediction()` runs the LR validation method (Legarra and Reverter, 2018): it fits the model on the whole data and on a copy where the validation animals' phenotypes for the focal trait are set to missing, and compares the two sets of predictions. `validation_ids` are RENUMF90's renumbered ids, not the original ones. The `pedigree` element of the `renumf90()` result maps one to the other: it is the pedigree of the first animal effect, with `animal` and `original_id` columns when RENUMF90 wrote its usual 10-column file. An id that is not found there would silently stay in the partial data, so the lookup below stops on one. The bundled `validationf90` cannot finish this yet: see [Known limitations](../README.md#known-limitations).
 
 ```r
 # Original ids to renumbered ones
 ped <- renum_output$pedigree
 young_animal_ids <- ped$animal[match(as.character(young_original_ids),
                                      as.character(ped$original_id))]
+stopifnot(!anyNA(young_animal_ids))   # every id must be in the pedigree
 
 val <- validate_prediction(
   renum          = renum_output,     # from renumf90()
@@ -407,6 +408,4 @@ snp_data$geno   # genotype matrix
 | `hetres_options()` | Heterogeneous residual variance options |
 | `write_snp_file()` | Write a genotype matrix in BLUPF90 format |
 | `read_snp_file()` | Read a BLUPF90 genotype file into R |
-| `write_xref_file()` | Write a cross-reference id file |
 | `renumf90_from_data()` | Prepare data from R data frames, without column positions |
-| `build_gibbs_options()` | GIBBSF90+ option strings |
