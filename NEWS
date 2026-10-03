@@ -1,3 +1,7 @@
+* `postgsf90()` no longer fails on a fit whose response spans 0. breedR codes
+the missing records of such a response with `OPTION missing`, which PostGSF90
+rejects; it is now left out of PostGSF90's parameter file (#121)
+
 * `predf90(acc = TRUE)` now computes reliabilities: `postgsf90()` gains
 `snp_var = TRUE`, which writes the SNP prediction error variances they need.
 That option and `snp_p_value = TRUE`, which always failed, re-solve the model

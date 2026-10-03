@@ -947,23 +947,13 @@ postgsf90 <- function(model,
     run_snp_pec_pass(tmpdir, par_lines)
   }
 
-  # Rebuild the parameter file for GWAS. postGSf90 reads the plain G-inverse
-  # (readGInverse) that the fit saved via saveGInverse; it does NOT use the
-  # blupf90+ ssGBLUP option readGimA22i (that is the G-inverse minus A22-inverse
-  # correction, a different matrix). Keep SNP_file, translate the map to
-  # chrinfo, drop the REML-solver options and readGimA22i, then add the G-inverse
-  # read option and the GWAS options.
-  drop_opts <- paste0("^OPTION (sol se|method|EM-REML|se_covar_function|",
-                      "maxrounds|conv_crit|use_yams|readGimA22i)\\b")
-  kept_lines <- par_lines[!grepl(drop_opts, par_lines)]
-  # map_file -> chrinfo (postGSf90 uses chrinfo for chromosome/position info)
-  kept_lines <- sub("^OPTION map_file ", "OPTION chrinfo ", kept_lines)
-  new_par <- c(kept_lines, "OPTION readGInverse", paste("OPTION", postgs_opts))
+  new_par <- postgs_parameters(par_lines, postgs_opts)
   ## Write it beside the fit's parameter file rather than over it. That file is
   ## part of what the model object now advertises through res$reml$dir, and
   ## rewriting it in place both destroyed it and made a second postgsf90() on
-  ## the same model wrong -- drop_opts above does not match readGInverse or the
-  ## GWAS options, so they accumulated on every call.
+  ## the same model wrong -- the options dropped by postgs_parameters() do not
+  ## include readGInverse or the GWAS options, so they accumulated on every
+  ## call.
   postgs_par <- "parameters_postgs"
   writeLines(new_par, file.path(tmpdir, postgs_par))
 
@@ -1005,6 +995,28 @@ postgsf90 <- function(model,
   result$dir <- tmpdir
 
   return(result)
+}
+
+
+## Rebuild the fit's parameter lines for GWAS. postGSf90 reads the plain
+## G-inverse (readGInverse) that the fit saved via saveGInverse; it does NOT use
+## the blupf90+ ssGBLUP option readGimA22i (that is the G-inverse minus
+## A22-inverse correction, a different matrix). Keep SNP_file, translate the
+## map to chrinfo, drop the REML-solver options and readGimA22i, then add the
+## G-inverse read option and the GWAS options (`postgs_opts`, without the
+## OPTION prefix).
+##
+## 'missing' goes too: postGSf90 rejects the key, and progsf90() adds it to any
+## fit whose response spans 0 (#121). postGSf90 never uses the observations,
+## so it does not need to know which ones are missing. The BLUP pass, which
+## does, keeps it (blup_snp_parameters()).
+postgs_parameters <- function(par, postgs_opts) {
+  drop <- paste0("^OPTION (sol se|method|EM-REML|se_covar_function|",
+                 "maxrounds|conv_crit|use_yams|readGimA22i|missing)\\b")
+  kept <- par[!grepl(drop, par)]
+  # map_file -> chrinfo (postGSf90 uses chrinfo for chromosome/position info)
+  kept <- sub("^OPTION map_file ", "OPTION chrinfo ", kept)
+  c(kept, "OPTION readGInverse", paste("OPTION", postgs_opts))
 }
 
 
