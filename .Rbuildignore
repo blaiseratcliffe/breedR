@@ -16,3 +16,5 @@
 ^.*\.local\.md$
 ^blupf90_all\.pdf$
 ^Claude outputs$
+^docs$
+^CONTRIBUTING\.md$

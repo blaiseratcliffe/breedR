@@ -33,9 +33,10 @@ On Linux, most of the binaries additionally require the Intel MKL and
 OpenMP runtime libraries (\code{libmkl_intel_lp64.so.2},
 \code{libmkl_intel_thread.so.2}, \code{libmkl_core.so.2},
 \code{libiomp5.so}), which this function does not install. See
-README.md for how to obtain them (e.g. from Intel's PyPI wheels) and
-put them on \code{LD_LIBRARY_PATH}. As of 2026, the UGA server also
-sends an incomplete TLS certificate chain, which some Linux setups
-reject; this is a temporary fault in the server's configuration, not
-breedR's, and README.md has a workaround.
+\url{https://github.com/blaiseratcliffe/breedR/blob/main/docs/linux.md}
+for how to obtain them (e.g. from Intel's PyPI wheels) and put them on
+\code{LD_LIBRARY_PATH}. Downloads from the UGA server currently fail on
+Linux with an SSL certificate error, because the server's certificate
+chain ends at a root that most Linux trust stores do not include; see
+\url{https://github.com/blaiseratcliffe/breedR/issues/116}.
 }

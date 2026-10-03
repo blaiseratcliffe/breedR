@@ -1,3 +1,10 @@
+* `?install_progsf90` no longer calls the UGA server's certificate fault
+temporary or points to a README.md workaround. Since UGA renewed its
+certificate, the chain ends at a root that most Linux trust stores do not
+include, so downloads on Linux fail and no workaround is recommended (#116).
+The help now links to docs/linux.md for the MKL/OpenMP libraries and to #116
+for the certificate. The README's examples and Linux notes move to docs/ (#118)
+
 breedR 0.13
 ===========
 
