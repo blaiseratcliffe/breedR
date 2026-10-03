@@ -2,6 +2,16 @@
 
 All notable changes from the original [famuvie/breedR](https://github.com/famuvie/breedR) repository.
 
+## [0.13.1] - 2026-10-02
+
+A patch release. `NEWS` lists the changes:
+
+- `predf90(acc = TRUE)` computes reliabilities, through the new
+  `postgsf90(snp_var = TRUE)`. `postgsf90(snp_p_value = TRUE)`, which always
+  failed, now works, and both compute at the REML estimates (#119).
+- `postgsf90()` no longer fails on a fit whose response spans 0 (#121).
+- The README's examples and Linux notes move to `docs/` (#118).
+
 ## [0.13] - 2026-10-02
 
 This file summarises the larger changes. `NEWS` lists every user-visible
