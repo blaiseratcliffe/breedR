@@ -839,7 +839,9 @@ test_that("postgsf90() refuses SNP variances it cannot compute correctly", {
   hetres <- fake(c(" In round 5  convergence= 1e-14",
                    "     1 -th trait:           1 -th coefficient =  0.57"))
   for (args in list(list(snp_p_value = TRUE), list(snp_var = TRUE),
-                    list(extra_options = "snp_var")))
+                    list(extra_options = "snp_var"),
+                    ## option keys are not case sensitive to the binaries
+                    list(extra_options = "OPTION SNP_Var")))
     expect_error(do.call(postgsf90, c(list(hetres), args)),
                  "heterogeneous residual")
 
@@ -851,10 +853,33 @@ test_that("postgsf90() refuses SNP variances it cannot compute correctly", {
                     list(extra_options = "snp_p_value")))
     expect_error(do.call(postgsf90, c(list(capped), args)), "did not converge")
 
+  ## estimates that the printed precision has made indefinite: the first
+  ## genetic block of this log is printed with a correlation of -1.0000
+  x3 <- readLines(file.path(testdata, "airemlf90_log_3.txt"), warn = FALSE)
+  boundary <- fake(x3, rounds = 18, convergence = 1e-14)
+  expect_error(postgsf90(boundary, snp_var = TRUE), "not positive definite")
+
   ## Neither matters to the SNP effects themselves: those calls go on to the
   ## directory checks.
   expect_error(postgsf90(hetres), "no recorded working directory")
   expect_error(postgsf90(capped), "no recorded working directory")
+  expect_error(postgsf90(boundary), "no recorded working directory")
+})
+
+test_that("rounded estimates are checked for positive definiteness", {
+
+  x3 <- readLines(file.path(testdata, "airemlf90_log_3.txt"), warn = FALSE)
+  est <- reml_final_variances(x3)
+
+  ## positive definite as the backend reported it, not as printed
+  expect_error(check_snp_pec_variances(est), "not positive definite")
+  expect_true(check_snp_pec_variances(est[4]))
+
+  ## Coordinates of absent responses are exact zeros, not part of the block.
+  restricted <- matrix(c(2, 0, 0, 0), 2)
+  expect_true(check_snp_pec_variances(list(restricted)))
+  expect_error(check_snp_pec_variances(list(matrix(c(1, 2, 2, 1), 2))),
+               "not positive definite")
 })
 
 

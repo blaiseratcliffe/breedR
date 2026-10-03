@@ -887,7 +887,8 @@ postgsf90 <- function(model,
   ## mixed model equations at the REML estimates (see Details). Refuse the
   ## models that have none to fix the variances at before looking any further.
   snp_pec <- isTRUE(snp_p_value) || isTRUE(snp_var) ||
-    any(grepl("^\\s*snp_(p_value|var)\\b", extra_options))
+    any(grepl("^\\s*(OPTION\\s+)?snp_(p_value|var)\\b", extra_options,
+              ignore.case = TRUE))
   if (snp_pec) check_snp_pec_model(model)
 
   ## Read the working directory of *this* model rather than the session's.
@@ -923,6 +924,11 @@ postgsf90 <- function(model,
     which_weight, manhattan_plot, snp_p_value, postgs_trt_eff,
     extra_options, snp_var
   )
+
+  bin_path <- breedR.getOption('breedR.bin')
+  if (!check_genomic_programs(bin_path, quiet = TRUE))
+    stop("Genomic program binaries (postGSf90) not installed. ",
+         "See ?install_genomic_programs", call. = FALSE)
 
   ## Outputs of an earlier call on this model that this one may not rewrite.
   ## parse_postgsf90() reads chrsnp_pval whenever it exists, predf90() reads
@@ -976,11 +982,6 @@ postgsf90 <- function(model,
   }
 
   # Run PostGSF90
-  bin_path <- breedR.getOption('breedR.bin')
-  if (!check_genomic_programs(bin_path, quiet = TRUE))
-    stop("Genomic program binaries (postGSf90) not installed. ",
-         "See ?install_genomic_programs", call. = FALSE)
-
   postgs_out <- run_postgsf90(tmpdir, bin_path, par_name = postgs_par)
   writeLines(postgs_out, file.path(tmpdir, "postgsf90.out"))
 
@@ -1063,6 +1064,7 @@ check_snp_pec_model <- function(model) {
     stop("The REML fit did not converge, so it has no variance estimates to ",
          "compute SNP p-values or prediction error variances at.",
          call. = FALSE)
+  check_snp_pec_variances(reml_final_variances(reml_out))
   invisible(TRUE)
 }
 
@@ -1072,6 +1074,27 @@ check_snp_pec_model <- function(model) {
 reml_final_variances <- function(reml_out) {
   at <- grep("Genetic variance|Residual variance", reml_out) + 1L
   lapply(at, function(i) unname(parse.txtmat(extract_block(i, reml_out))))
+}
+
+## The estimates are only as precise as BLUPF90+ prints them (about five
+## significant digits), and no more precise copy is kept. Near the boundary of
+## the parameter space -- a genetic correlation printed as 1.0000, say -- the
+## rounded matrix can be indefinite, and the BLUP pass would invert something
+## other than the fitted model. Refuse those. Coordinates whose variance is
+## exactly zero (responses a restricted random effect is absent from) are not
+## part of the block.
+check_snp_pec_variances <- function(est) {
+  for (m in est) {
+    act <- diag(m) != 0
+    if (any(act) &&
+        !all(eigen(m[act, act, drop = FALSE], symmetric = TRUE,
+                   only.values = TRUE)$values > 0))
+      stop("The variance estimates of the fit are not positive definite at ",
+           "the precision BLUPF90+ prints them with, so SNP p-values and ",
+           "prediction error variances cannot be computed from them.",
+           call. = FALSE)
+  }
+  invisible(TRUE)
 }
 
 ## Write the (co)variance matrices `est` (random groups in order, residual
@@ -1126,14 +1149,25 @@ run_snp_pec_pass <- function(dir, par_lines) {
   bak <- file.path(dir, "solutions_reml")
   if (!file.copy(sol, bak, overwrite = TRUE))
     stop("Could not back up the solutions in ", dir, call. = FALSE)
-  on.exit({
-    file.copy(bak, sol, overwrite = TRUE)
+  ## The backup goes only once the solutions are back intact. Otherwise it
+  ## stays, and the call stops rather than going on with a partial file.
+  restore <- function() {
+    if (!file.copy(bak, sol, overwrite = TRUE) ||
+        tools::md5sum(sol) != tools::md5sum(bak))
+      stop("Could not restore the solutions of the fit in ", dir,
+           ". They are kept in ", bak, ".", call. = FALSE)
     unlink(bak)
-  })
+  }
 
-  out <- run_blupf90_in_dir(dir, breedR.getOption('breedR.bin'),
-                            progsf90_files(breedR.os.type()),
-                            par_name = "parameters_blup")
+  out <- tryCatch(
+    run_blupf90_in_dir(dir, breedR.getOption('breedR.bin'),
+                       progsf90_files(breedR.os.type()),
+                       par_name = "parameters_blup"),
+    error = function(e) {
+      restore()
+      stop(e)
+    })
+  restore()
 
   ## BLUPF90+ can stop with a message and a clean exit. "ERROR:" as in
   ## postgsf90(): the Fortran fatal-error convention.

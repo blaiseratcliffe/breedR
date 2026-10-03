@@ -420,14 +420,22 @@ test_that("predf90 computes reliabilities from postgsf90(snp_var = TRUE) (#119)"
                tolerance = 1e-6)
   expect_false(isTRUE(all.equal(start, res.acc$var["genetic", 1])))
 
+  ## and so are those the inverse itself was computed at
+  blup <- readLines(file.path(d, "parameters_blup"))
+  expect_equal(as.numeric(blup[which(blup == "(CO)VARIANCES") + 1L]),
+               res.acc$var["genetic", 1], tolerance = 1e-6)
+  expect_equal(as.numeric(blup[which(blup == "RANDOM_RESIDUAL VALUES") + 1L]),
+               res.acc$var["Residual", 1], tolerance = 1e-6)
+
   ## the fit's own solutions are left as they were
   expect_identical(tools::md5sum(file.path(d, "solutions")), sol_md5)
   ## and so are the SNP effects
   expect_equal(gwas$snp_sol$solution, postgsf90(res.acc)$snp_sol$solution)
 
-  ## postgsf90(res.acc) above cleared them; ask again
+  ## postgsf90(res.acc) above cleared them; ask again. One file per trait and
+  ## correlated effect: snp_var_1_1 for this single-trait model.
   gwas <- postgsf90(res.acc, snp_var = TRUE)
-  expect_length(list.files(d, "^snp_var_"), 1L)
+  expect_identical(list.files(d, "^snp_var_"), "snp_var_1_1")
 
   new_snp <- file.path(tempdir(), "test_predf90_acc_new.txt")
   set.seed(11)
