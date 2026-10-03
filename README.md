@@ -33,8 +33,8 @@ Some fixes in 0.13 change results that earlier versions returned without an erro
 ## Installation
 
 ```r
-# The 0.13 release
-devtools::install_github('blaiseratcliffe/breedR@v0.13')
+# The 0.13.1 release
+devtools::install_github('blaiseratcliffe/breedR@v0.13.1')
 
 # The development version
 devtools::install_github('blaiseratcliffe/breedR')
