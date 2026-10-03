@@ -288,6 +288,38 @@ test_that("postgsf90 backsolves SNP effects on a save_ginverse fit", {
   expect_equal(nrow(gwas$manhattan), nsnp)
 })
 
+test_that("postgsf90 works on a fit with OPTION missing (#121)", {
+  ## A response spanning 0 makes progsf90() code missing records with
+  ## OPTION missing, which postGSf90 rejects. Centring the response is
+  ## absorbed by the fixed effects, so the SNP effects must not change.
+  gl <- globulus
+  gl$phe_c <- gl$phe_X - mean(gl$phe_X)
+  fit <- function(resp, tag) {
+    f <- file.path(tempdir(), paste0("test_gwas_missing_", tag, ".txt"))
+    write_snp_file(Gmat, ids = gen_ids, file = f)
+    file.remove(list.files(dirname(f), pattern = "_XrefID$",
+                           full.names = TRUE))
+    suppressMessages(
+      remlf90(fixed = as.formula(paste(resp, "~ gg")),
+              genetic = list(model = 'add_animal',
+                             pedigree = gl[, 1:3], id = 'self'),
+              genomic = list(snp_file = f, verify_parentage = 0L,
+                             save_ginverse = TRUE),
+              data = gl))
+  }
+  res.c <- fit("phe_c", "c")
+  res.x <- fit("phe_X", "x")
+  expect_true(any(grepl("^OPTION missing",
+                        readLines(file.path(res.c$reml$dir, "parameters")))))
+
+  ## snp_var also runs the BLUP pass, which keeps the option
+  gwas.c <- postgsf90(res.c, snp_var = TRUE)
+  gwas.x <- postgsf90(res.x)
+  expect_equal(nrow(gwas.c$snp_sol), nsnp)
+  expect_equal(gwas.c$snp_sol$solution, gwas.x$snp_sol$solution,
+               tolerance = 1e-5)
+})
+
 test_that("postgsf90 refuses a fit made without save_ginverse", {
   ng_snp <- file.path(tempdir(), "test_nogwas_snp.txt")
   write_snp_file(Gmat, ids = gen_ids, file = ng_snp)

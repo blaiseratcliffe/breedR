@@ -825,6 +825,25 @@ test_that("the BLUP pass solves at fixed variances and keeps the model", {
   expect_identical(blup[seq_len(n_model)], par[seq_len(n_model)])
 })
 
+test_that("postGSf90 is not given OPTION missing, the BLUP pass is (#121)", {
+
+  ## progsf90() adds OPTION missing whenever the response spans 0
+  par <- c(parfile_3groups(), "OPTION missing -999", "OPTION map_file m.txt")
+  postgs <- postgs_parameters(par, c("Manhattan_plot_R", "snp_var"))
+
+  expect_false(any(grepl("^OPTION missing", postgs)))
+  expect_false(any(grepl("^OPTION (sol se|method|EM-REML|se_covar_function|maxrounds|conv_crit|readGimA22i|map_file)",
+                         postgs)))
+  expect_true(all(c("OPTION SNP_file geno.txt", "OPTION chrinfo m.txt",
+                    "OPTION readGInverse", "OPTION Manhattan_plot_R",
+                    "OPTION snp_var") %in% postgs))
+  ## the model itself is unchanged
+  n_model <- which(par == 'OPTION sol se') - 1L
+  expect_identical(postgs[seq_len(n_model)], par[seq_len(n_model)])
+
+  expect_true("OPTION missing -999" %in% blup_snp_parameters(par))
+})
+
 test_that("postgsf90() refuses SNP variances it cannot compute correctly", {
 
   ## These stop before the working directory is looked at, so the fakes need
