@@ -105,3 +105,21 @@ test_that("combined options all present", {
   expect_true("Manhattan_plot_R" %in% opts)
   expect_true("snp_p_value" %in% opts)
 })
+
+test_that("snp_var generates option", {
+  opts <- build_postgsf90_options(
+    windows_variance = NULL, windows_variance_mbp = NULL,
+    windows_variance_type = 1, which_weight = NULL,
+    manhattan_plot = FALSE, snp_p_value = FALSE,
+    postgs_trt_eff = NULL, extra_options = NULL, snp_var = TRUE)
+  expect_true("snp_var" %in% opts)
+  ## without asking for the p-values as well
+  expect_false("snp_p_value" %in% opts)
+
+  opts <- build_postgsf90_options(
+    windows_variance = NULL, windows_variance_mbp = NULL,
+    windows_variance_type = 1, which_weight = NULL,
+    manhattan_plot = FALSE, snp_p_value = FALSE,
+    postgs_trt_eff = NULL, extra_options = NULL)
+  expect_false("snp_var" %in% opts)
+})

@@ -817,13 +817,34 @@ check_xref_file <- function(xref_file, snp_file, pedigree = NULL) {
 #'   weighted ssGBLUP: 1 = y^2*2p(1-p), 2 = y^2, 4 or "nonlinearA" =
 #'   VanRaden (2009). If NULL (default), not computed.
 #' @param manhattan_plot logical. Generate Manhattan plot data (default TRUE).
-#' @param snp_p_value logical. Compute p-values. Requires large memory
-#'   (default FALSE).
+#' @param snp_p_value logical. Compute p-values (default FALSE). See Details.
 #' @param postgs_trt_eff integer vector of length 2. Restrict analysis to
 #'   specific trait and effect (c(trait, effect)). If NULL (default), all
 #'   traits/effects.
 #' @param extra_options character vector. Additional OPTION lines passed
 #'   directly to PostGSF90.
+#' @param snp_var logical. Write the prediction error (co)variances of the SNP
+#'   effects, which \code{\link{predf90}} needs to compute reliabilities with
+#'   \code{acc = TRUE} (default FALSE). See Details.
+#'
+#' @details
+#' P-values (\code{snp_p_value}) and SNP prediction error variances
+#' (\code{snp_var}) are computed from the inverse of the mixed model
+#' equations. BLUPF90+ computes it only when solving at fixed variances, not
+#' while estimating them, so for either option \code{postgsf90()} first re-solves
+#' the model with BLUPF90+ at the REML estimates of \code{model} (OPTION method
+#' BLUP with OPTION snp_p_value). This inverts the full mixed model equations,
+#' which takes a lot of memory and time for large models. The same applies when
+#' \code{snp_p_value} or \code{snp_var} is given through
+#' \code{extra_options}. Do not put \code{snp_p_value} in the
+#' \code{progsf90.options} of \code{\link{remlf90}}: BLUPF90+ refuses it in a
+#' REML fit.
+#'
+#' The fit must have converged, and the options are not available for a
+#' model with heterogeneous residual variances (\code{\link{hetres_options}}).
+#' The SNP effects themselves do not depend on the variances and are the same
+#' with or without these options.
+#'
 #' @return A list with components:
 #'   \describe{
 #'     \item{snp_sol}{data.frame of SNP solutions, weights, and variance}
@@ -845,7 +866,8 @@ postgsf90 <- function(model,
                       manhattan_plot = TRUE,
                       snp_p_value = FALSE,
                       postgs_trt_eff = NULL,
-                      extra_options = NULL) {
+                      extra_options = NULL,
+                      snp_var = FALSE) {
 
   if (!inherits(model, 'remlf90'))
     stop("'model' must be a fitted remlf90 object.", call. = FALSE)
@@ -860,6 +882,13 @@ postgsf90 <- function(model,
     stop("This model was not fitted for GWAS. Refit with ",
          "genomic = list(..., save_ginverse = TRUE) before calling postgsf90().",
          call. = FALSE)
+
+  ## P-values and SNP prediction error variances need the inverse of the
+  ## mixed model equations at the REML estimates (see Details). Refuse the
+  ## models that have none to fix the variances at before looking any further.
+  snp_pec <- isTRUE(snp_p_value) || isTRUE(snp_var) ||
+    any(grepl("^\\s*snp_(p_value|var)\\b", extra_options))
+  if (snp_pec) check_snp_pec_model(model)
 
   ## Read the working directory of *this* model rather than the session's.
   ## Falling back to tempdir() was the old behaviour and could only mislead:
@@ -892,8 +921,25 @@ postgsf90 <- function(model,
   postgs_opts <- build_postgsf90_options(
     windows_variance, windows_variance_mbp, windows_variance_type,
     which_weight, manhattan_plot, snp_p_value, postgs_trt_eff,
-    extra_options
+    extra_options, snp_var
   )
+
+  ## Outputs of an earlier call on this model that this one may not rewrite.
+  ## parse_postgsf90() reads chrsnp_pval whenever it exists, predf90() reads
+  ## snp_var_*, and a stale xx_ija would hide a BLUP pass that failed.
+  unlink(c(file.path(tmpdir, c("chrsnp_pval", "xx_ija")),
+           list.files(tmpdir, "^snp_var_", full.names = TRUE)))
+
+  par_lines <- readLines(file.path(tmpdir, "parameters"))
+
+  ## The fit's parameter file holds the starting variances. The SNP effects do
+  ## not depend on them, but the p-values and prediction error variances do, so
+  ## both the BLUP pass and postGSf90 get the REML estimates.
+  if (snp_pec) {
+    par_lines <- set_parfile_variances(
+      par_lines, reml_final_variances(model$reml$output))
+    run_snp_pec_pass(tmpdir, par_lines)
+  }
 
   # Rebuild the parameter file for GWAS. postGSf90 reads the plain G-inverse
   # (readGInverse) that the fit saved via saveGInverse; it does NOT use the
@@ -901,7 +947,6 @@ postgsf90 <- function(model,
   # correction, a different matrix). Keep SNP_file, translate the map to
   # chrinfo, drop the REML-solver options and readGimA22i, then add the G-inverse
   # read option and the GWAS options.
-  par_lines <- readLines(file.path(tmpdir, "parameters"))
   drop_opts <- paste0("^OPTION (sol se|method|EM-REML|se_covar_function|",
                       "maxrounds|conv_crit|use_yams|readGimA22i)\\b")
   kept_lines <- par_lines[!grepl(drop_opts, par_lines)]
@@ -966,7 +1011,8 @@ postgsf90 <- function(model,
 build_postgsf90_options <- function(windows_variance, windows_variance_mbp,
                                      windows_variance_type, which_weight,
                                      manhattan_plot, snp_p_value,
-                                     postgs_trt_eff, extra_options) {
+                                     postgs_trt_eff, extra_options,
+                                     snp_var = FALSE) {
   opts <- character(0)
 
   if (!is.null(windows_variance))
@@ -981,6 +1027,8 @@ build_postgsf90_options <- function(windows_variance, windows_variance_mbp,
     opts <- c(opts, "Manhattan_plot_R")
   if (isTRUE(snp_p_value))
     opts <- c(opts, "snp_p_value")
+  if (isTRUE(snp_var))
+    opts <- c(opts, "snp_var")
   if (!is.null(postgs_trt_eff)) {
     stopifnot(length(postgs_trt_eff) == 2)
     opts <- c(opts, paste("postgs_trt_eff",
@@ -990,6 +1038,110 @@ build_postgsf90_options <- function(windows_variance, windows_variance_mbp,
     opts <- c(opts, extra_options)
 
   return(opts)
+}
+
+
+## -- SNP p-values and prediction error variances (#119) --
+##
+## postGSf90 computes both from the inverse of the mixed model equations
+## (xx_ija), which BLUPF90+ writes under OPTION snp_p_value -- but only in a
+## BLUP run: it refuses the option under 'method VCE', which every breedR fit
+## uses. So these take a second BLUPF90+ run, at the REML estimates. The fit's
+## parameter file holds the starting variances, and postGSf90 reads its
+## variances from its own parameter file too, so both runs need the estimates
+## written in.
+
+## Refuse the models whose variances cannot be fixed at their REML estimates.
+check_snp_pec_model <- function(model) {
+  reml_out <- model$reml$output
+  ## Detected from the output, as parse_results() does.
+  if (any(grepl(hetres_coef_re, reml_out)))
+    stop("SNP p-values and prediction error variances are not available for ",
+         "a model with heterogeneous residual variances.", call. = FALSE)
+  if (reml_stopped_at_cap(reml_out, model$reml$rounds,
+                          model$reml$convergence))
+    stop("The REML fit did not converge, so it has no variance estimates to ",
+         "compute SNP p-values or prediction error variances at.",
+         call. = FALSE)
+  invisible(TRUE)
+}
+
+## Final REML (co)variance estimates of a fit, from its output: one matrix per
+## random group in the order of the parameter file, then the residual. The same
+## blocks parse_results() reads the estimates from.
+reml_final_variances <- function(reml_out) {
+  at <- grep("Genetic variance|Residual variance", reml_out) + 1L
+  lapply(at, function(i) unname(parse.txtmat(extract_block(i, reml_out))))
+}
+
+## Write the (co)variance matrices `est` (random groups in order, residual
+## last, as reml_final_variances() returns them) over the starting values in
+## the lines of a parameter file written by write.progsf90(). Everything else
+## is left as it is.
+set_parfile_variances <- function(par, est) {
+  mismatch <- function()
+    stop("The variance estimates of the fit do not match its parameter file.",
+         call. = FALSE)
+
+  res_at <- which(par == "RANDOM_RESIDUAL VALUES")
+  grp_at <- which(par == "(CO)VARIANCES")
+  if (length(res_at) != 1L || length(grp_at) != length(est) - 1L) mismatch()
+
+  ## A row of a matrix in the file: numbers only.
+  num_row <- function(x) {
+    v <- suppressWarnings(as.numeric(strsplit(trimws(x), "[[:space:]]+")[[1]]))
+    if (length(v) && !anyNA(v)) length(v) else 0L
+  }
+
+  heads <- c(grp_at, res_at)
+  for (j in seq_along(heads)) {
+    m <- as.matrix(est[[j]])
+    rows <- heads[j] + seq_len(nrow(m))
+    ## The block it replaces must have the same dimensions: as many rows of
+    ## as many numbers, and no further row.
+    nxt <- max(rows) + 1L
+    if (nrow(m) != ncol(m) || max(rows) > length(par) ||
+        !all(vapply(par[rows], num_row, 1L) == ncol(m)) ||
+        (nxt <= length(par) && num_row(par[nxt]) > 0L))
+      mismatch()
+    par[rows] <- apply(m, 1, paste, collapse = " ")
+  }
+  par
+}
+
+## The parameter lines of the BLUP pass: the model at fixed variances.
+blup_snp_parameters <- function(par) {
+  drop <- "^OPTION (method|EM-REML|se_covar_function|maxrounds|conv_crit)\\b"
+  c(par[!grepl(drop, par)], "OPTION method BLUP", "OPTION snp_p_value")
+}
+
+## Run the BLUP pass in the fit's directory, leaving xx_ija for postGSf90.
+## `par_lines` must already hold the REML estimates. The fit's own solutions
+## are put back afterwards: the pass rewrites them, at variances rounded to
+## the printed precision.
+run_snp_pec_pass <- function(dir, par_lines) {
+  writeLines(blup_snp_parameters(par_lines), file.path(dir, "parameters_blup"))
+
+  sol <- file.path(dir, "solutions")
+  bak <- file.path(dir, "solutions_reml")
+  if (!file.copy(sol, bak, overwrite = TRUE))
+    stop("Could not back up the solutions in ", dir, call. = FALSE)
+  on.exit({
+    file.copy(bak, sol, overwrite = TRUE)
+    unlink(bak)
+  })
+
+  out <- run_blupf90_in_dir(dir, breedR.getOption('breedR.bin'),
+                            progsf90_files(breedR.os.type()),
+                            par_name = "parameters_blup")
+
+  ## BLUPF90+ can stop with a message and a clean exit. "ERROR:" as in
+  ## postgsf90(): the Fortran fatal-error convention.
+  if (!file.exists(file.path(dir, "xx_ija")) || any(grepl("ERROR:", out)))
+    stop("BLUPF90+ did not compute the inverse of the mixed model equations ",
+         "for the SNP p-values or prediction error variances.\nOutput:\n",
+         paste(utils::tail(out, 15), collapse = "\n"), call. = FALSE)
+  invisible(out)
 }
 
 
@@ -1140,8 +1292,12 @@ parse_postgsf90 <- function(dir) {
 #' @param use_mu_hat logical. Add the base (mu_hat) to DGV so values are
 #'   comparable to GEBV (default TRUE).
 #' @param acc logical. Compute reliability of predictions (default FALSE).
-#'   Requires \code{OPTION snp_p_value} in BLUPF90+ and
-#'   \code{OPTION snp_var} in PostGSF90.
+#'   Requires the prediction error variances of the SNP effects, which
+#'   \code{postgsf90(..., snp_var = TRUE)} writes in \code{dir} (files
+#'   \code{snp_var_<correlated effect>_<trait>}). predf90 computes
+#'   reliabilities with a fixed blending weight alpha = 0.95, which matches
+#'   the default \code{AlphaBeta} of \code{\link{remlf90}}'s \code{genomic}
+#'   list but not other values.
 #' @param acc_type numeric. 1.0 for dairy cattle (reliability) or 0.5 for
 #'   beef cattle (BIF accuracy). Default 1.0.
 #' @param use_diagG_acc logical. Use inbreeding from G in the reliability
