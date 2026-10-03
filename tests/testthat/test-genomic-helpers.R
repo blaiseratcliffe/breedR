@@ -736,6 +736,153 @@ test_that("postgsf90() tells a reloaded model apart from one that never had a di
 })
 
 
+## -- SNP p-values and prediction error variances (#119) --
+
+## postGSf90 computes them from the inverse of the mixed model equations, which
+## BLUPF90+ writes only in a BLUP run with the variances fixed at the REML
+## estimates. The parameter file of the fit holds the *starting* values.
+
+## The parameter file of a 2-trait model with three random groups, at starting
+## values, laid out as write.progsf90() writes it.
+parfile_3groups <- function() {
+  c('DATAFILE', 'data', 'NUMBER_OF_TRAITS', '2', 'NUMBER_OF_EFFECTS', '4',
+    'OBSERVATION(S)', '1 2', 'WEIGHT(S)', '',
+    'EFFECTS: POSITIONS_IN_DATAFILE NUMBER_OF_LEVELS TYPE_OF_EFFECT [EFFECT NESTED]',
+    '3 3 3 cross', '4 4 10 cross', '5 5 20 cross', '6 6 30 cross',
+    'RANDOM_RESIDUAL VALUES', '1 0', '0 1',
+    'RANDOM_GROUP', '2', 'RANDOM_TYPE', 'diagonal', 'FILE', '',
+    '(CO)VARIANCES', '2 0', '0 2',
+    'RANDOM_GROUP', '3', 'RANDOM_TYPE', 'add_animal', 'FILE', 'pedigree',
+    '(CO)VARIANCES', '3 0', '0 3',
+    'RANDOM_GROUP', '4', 'RANDOM_TYPE', 'diagonal', 'FILE', '',
+    '(CO)VARIANCES', '4 0', '0 4',
+    'OPTION sol se', 'OPTION method VCE', 'OPTION EM-REML',
+    'OPTION se_covar_function h2 G_3_3_1_1/(G_3_3_1_1+R_1_1)',
+    'OPTION maxrounds 50', 'OPTION conv_crit 1e-8',
+    'OPTION SNP_file geno.txt', 'OPTION readGimA22i')
+}
+
+test_that("the final REML estimates replace the starting values in the parameter file", {
+
+  x3 <- readLines(file.path(testdata, "airemlf90_log_3.txt"), warn = FALSE)
+  est <- reml_final_variances(x3)
+
+  ## random groups in order, the residual last
+  expect_length(est, 4L)
+  expect_equal(est[[1]], matrix(c(0.16384E+09, -0.16388E+09,
+                                  -0.16388E+09, 0.16391E+09), 2))
+  expect_equal(est[[4]], matrix(c(7.9725, -0.31913, -0.31913, 0.66886), 2))
+
+  par <- parfile_3groups()
+  out <- set_parfile_variances(par, est)
+
+  block <- function(lines, head, k = 1L) {
+    at <- which(lines == head)[k]
+    unname(as.matrix(utils::read.table(text = lines[at + 1:2])))
+  }
+  expect_equal(block(out, 'RANDOM_RESIDUAL VALUES'), est[[4]])
+  for (k in 1:3)
+    expect_equal(block(out, '(CO)VARIANCES', k), est[[k]])
+
+  ## Nothing else is touched: the starting values were 1, 2, 3 and 4, so every
+  ## line that differs must be one of the eight variance rows.
+  changed <- which(out != par)
+  heads <- which(par %in% c('RANDOM_RESIDUAL VALUES', '(CO)VARIANCES'))
+  expect_setequal(changed, c(heads + 1L, heads + 2L))
+  expect_length(out, length(par))
+})
+
+test_that("estimates that do not fit the parameter file are refused", {
+
+  x3 <- readLines(file.path(testdata, "airemlf90_log_3.txt"), warn = FALSE)
+  est <- reml_final_variances(x3)
+  par <- parfile_3groups()
+
+  ## one random group fewer in the file than in the log
+  at <- which(par == 'RANDOM_GROUP')[3]
+  expect_error(set_parfile_variances(par[-(at:(at + 8L))], est),
+               "do not match")
+
+  ## a single-trait file for a two-trait log
+  one <- par
+  one[one %in% c('1 0', '2 0', '3 0', '4 0')] <- '1'
+  one <- one[!one %in% c('0 1', '0 2', '0 3', '0 4')]
+  expect_error(set_parfile_variances(one, est), "do not match")
+})
+
+test_that("the BLUP pass solves at fixed variances and keeps the model", {
+
+  par <- parfile_3groups()
+  blup <- blup_snp_parameters(par)
+
+  expect_false(any(grepl("^OPTION (method VCE|EM-REML|se_covar_function|maxrounds|conv_crit)",
+                         blup)))
+  expect_true(all(c("OPTION method BLUP", "OPTION snp_p_value",
+                    "OPTION sol se", "OPTION SNP_file geno.txt",
+                    "OPTION readGimA22i") %in% blup))
+  ## the model itself is unchanged
+  n_model <- which(par == 'OPTION sol se') - 1L
+  expect_identical(blup[seq_len(n_model)], par[seq_len(n_model)])
+})
+
+test_that("postgsf90() refuses SNP variances it cannot compute correctly", {
+
+  ## These stop before the working directory is looked at, so the fakes need
+  ## none.
+  fake <- function(output, rounds = 5, convergence = 1e-14)
+    structure(list(genomic = list(save_ginverse = TRUE),
+                   reml = list(output = output, rounds = rounds,
+                               convergence = convergence)),
+              class = c('breedR', 'remlf90'))
+
+  ## heterogeneous residual variances: no residual variance to fix
+  hetres <- fake(c(" In round 5  convergence= 1e-14",
+                   "     1 -th trait:           1 -th coefficient =  0.57"))
+  for (args in list(list(snp_p_value = TRUE), list(snp_var = TRUE),
+                    list(extra_options = "snp_var"),
+                    ## option keys are not case sensitive to the binaries
+                    list(extra_options = "OPTION SNP_Var")))
+    expect_error(do.call(postgsf90, c(list(hetres), args)),
+                 "heterogeneous residual")
+
+  ## a fit stopped at its iteration cap has no estimates to fix them at
+  capped <- fake(c(" * maximum number of iterations (default=10000):          80",
+                   " In round 80  convergence= 1e-3"),
+                 rounds = 80, convergence = 1e-3)
+  for (args in list(list(snp_p_value = TRUE), list(snp_var = TRUE),
+                    list(extra_options = "snp_p_value")))
+    expect_error(do.call(postgsf90, c(list(capped), args)), "did not converge")
+
+  ## estimates that the printed precision has made indefinite: the first
+  ## genetic block of this log is printed with a correlation of -1.0000
+  x3 <- readLines(file.path(testdata, "airemlf90_log_3.txt"), warn = FALSE)
+  boundary <- fake(x3, rounds = 18, convergence = 1e-14)
+  expect_error(postgsf90(boundary, snp_var = TRUE), "not positive definite")
+
+  ## Neither matters to the SNP effects themselves: those calls go on to the
+  ## directory checks.
+  expect_error(postgsf90(hetres), "no recorded working directory")
+  expect_error(postgsf90(capped), "no recorded working directory")
+  expect_error(postgsf90(boundary), "no recorded working directory")
+})
+
+test_that("rounded estimates are checked for positive definiteness", {
+
+  x3 <- readLines(file.path(testdata, "airemlf90_log_3.txt"), warn = FALSE)
+  est <- reml_final_variances(x3)
+
+  ## positive definite as the backend reported it, not as printed
+  expect_error(check_snp_pec_variances(est), "not positive definite")
+  expect_true(check_snp_pec_variances(est[4]))
+
+  ## Coordinates of absent responses are exact zeros, not part of the block.
+  restricted <- matrix(c(2, 0, 0, 0), 2)
+  expect_true(check_snp_pec_variances(list(restricted)))
+  expect_error(check_snp_pec_variances(list(matrix(c(1, 2, 2, 1), 2))),
+               "not positive definite")
+})
+
+
 test_that("predf90() requires the directory postgsf90() wrote to", {
 
   ## Nothing writes snp_pred into bare tempdir() now that each fit works in its

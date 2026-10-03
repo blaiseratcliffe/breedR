@@ -1,3 +1,12 @@
+* `predf90(acc = TRUE)` now computes reliabilities: `postgsf90()` gains
+`snp_var = TRUE`, which writes the SNP prediction error variances they need.
+That option and `snp_p_value = TRUE`, which always failed, re-solve the model
+at the REML estimates before running PostGSF90, because BLUPF90+ computes the
+inverse they need only at fixed variances. With either option PostGSF90 is
+also given the REML estimates in place of the starting variances it used to
+read, which left the SNP effects unchanged but not the p-values and
+reliabilities (#119)
+
 * `?install_progsf90` no longer calls the UGA server's certificate fault
 temporary or points to a README.md workaround. Since UGA renewed its
 certificate, the chain ends at a root that most Linux trust stores do not

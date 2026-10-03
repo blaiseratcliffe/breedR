@@ -6,7 +6,7 @@
 
 breedR is an R package for fitting linear mixed models in breeding and quantitative genetics. It wraps the [BLUPF90](https://nce.ads.uga.edu/wiki/doku.php?id=start) family of programs to estimate variance components by REML, predict breeding values and run genomic evaluations. This fork of the [original breedR](https://github.com/famuvie/breedR) moves it to the current BLUPF90+ program and adds single-step genomic BLUP, GWAS, genomic prediction, Bayesian inference by Gibbs sampling, RENUMF90 data preparation, genotype QC, parentage verification and prediction validation.
 
-> **Note:** This fork is in active development and is written with the assistance of [Claude Code](https://claude.com/claude-code). The genomic paths (ssGBLUP, GWAS, genomic prediction, RENUMF90, parentage verification, and QC) now run end to end and are verified on small test datasets. See [Known limitations](#known-limitations) for two features that need a newer binary or extra setup.
+> **Note:** This fork is in active development and is written with the assistance of [Claude Code](https://claude.com/claude-code). The genomic paths (ssGBLUP, GWAS, genomic prediction, RENUMF90, parentage verification, and QC) now run end to end and are verified on small test datasets. See [Known limitations](#known-limitations) for one feature that needs a newer binary.
 >
 > Testing help is welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to compare breedR's estimates with other tools and what to put in an issue.
 
@@ -81,7 +81,6 @@ summary(res)
 ## Known limitations
 
 - LR validation with `validate_prediction()` or `validationf90()` needs a newer `validationf90` build. The wrapper is verified, and the whole and partial fits and the partial data it builds are correct, but the bundled `validationf90` v1.01 aborts on valid input with an end-of-file read error inside the program.
-- `predf90(acc = TRUE)` cannot compute reliabilities yet: they need an `OPTION snp_var` file from the `postgsf90()` run, which breedR does not write. Direct genomic values (`acc = FALSE`, the default) work.
 
 ## Development
 

@@ -334,8 +334,9 @@ validate_prediction <- function(renum,
 }
 
 
-## Run BLUPF90+ in a specific directory
-run_blupf90_in_dir <- function(dir, bin_path, blupf90_name) {
+## Run BLUPF90+ in a specific directory, on the parameter file `par_name`
+run_blupf90_in_dir <- function(dir, bin_path, blupf90_name,
+                               par_name = "renf90.par") {
   blupf90_src <- file.path(bin_path, blupf90_name)
   blupf90_bin <- file.path(dir, blupf90_name)
   file.copy(blupf90_src, blupf90_bin, overwrite = TRUE)
@@ -346,7 +347,7 @@ run_blupf90_in_dir <- function(dir, bin_path, blupf90_name) {
     unlink(blupf90_bin)
   })
 
-  out <- system2(file.path(".", blupf90_name), input = "renf90.par",
+  out <- system2(file.path(".", blupf90_name), input = par_name,
                  stdout = TRUE, stderr = TRUE)
 
   if (!is.null(attr(out, 'status')))

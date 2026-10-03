@@ -470,9 +470,10 @@ the SNP effects are.</p>
 <span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>                       <span class="at">use_mu_hat =</span> <span class="cn">TRUE</span>)   <span class="co"># add the base so DGV are on the GEBV scale</span></span>
 <span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a></span>
 <span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="fu">head</span>(predictions)   <span class="co"># data.frame(id, call_rate, dgv)</span></span></code></pre></div>
-<p>Reliabilities (<code>acc = TRUE</code>) additionally require an
-<code>OPTION snp_var</code> file from the GWAS run; see the package
-README “Known limitations”.</p>
+<p>For reliabilities (<code>acc = TRUE</code>), run
+<code>postgsf90()</code> with <code>snp_var = TRUE</code>. It then
+re-solves the model at the REML estimates, inverting the full mixed
+model equations, which takes memory and time on large models.</p>
 </div>
 <div id="bayesian-inference-and-other-workflows" class="section level2">
 <h2>Bayesian inference and other workflows</h2>

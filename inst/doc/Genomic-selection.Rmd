@@ -159,8 +159,9 @@ predictions <- predf90(snp_file   = "new_genotypes.txt",
 head(predictions)   # data.frame(id, call_rate, dgv)
 ```
 
-Reliabilities (`acc = TRUE`) additionally require an `OPTION snp_var` file from
-the GWAS run; see the package README "Known limitations".
+For reliabilities (`acc = TRUE`), run `postgsf90()` with `snp_var = TRUE`. It
+then re-solves the model at the REML estimates, inverting the full mixed model
+equations, which takes memory and time on large models.
 
 ## Bayesian inference and other workflows
 

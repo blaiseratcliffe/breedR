@@ -23,8 +23,12 @@ in BLUPF90 format (see \code{\link{write_snp_file}}).}
 comparable to GEBV (default TRUE).}
 
 \item{acc}{logical. Compute reliability of predictions (default FALSE).
-Requires \code{OPTION snp_p_value} in BLUPF90+ and
-\code{OPTION snp_var} in PostGSF90.}
+Requires the prediction error variances of the SNP effects, which
+\code{postgsf90(..., snp_var = TRUE)} writes in \code{dir} (files
+\code{snp_var_<correlated effect>_<trait>}). predf90 computes
+reliabilities with a fixed blending weight alpha = 0.95, which matches
+the default \code{AlphaBeta} of \code{\link{remlf90}}'s \code{genomic}
+list but not other values.}
 
 \item{acc_type}{numeric. 1.0 for dairy cattle (reliability) or 0.5 for
 beef cattle (BIF accuracy). Default 1.0.}

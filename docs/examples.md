@@ -239,7 +239,7 @@ predictions <- predf90(
 # Returns: data.frame(id, call_rate, dgv)
 ```
 
-Reliabilities (`acc = TRUE`) also need an `OPTION snp_var` file: see [Known limitations](../README.md#known-limitations).
+For reliabilities, run `postgsf90()` with `snp_var = TRUE` and call `predf90()` with `acc = TRUE`. `snp_var` (like `snp_p_value`) makes `postgsf90()` re-solve the model at the REML estimates, inverting the full mixed model equations, which takes memory and time on large models.
 
 ## Bayesian inference
 

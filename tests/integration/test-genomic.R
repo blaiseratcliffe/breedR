@@ -388,6 +388,81 @@ test_that("predf90 on a validation set leaves the training genotypes alone", {
   expect_identical(readLines(file.path(sibling, "genotypes.txt")), train_lines)
 })
 
+test_that("predf90 computes reliabilities from postgsf90(snp_var = TRUE) (#119)", {
+
+  rel_snp <- file.path(tempdir(), "test_predf90_acc_snp.txt")
+  write_snp_file(Gmat, ids = gen_ids, file = rel_snp)
+  file.remove(list.files(dirname(rel_snp), pattern = "_XrefID$",
+                         full.names = TRUE))
+  res.acc <- suppressMessages(
+    remlf90(fixed = phe_X ~ gg,
+            genetic = list(model = 'add_animal',
+                           pedigree = globulus[, 1:3], id = 'self'),
+            genomic = list(snp_file = rel_snp, verify_parentage = 0L,
+                           save_ginverse = TRUE),
+            data = globulus))
+  d <- res.acc$reml$dir
+  sol_md5 <- tools::md5sum(file.path(d, "solutions"))
+
+  gwas <- postgsf90(res.acc, snp_var = TRUE)
+
+  ## The variances postGSf90 computed the SNP prediction error variances at
+  ## are the REML estimates, not the starting values the fit's parameter file
+  ## holds. With the starting values the reliabilities came out about three
+  ## times too high, and nothing failed.
+  par <- readLines(file.path(d, "parameters_postgs"))
+  num <- function(head) as.numeric(par[which(par == head) + 1L])
+  start <- as.numeric(readLines(file.path(d, "parameters"))[
+    which(readLines(file.path(d, "parameters")) == "(CO)VARIANCES") + 1L])
+  expect_equal(num("(CO)VARIANCES"), res.acc$var["genetic", 1],
+               tolerance = 1e-6)
+  expect_equal(num("RANDOM_RESIDUAL VALUES"), res.acc$var["Residual", 1],
+               tolerance = 1e-6)
+  expect_false(isTRUE(all.equal(start, res.acc$var["genetic", 1])))
+
+  ## and so are those the inverse itself was computed at
+  blup <- readLines(file.path(d, "parameters_blup"))
+  expect_equal(as.numeric(blup[which(blup == "(CO)VARIANCES") + 1L]),
+               res.acc$var["genetic", 1], tolerance = 1e-6)
+  expect_equal(as.numeric(blup[which(blup == "RANDOM_RESIDUAL VALUES") + 1L]),
+               res.acc$var["Residual", 1], tolerance = 1e-6)
+
+  ## the fit's own solutions are left as they were
+  expect_identical(tools::md5sum(file.path(d, "solutions")), sol_md5)
+  ## and so are the SNP effects
+  expect_equal(gwas$snp_sol$solution, postgsf90(res.acc)$snp_sol$solution)
+
+  ## postgsf90(res.acc) above cleared them; ask again. One file per trait and
+  ## correlated effect: snp_var_1_1 for this single-trait model.
+  gwas <- postgsf90(res.acc, snp_var = TRUE)
+  expect_identical(list.files(d, "^snp_var_"), "snp_var_1_1")
+
+  new_snp <- file.path(tempdir(), "test_predf90_acc_new.txt")
+  set.seed(11)
+  write_snp_file(matrix(sample(0:2, 20 * nsnp, replace = TRUE,
+                               prob = c(0.25, 0.5, 0.25)), 20),
+                 ids = 900001:900020, file = new_snp)
+  pred <- predf90(snp_file = new_snp, dir = gwas$dir, acc = TRUE)
+  expect_equal(nrow(pred), 20L)
+  expect_true("reliability" %in% names(pred))
+  expect_true(all(is.finite(pred$reliability)))
+  expect_true(all(pred$reliability > 0 & pred$reliability < 1))
+
+  ## p-values, which needed the same inverse and so never worked
+  pv <- postgsf90(res.acc, snp_p_value = TRUE)
+  expect_equal(nrow(pv$pvalues), nsnp)
+  expect_true(all(is.finite(pv$pvalues$neg_log10_pval)))
+
+  ## A later call without them does not return the earlier ones
+  plain <- postgsf90(res.acc)
+  expect_null(plain$pvalues)
+  expect_length(list.files(d, "^snp_var_"), 0L)
+
+  ## and the option given the raw way works as well
+  postgsf90(res.acc, extra_options = "snp_var")
+  expect_length(list.files(d, "^snp_var_"), 1L)
+})
+
 test_that("predf90 errors without a prior postgsf90 run", {
   lone_snp <- file.path(tempdir(), "test_predf90_lone.txt")
   write_snp_file(Gmat, ids = gen_ids, file = lone_snp)

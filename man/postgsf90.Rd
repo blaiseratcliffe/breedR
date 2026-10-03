@@ -13,7 +13,8 @@ postgsf90(
   manhattan_plot = TRUE,
   snp_p_value = FALSE,
   postgs_trt_eff = NULL,
-  extra_options = NULL
+  extra_options = NULL,
+  snp_var = FALSE
 )
 }
 \arguments{
@@ -35,8 +36,7 @@ VanRaden (2009). If NULL (default), not computed.}
 
 \item{manhattan_plot}{logical. Generate Manhattan plot data (default TRUE).}
 
-\item{snp_p_value}{logical. Compute p-values. Requires large memory
-(default FALSE).}
+\item{snp_p_value}{logical. Compute p-values (default FALSE). See Details.}
 
 \item{postgs_trt_eff}{integer vector of length 2. Restrict analysis to
 specific trait and effect (c(trait, effect)). If NULL (default), all
@@ -44,6 +44,10 @@ traits/effects.}
 
 \item{extra_options}{character vector. Additional OPTION lines passed
 directly to PostGSF90.}
+
+\item{snp_var}{logical. Write the prediction error (co)variances of the SNP
+effects, which \code{\link{predf90}} needs to compute reliabilities with
+\code{acc = TRUE} (default FALSE). See Details.}
 }
 \value{
 A list with components:
@@ -73,4 +77,22 @@ The model must have been fitted with \code{save_ginverse = TRUE} in its
 \code{genomic} list; postGSf90 reads the saved genomic G-inverse. For
 chromosome/position information in the Manhattan output, supply a
 \code{map_file} at fit time.
+
+
+P-values (\code{snp_p_value}) and SNP prediction error variances
+(\code{snp_var}) are computed from the inverse of the mixed model
+equations. BLUPF90+ computes it only when solving at fixed variances, not
+while estimating them, so for either option \code{postgsf90()} first re-solves
+the model with BLUPF90+ at the REML estimates of \code{model} (OPTION method
+BLUP with OPTION snp_p_value). This inverts the full mixed model equations,
+which takes a lot of memory and time for large models. The same applies when
+\code{snp_p_value} or \code{snp_var} is given through
+\code{extra_options}. Do not put \code{snp_p_value} in the
+\code{progsf90.options} of \code{\link{remlf90}}: BLUPF90+ refuses it in a
+REML fit.
+
+The fit must have converged, and the options are not available for a
+model with heterogeneous residual variances (\code{\link{hetres_options}}).
+The SNP effects themselves do not depend on the variances and are the same
+with or without these options.
 }
